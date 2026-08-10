@@ -38,6 +38,11 @@ const envSchema = z.object({
   // AI (optional)
   OPENAI_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+
+  // Hermes AI Agent
+  HERMES_ENCRYPTION_SECRET: z.string().optional(), // falls back to ENCRYPTION_KEY
+  HERMES_S3_PREFIX: z.string().default('hermes'),
+  HERMES_S3_THRESHOLD_BYTES: z.coerce.number().default(10240),
 });
 
 export type Config = z.infer<typeof envSchema>;

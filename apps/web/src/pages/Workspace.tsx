@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, Download, X } from 'lucide-react';
 import { api } from '../api/client';
+import { useHermesStore } from '../store/hermesStore';
+import HermesIcon from '../components/hermes/HermesIcon';
 
 export default function Workspace() {
   const { id } = useParams<{ id: string }>();
@@ -10,6 +12,7 @@ export default function Workspace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const { attachWorkspace, detachWorkspace } = useHermesStore();
 
   useEffect(() => {
     if (!id) return;
@@ -22,6 +25,16 @@ export default function Workspace() {
         setError(err instanceof Error ? err.message : 'Failed to start workspace');
         setLoading(false);
       });
+  }, [id]);
+
+  // Bind Hermes workspace context when workspace is active
+  useEffect(() => {
+    if (!id) return;
+    attachWorkspace({
+      projectId: id,
+      workspaceRoot: `/workspaces/${id}`,
+    });
+    return () => detachWorkspace(); // detach on unmount / navigation
   }, [id]);
 
   return (
@@ -58,7 +71,9 @@ export default function Workspace() {
         >
           <Download size={13} />
         </a>
-      </div>
+
+        {/* Hermes AI Trigger */}
+        <HermesIcon /></div>
 
       {loading && (
         <div style={{

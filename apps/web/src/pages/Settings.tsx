@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Sun, Moon, Github, Shield, User as UserIcon, Check, HardDrive,
-  Palette as PaletteIcon, Snowflake, Flame, Zap, Droplets, Trees, Heart, Sparkles,
+  Palette as PaletteIcon, Snowflake, Flame, Zap, Droplets, Trees, Heart, Sparkles, Bot,
   type LucideIcon
 } from 'lucide-react';
 import { useAuthStore } from '../store';
@@ -100,6 +101,7 @@ const PALETTES: PaletteOption[] = [
 export default function Settings() {
   const { user, setUser, logout } = useAuthStore();
   const { theme, palette, setTheme, setPalette } = useThemeStore();
+  const navigate = useNavigate();
   const [connecting, setConnecting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -416,6 +418,37 @@ export default function Settings() {
             </button>
           </div>
         </section>
+
+        {/* ─── 5. Hermes AI Agent ──────────────────────────────────── */}
+        <motion.section
+          whileHover={{ y: -2 }}
+          className="glass-card"
+          style={{ padding: 28, cursor: 'pointer', background: 'linear-gradient(135deg, rgba(124,58,237,0.07), rgba(6,182,212,0.04))' }}
+          onClick={() => navigate('/settings/hermes')}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12,
+                background: 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(6,182,212,0.15))',
+                border: '1px solid rgba(124,58,237,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Bot size={24} style={{ color: 'var(--text-accent)' }} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  Hermes AI Agent
+                  <span style={{ fontSize: 10, padding: '2px 7px', background: 'rgba(124,58,237,0.15)', borderRadius: 12, color: 'var(--text-accent)', fontWeight: 700, letterSpacing: '0.05em' }}>NEW</span>
+                </h2>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Configure LLM provider, sandbox, memory, tools &amp; S3 archiving</p>
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-accent)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+              Configure →
+            </div>
+          </div>
+        </motion.section>
       </div>
     </div>
   );

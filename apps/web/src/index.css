@@ -1258,3 +1258,82 @@ code, .mono {
 .mb-4 { margin-bottom: var(--space-4); }
 .mb-6 { margin-bottom: var(--space-6); }
 .opacity-50 { opacity: 0.5; }
+
+/* ══════════════════════════════════════════════════════════════
+   Hermes AI Agent — CSS
+   ══════════════════════════════════════════════════════════════ */
+
+/* Drawer animations */
+@keyframes hermes-slide-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes hermes-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Streaming cursor blink */
+@keyframes hermes-cursor {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* Streaming pulse indicator */
+@keyframes hermes-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.4); opacity: 0.6; }
+}
+
+/* Spinner */
+.spin {
+  animation: hermes-spinner 0.8s linear infinite;
+}
+@keyframes hermes-spinner {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Hermes message markdown rendering */
+.hermes-message-content {
+  word-break: break-word;
+}
+
+.hermes-message-content .hermes-code-block {
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin: 8px 0;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.hermes-message-content .hermes-inline-code {
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--accent-2);
+}
+
+.hermes-message-content .hermes-para {
+  margin: 6px 0;
+}
+
+.hermes-message-content .hermes-list {
+  margin: 6px 0 6px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.hermes-message-content .hermes-h1 { font-size: 17px; font-weight: 700; margin: 10px 0 6px; color: var(--text-accent); }
+.hermes-message-content .hermes-h2 { font-size: 15px; font-weight: 700; margin: 8px 0 4px; }
+.hermes-message-content .hermes-h3 { font-size: 13px; font-weight: 700; margin: 6px 0 3px; }
+

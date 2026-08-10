@@ -23,7 +23,7 @@ services:
     volumes:
       - miniodata:/data
 
-  # Auto-create the bucket
+  # Auto-create the bucket and hermes prefix
   minio-init:
     image: minio/mc
     depends_on: [minio]
@@ -32,6 +32,7 @@ services:
         sleep 3;
         mc alias set local http://minio:9000 minioadmin minioadmin;
         mc mb local/clever-coder || true;
+        echo 'placeholder' | mc pipe local/clever-coder/hermes/.gitkeep || true;
         exit 0;
       "
 

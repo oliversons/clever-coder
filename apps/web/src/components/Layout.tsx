@@ -1,8 +1,9 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutDashboard, LogOut, Settings, Sun, Moon } from 'lucide-react';
+import { LayoutDashboard, LogOut, Settings, Sun, Moon, Bot } from 'lucide-react';
 import { useAuthStore } from '../store';
 import { useThemeStore } from '../store/themeStore';
 import { motion } from 'framer-motion';
+import HermesIcon from './hermes/HermesIcon';
 
 export default function Layout() {
   const { user, logout } = useAuthStore();
@@ -31,6 +32,10 @@ export default function Layout() {
             <Settings size={16} />
             Settings
           </NavLink>
+          <NavLink to="/settings/hermes" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+            <Bot size={16} />
+            Hermes AI
+          </NavLink>
         </nav>
 
         <div className="sidebar-user">
@@ -58,6 +63,9 @@ export default function Layout() {
           >
             {theme === 'dark' ? <Sun size={15} style={{ color: 'var(--warning)' }} /> : <Moon size={15} style={{ color: 'var(--text-accent)' }} />}
           </button>
+
+          {/* Hermes Trigger */}
+          <HermesIcon compact />
 
           {/* Logout Button */}
           <button

@@ -24,6 +24,8 @@ import { terminalRoutes } from './routes/terminal.js';
 import { extensionRoutes } from './routes/extensions.js';
 import { archiveRoutes } from './routes/archive.js';
 import { healthRoutes } from './routes/health.js';
+import { hermesRoutes } from './routes/hermes.js';
+import { hermesSettingsRoutes } from './routes/hermes-settings.js';
 import { verifyToken } from './middleware/auth.middleware.js';
 import { runMigrations } from './db/migrate.js';
 
@@ -103,6 +105,9 @@ async function bootstrap() {
   await fastify.register(terminalRoutes, { prefix: '/api/v1/projects' });
   await fastify.register(extensionRoutes, { prefix: '/api/v1/projects' });
   await fastify.register(archiveRoutes, { prefix: '/api/v1/projects' });
+  // ── Hermes AI Agent Routes ─────────────────────────────────────────────────
+  await fastify.register(hermesRoutes, { prefix: '/api/v1/hermes' });
+  await fastify.register(hermesSettingsRoutes, { prefix: '/api/v1/hermes' });
 
   // ── Workspace Proxy Routes (HTTP iframe embedding) ──────────────────────────
   fastify.all('/workspace/:id/*', async (request, reply) => {

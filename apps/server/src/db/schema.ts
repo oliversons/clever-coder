@@ -77,3 +77,93 @@ export type NewProject = typeof projects.$inferInsert;
 export type Session = typeof sessions.$inferSelect;
 export type SyncState = typeof syncStates.$inferSelect;
 export type Command = typeof commands.$inferSelect;
+
+// ── Hermes AI Agent Tables ────────────────────────────────────────────────────
+
+import { boolean } from 'drizzle-orm/pg-core';
+
+/** Per-user Hermes configuration */
+export const hermesSettings = pgTable('hermes_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+
+  // LLM Provider
+  provider: text('provider').notNull().default('openrouter'), // openrouter | openai | nous_portal | ollama
+  apiKeyEncrypted: text('api_key_encrypted'),                 // AES-256-GCM encrypted
+  model: text('model').notNull().default('nousresearch/hermes-3-llama-3.1-405b'),
+  temperature: integer('temperature').notNull().default(70),  // stored as 0-100, divide by 100
+  contextWindow: integer('context_window').notNull().default(128000),
+
+  // Execution & Sandbox
+  executionBackend: text('execution_backend').notNull().default('docker'), // local | docker | ssh
+  containerCpu: integer('container_cpu').notNull().default(2),
+  containerMemoryMb: integer('container_memory_mb').notNull().default(4096),
+  timeoutSeconds: integer('timeout_seconds').notNull().default(300),
+  commandApprovalMode: text('command_approval_mode').notNull().default('ask_destructive'), // always_ask | ask_destructive | auto_approve
+
+  // Memory & Skills
+  persistentMemory: boolean('persistent_memory').notNull().default(true),
+  autoSkillCreation: boolean('auto_skill_creation').notNull().default(false),
+  systemPrompt: text('system_prompt'),
+
+  // Tools
+  enabledTools: jsonb('enabled_tools')
+    .$type<string[]>()
+    .default(['shell', 'web_search', 'code_runner']),
+
+  // S3 Archiving
+  s3ArchivingEnabled: boolean('s3_archiving_enabled').notNull().default(true),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+/** Conversation sessions — global (projectId=NULL) or workspace-bound */
+export const hermesSessions = pgTable('hermes_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  projectId: uuid('project_id'), // NULL = Global Session
+  title: text('title').notNull().default('New Conversation'),
+  status: text('status').notNull().default('active'), // active | archived
+  contextSnapshot: jsonb('context_snapshot').$type<{
+    activeFilePath?: string;
+    gitBranch?: string;
+    workspaceRoot?: string;
+  }>(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+/** Individual messages within a session */
+export const hermesMessages = pgTable('hermes_messages', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  sessionId: uuid('session_id')
+    .notNull()
+    .references(() => hermesSessions.id, { onDelete: 'cascade' }),
+  role: text('role').notNull(), // user | assistant | system | tool
+  content: text('content').notNull(),
+  toolCalls: jsonb('tool_calls').$type<Array<{
+    id: string;
+    name: string;
+    args: Record<string, unknown>;
+    result?: unknown;
+    status: 'pending' | 'approved' | 'rejected' | 'completed' | 'error';
+    output?: string;
+  }>>(),
+  s3ArtifactKey: text('s3_artifact_key'), // set when content was offloaded to S3
+  tokenUsage: jsonb('token_usage').$type<{ prompt: number; completion: number }>(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export type HermesSettings = typeof hermesSettings.$inferSelect;
+export type NewHermesSettings = typeof hermesSettings.$inferInsert;
+export type HermesSession = typeof hermesSessions.$inferSelect;
+export type NewHermesSession = typeof hermesSessions.$inferInsert;
+export type HermesMessage = typeof hermesMessages.$inferSelect;
+export type NewHermesMessage = typeof hermesMessages.$inferInsert;
+
