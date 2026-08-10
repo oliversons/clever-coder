@@ -79,11 +79,6 @@ export async function startWorkspace(projectId: string): Promise<number> {
     '--disable-telemetry',
     '--disable-update-check',
     '--disable-workspace-trust',
-    // Tell code-server the external path prefix it is served under.
-    // Without this, code-server generates internal API and resource URLs
-    // relative to '/', so vscode-remote:// file system requests fail with
-    // 'Unable to resolve resource'.
-    `--server-base-path=/workspace/${projectId}`,
     '--user-data-dir', userDataDir,
     '--extensions-dir', extensionsDir,
     workspacePath,
