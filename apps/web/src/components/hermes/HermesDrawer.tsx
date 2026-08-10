@@ -17,6 +17,7 @@ import {
   MessageSquare, ChevronLeft, Bot, Paperclip, PaperclipIcon,
 } from 'lucide-react';
 import { useHermesStore } from '../../store/hermesStore';
+import { api, type Project } from '../../api/client';
 import ToolExecutionCard from './ToolExecutionCard';
 import HermesDiffViewer from './HermesDiffViewer';
 
@@ -62,13 +63,17 @@ export default function HermesDrawer() {
 
   const [input, setInput] = useState('');
   const [showSessions, setShowSessions] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load sessions when drawer opens
+  // Load sessions and projects list when drawer opens
   useEffect(() => {
     if (isDrawerOpen) {
       loadSessions(workspaceContext?.projectId);
+      api.projects.list()
+        .then((list) => setProjects(list || []))
+        .catch((err) => console.warn('[Hermes] Failed to load projects:', err));
     }
   }, [isDrawerOpen, workspaceContext?.projectId]);
 
@@ -193,52 +198,67 @@ export default function HermesDrawer() {
           </div>
         </div>
 
-        {/* ── Context Bar ─────────────────────────────────────────────────── */}
+        {/* ── Context Bar / Target Workspace Selector ─────────────────────── */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
-          padding: '8px 16px',
+          padding: '8px 14px',
           background: 'var(--bg-elevated)',
           borderBottom: '1px solid var(--border)',
           flexShrink: 0,
         }}>
-          {mode === 'workspace' && workspaceContext ? (
-            <>
-              <FolderOpen size={13} style={{ color: 'var(--success)', flexShrink: 0 }} />
-              <div style={{ flex: 1, fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{workspaceContext.projectName}</span>
-                {workspaceContext.activeFilePath && <span style={{ color: 'var(--text-muted)' }}> · {workspaceContext.activeFilePath.split('/').pop()}</span>}
-              </div>
-              <button
-                type="button"
-                onClick={detachWorkspace}
-                style={{
-                  fontSize: 10, fontWeight: 700, padding: '2px 8px',
-                  background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-                  borderRadius: 4, color: 'var(--danger)', cursor: 'pointer', whiteSpace: 'nowrap',
-                }}
-              >
-                Detach
-              </button>
-            </>
-          ) : (
-            <>
-              <Globe size={13} style={{ color: 'var(--text-muted)' }} />
-              <span style={{ flex: 1, fontSize: 11, color: 'var(--text-muted)' }}>No workspace attached</span>
-              <button
-                type="button"
-                onClick={() => {
-                  /* Context available from Workspace.tsx via hermesStore */
-                }}
-                style={{
-                  fontSize: 10, fontWeight: 700, padding: '2px 8px',
-                  background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)',
-                  borderRadius: 4, color: 'var(--text-accent)', cursor: 'pointer', whiteSpace: 'nowrap', opacity: 0.6,
-                }}
-                disabled
-              >
-                Open a workspace to attach
-              </button>
-            </>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, flexShrink: 0 }}>
+            📂 Target Workspace:
+          </span>
+          <select
+            id="hermes-workspace-select"
+            value={workspaceContext?.projectId || ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (!val) {
+                detachWorkspace();
+              } else {
+                const selected = projects.find((p) => p.id === val);
+                if (selected) {
+                  attachWorkspace({
+                    projectId: selected.id,
+                    projectName: selected.name,
+                    workspaceRoot: `/workspaces/${selected.id}`,
+                    gitBranch: selected.defaultBranch || 'main',
+                  });
+                }
+              }
+            }}
+            style={{
+              flex: 1, minWidth: 0,
+              fontSize: 11,
+              padding: '4px 8px',
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-primary)',
+              outline: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            <option value="">🌐 None (Global Assistant)</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                📁 {p.name}
+              </option>
+            ))}
+          </select>
+          {workspaceContext?.projectId && (
+            <button
+              type="button"
+              onClick={detachWorkspace}
+              style={{
+                fontSize: 10, fontWeight: 700, padding: '3px 8px',
+                background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: 4, color: 'var(--danger)', cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              Detach
+            </button>
           )}
         </div>
 
