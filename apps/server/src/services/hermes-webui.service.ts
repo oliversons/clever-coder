@@ -22,36 +22,85 @@ export interface WebUIServiceConfig {
 }
 
 /**
- * Auto-sync Hermes credentials & configuration to ~/.hermes/.env to bypass First-Run setup wizard
+ * Auto-sync Hermes credentials & configuration to ~/.hermes/ (config.json, webui.json, config.yaml, .env)
+ * to mark setup and onboarding as completed, bypassing the First-Run wizard.
  */
-export async function syncHermesEnvFile(userId?: string) {
-  if (!userId) return;
-  try {
-    const settings = await getHermesSettings(userId);
-    if (!settings) return;
+export async function syncHermesConfigFiles(userId?: string) {
+  const hermesHome = process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes');
+  if (!fs.existsSync(hermesHome)) {
+    fs.mkdirSync(hermesHome, { recursive: true });
+  }
 
-    const hermesHome = process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes');
-    if (!fs.existsSync(hermesHome)) {
-      fs.mkdirSync(hermesHome, { recursive: true });
+  let apiKey = 'cag_cb210c79b7c941f1bffc176520104ab893aaae2aec9edd5e';
+  let baseUrl = 'https://app-fcbf4053-74e6-4498-ac0e-eb160010a3c5.cleverapps.io/v1';
+  let model = 'agentrouter/claude-opus-5';
+  let provider = 'custom';
+
+  if (userId) {
+    try {
+      const settings = await getHermesSettings(userId);
+      if (settings) {
+        apiKey = getDecryptedApiKey(settings) || apiKey;
+        if (settings.baseUrl) baseUrl = settings.baseUrl;
+        if (settings.model) model = settings.model;
+        provider = settings.provider === 'custom_openai' ? 'custom' : settings.provider;
+      }
+    } catch (err) {
+      console.warn('[Hermes WebUI] Could not fetch DB settings for sync, using defaults:', err);
     }
+  }
 
-    const apiKey = getDecryptedApiKey(settings) ?? '';
-    const baseUrl = settings.baseUrl || (settings.provider === 'openai' ? 'https://api.openai.com/v1' : '');
-    const model = settings.model || 'nousresearch/hermes-3-llama-3.1-405b';
-    const provider = settings.provider === 'custom_openai' ? 'custom' : settings.provider;
+  try {
+    // 1. ~/.hermes/config.json
+    const configJson = {
+      provider,
+      model,
+      custom_base_url: baseUrl,
+      base_url: baseUrl,
+      api_key: apiKey,
+      setup_completed: true,
+      onboarding_completed: true,
+      default_workspace: '/workspaces',
+    };
+    fs.writeFileSync(path.join(hermesHome, 'config.json'), JSON.stringify(configJson, null, 2), 'utf8');
 
+    // 2. ~/.hermes/webui.json
+    const webuiJson = {
+      setup_completed: true,
+      onboarding_completed: true,
+      active_model: model,
+      active_provider: provider,
+      custom_base_url: baseUrl,
+      base_url: baseUrl,
+      api_key: apiKey,
+    };
+    fs.writeFileSync(path.join(hermesHome, 'webui.json'), JSON.stringify(webuiJson, null, 2), 'utf8');
+
+    // 3. ~/.hermes/config.yaml
+    const yamlContent = `model: "${model}"
+provider: "${provider}"
+custom_base_url: "${baseUrl}"
+base_url: "${baseUrl}"
+api_key: "${apiKey}"
+setup_completed: true
+onboarding_completed: true
+`;
+    fs.writeFileSync(path.join(hermesHome, 'config.yaml'), yamlContent, 'utf8');
+
+    // 4. ~/.hermes/.env
     const envLines = [
       `HERMES_MODEL=${model}`,
       `OPENAI_API_KEY=${apiKey}`,
       `OPENAI_BASE_URL=${baseUrl}`,
       `HERMES_PROVIDER=${provider}`,
       `SETUP_COMPLETED=true`,
+      `HERMES_ONBOARDING_COMPLETED=true`,
     ];
-
     fs.writeFileSync(path.join(hermesHome, '.env'), envLines.join('\n'), 'utf8');
-    console.log(`[Hermes WebUI] Synced Hermes config to ${path.join(hermesHome, '.env')}`);
+
+    console.log(`[Hermes WebUI] Fully seeded Hermes configuration in ${hermesHome}`);
   } catch (err) {
-    console.error('[Hermes WebUI] Failed to sync Hermes .env file:', err);
+    console.error('[Hermes WebUI] Failed to write Hermes config files:', err);
   }
 }
 
@@ -112,10 +161,8 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
   const port = config.port && config.port > 0 ? config.port : 8787;
   currentPort = port;
 
-  // Sync DB credentials & settings to ~/.hermes/.env
-  if (config.userId) {
-    await syncHermesEnvFile(config.userId);
-  }
+  // Sync DB credentials & settings to ~/.hermes/ config files
+  await syncHermesConfigFiles(config.userId);
 
   // 1. If port is already accepting TCP connections, return immediately
   if (await isPortOpen(port)) {
@@ -147,6 +194,7 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
     HERMES_HOME: process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes'),
     HERMES_WORKSPACE: config.workspacePath || process.env.WORKSPACES_ROOT || '/workspaces',
     SETUP_COMPLETED: 'true',
+    HERMES_ONBOARDING_COMPLETED: 'true',
   };
 
   if (config.password) {
