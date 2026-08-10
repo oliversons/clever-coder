@@ -23,6 +23,7 @@ function getOrCreateProxy(port: number) {
     target: `http://127.0.0.1:${port}`,
     changeOrigin: true,
     ws: true,
+    xfwd: true,
     on: {
       error: (err, _req, res) => {
         const r = res as ServerResponse;
@@ -81,9 +82,12 @@ export async function createWorkspaceProxy(
   touchWorkspace(projectId);
 
   const proxy = getOrCreateProxy(port);
-  // Rewrite path: strip /workspace/:id prefix
   const originalUrl = req.url ?? '/';
   req.url = originalUrl.replace(new RegExp(`^/workspace/${projectId}`), '') || '/';
+
+  // Override Host & Origin so code-server sees requests as same-origin
+  req.headers.host = `127.0.0.1:${port}`;
+  req.headers.origin = `http://127.0.0.1:${port}`;
 
   (proxy as unknown as (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void)(req, res, (err?: unknown) => {
     if (err) {
@@ -113,6 +117,10 @@ export function proxyWorkspaceUpgrade(
   const proxy = getOrCreateProxy(port);
   const originalUrl = req.url ?? '/';
   req.url = originalUrl.replace(new RegExp(`^/workspace/${projectId}`), '') || '/';
+
+  // Override Host & Origin headers so code-server's WebSocket origin check passes
+  req.headers.host = `127.0.0.1:${port}`;
+  req.headers.origin = `http://127.0.0.1:${port}`;
 
   if (typeof proxy.ws === 'function') {
     proxy.ws(req, socket, head);

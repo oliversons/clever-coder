@@ -78,6 +78,7 @@ export async function startWorkspace(projectId: string): Promise<number> {
     '--auth', 'none',
     '--disable-telemetry',
     '--disable-update-check',
+    '--disable-workspace-trust',
     '--user-data-dir', userDataDir,
     '--extensions-dir', extensionsDir,
     workspacePath,
@@ -187,7 +188,6 @@ async function waitForPort(
 ): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    // Check if process exited early
     if (proc.exitCode !== null || proc.killed) {
       const logs = entry.stderr.join('').trim();
       throw new Error(`code-server process exited prematurely with code ${proc.exitCode}: ${logs || 'No log output'}`);
@@ -195,7 +195,6 @@ async function waitForPort(
 
     const free = await isPortFree(port);
     if (!free) {
-      // Confirm HTTP readiness
       const ready = await checkHttpReady(port);
       if (ready) return;
     }
@@ -211,7 +210,6 @@ async function checkHttpReady(port: number): Promise<boolean> {
     const res = await fetch(`http://127.0.0.1:${port}/healthz`, { signal: AbortSignal.timeout(1000) });
     return res.status === 200 || res.status === 302;
   } catch {
-    // Also test root / if healthz returns non-200
     try {
       const res = await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(1000) });
       return res.status < 500;
