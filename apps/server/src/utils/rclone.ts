@@ -1,15 +1,11 @@
-import { spawn, exec } from 'child_process';
-import { promisify } from 'util';
+import { spawn } from 'child_process';
 import { config } from '../config.js';
 import { join } from 'path';
 import { existsSync, writeFileSync, mkdirSync, readdirSync } from 'fs';
 import pRetry from 'p-retry';
 
-const execAsync = promisify(exec);
-
 const RCLONE_CONF_PATH = '/app/rclone.conf';
 const RCLONE_CACHE_DIR = '/app/rclone-cache';
-const RCLONE_WORKDIR = '/app/rclone-cache/bisync';
 
 export function setupRcloneConfig(): void {
   const host = config.CELLAR_ADDON_HOST.replace(/^https?:\/\//, '');
@@ -27,7 +23,6 @@ no_check_bucket = false
 `;
 
   mkdirSync(RCLONE_CACHE_DIR, { recursive: true });
-  mkdirSync(RCLONE_WORKDIR, { recursive: true });
   writeFileSync(RCLONE_CONF_PATH, conf, { mode: 0o600 });
   console.log('[rclone] Config written to', RCLONE_CONF_PATH);
 }
@@ -40,34 +35,16 @@ function getLocalPath(projectId: string): string {
   return join(config.WORKSPACES_ROOT, projectId);
 }
 
-function hasPriorListing(projectId: string): boolean {
-  if (!existsSync(RCLONE_WORKDIR)) return false;
-  try {
-    const files = readdirSync(RCLONE_WORKDIR);
-    return files.some((f) => f.includes(projectId) && f.endsWith('.lst'));
-  } catch {
-    return false;
-  }
-}
-
-function getBaseBisyncArgs(projectId: string): string[] {
-  const localPath = getLocalPath(projectId);
-  const remote = getRcloneRemote(projectId);
+/** Common filter args to exclude noisy / transient files from sync */
+function getCommonFilters(): string[] {
   return [
-    'bisync',
-    localPath,
-    remote,
-    '--config', RCLONE_CONF_PATH,
-    '--cache-dir', RCLONE_CACHE_DIR,
-    '--workdir', RCLONE_WORKDIR,
     '--filter', '- *.log',
     '--filter', '- *.sock',
+    '--filter', '- *.pid',
     '--filter', '- node_modules/**',
-    '--conflict-resolve', 'newer',
-    '--max-delete', '50',
-    '--transfers', '16',
-    '--checkers', '16',
-    '-v',
+    '--filter', '- .git/objects/**',
+    '--filter', '- .git/refs/**',
+    '--filter', '+ **',
   ];
 }
 
@@ -77,6 +54,11 @@ export interface SyncResult {
   duration: number;
 }
 
+/**
+ * RESTORE: Download all workspace files from Cellar S3 → local directory.
+ * Uses `rclone copy` (remote → local). Does NOT delete local files not in remote.
+ * Safe to run on fresh or existing workspace.
+ */
 export async function downloadWorkspaceFromCellar(projectId: string): Promise<SyncResult> {
   const localPath = getLocalPath(projectId);
   const remote = getRcloneRemote(projectId);
@@ -88,107 +70,76 @@ export async function downloadWorkspaceFromCellar(projectId: string): Promise<Sy
     localPath,
     '--config', RCLONE_CONF_PATH,
     '--cache-dir', RCLONE_CACHE_DIR,
-    '--filter', '- *.log',
-    '--filter', '- *.sock',
+    ...getCommonFilters(),
     '--transfers', '16',
+    '--checkers', '16',
     '-v',
   ];
 
+  console.log(`[rclone] Downloading workspace ${projectId} from Cellar S3...`);
   return rcloneRun(args, `download:${projectId}`);
 }
 
+/**
+ * BACKUP: Upload local workspace files → Cellar S3.
+ * Uses `rclone sync` (local → remote). Deletes remote files not in local.
+ * Used for full-backup after clone, and periodic saves.
+ */
 export async function uploadWorkspaceToCellar(projectId: string): Promise<SyncResult> {
   const localPath = getLocalPath(projectId);
   const remote = getRcloneRemote(projectId);
   if (!existsSync(localPath)) return { success: true, duration: 0 };
 
   const args = [
-    'copy',
+    'sync',
     localPath,
     remote,
     '--config', RCLONE_CONF_PATH,
     '--cache-dir', RCLONE_CACHE_DIR,
-    '--filter', '- *.log',
-    '--filter', '- *.sock',
-    '--filter', '- node_modules/**',
+    ...getCommonFilters(),
     '--transfers', '16',
+    '--checkers', '16',
     '-v',
   ];
 
+  console.log(`[rclone] Uploading workspace ${projectId} to Cellar S3...`);
   return rcloneRun(args, `upload:${projectId}`);
 }
 
+/**
+ * RESTORE WORKSPACE: Called on container boot or when workspace is accessed.
+ * Downloads files from Cellar S3 → local. No bisync, no --resync, no data loss.
+ */
 export async function restoreWorkspace(
   projectId: string,
-  isFirstSync: boolean,
+  _isFirstSync: boolean,
 ): Promise<SyncResult> {
   const localPath = getLocalPath(projectId);
   mkdirSync(localPath, { recursive: true });
-  mkdirSync(RCLONE_WORKDIR, { recursive: true });
-
-  // If restoring for the first time or on a fresh boot, first download any existing files from Cellar
-  if (isFirstSync) {
-    await downloadWorkspaceFromCellar(projectId);
-  }
-
-  const args = getBaseBisyncArgs(projectId);
-
-  // If first sync or if this container has no prior listing in workdir, pass --resync
-  if (isFirstSync || !hasPriorListing(projectId)) {
-    args.push('--resync');
-  }
-
-  const result = await rcloneRun(args, `restore:${projectId}`);
-
-  // Auto-recover if bisync requires --resync due to missing listings
-  if (!result.success && shouldResync(result.error)) {
-    console.warn(`[rclone:restore:${projectId}] Bisync requires --resync. Retrying with --resync...`);
-    return rcloneRun([...getBaseBisyncArgs(projectId), '--resync'], `restore:${projectId}:resync`);
-  }
-
-  return result;
+  return downloadWorkspaceFromCellar(projectId);
 }
 
+/**
+ * SYNC WORKSPACE: Called periodically and on file changes.
+ * Uploads local files → Cellar S3 to persist all changes.
+ */
 export async function syncWorkspace(projectId: string): Promise<SyncResult> {
   const localPath = getLocalPath(projectId);
   if (!existsSync(localPath)) return { success: true, duration: 0 };
-  mkdirSync(RCLONE_WORKDIR, { recursive: true });
 
-  const args = getBaseBisyncArgs(projectId);
-
-  // If no prior listing exists in this container, pass --resync directly
-  if (!hasPriorListing(projectId)) {
-    args.push('--resync');
-  }
-
-  const runWithResyncFallback = async () => {
-    const res = await rcloneRun(args, `sync:${projectId}`);
-    if (!res.success && shouldResync(res.error)) {
-      console.warn(`[rclone:sync:${projectId}] Bisync requires --resync. Retrying with --resync...`);
-      return rcloneRun([...getBaseBisyncArgs(projectId), '--resync'], `sync:${projectId}:resync`);
-    }
+  const run = async () => {
+    const res = await uploadWorkspaceToCellar(projectId);
     if (!res.success) {
-      throw new Error(res.error || 'Sync failed');
+      throw new Error(res.error || 'Sync upload failed');
     }
     return res;
   };
 
   try {
-    return await pRetry(runWithResyncFallback, { retries: 2, minTimeout: 1000, factor: 2 });
+    return await pRetry(run, { retries: 3, minTimeout: 2000, factor: 2 });
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Sync failed', duration: 0 };
   }
-}
-
-function shouldResync(error?: string): boolean {
-  if (!error) return false;
-  const lower = error.toLowerCase();
-  return (
-    lower.includes('bisync aborted') ||
-    lower.includes('cannot find prior') ||
-    lower.includes('must run --resync') ||
-    lower.includes('critical error')
-  );
 }
 
 async function rcloneRun(args: string[], label: string): Promise<SyncResult> {
@@ -196,13 +147,15 @@ async function rcloneRun(args: string[], label: string): Promise<SyncResult> {
   return new Promise((resolve) => {
     const proc = spawn('rclone', args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = '';
+    let stdout = '';
+    proc.stdout?.on('data', (d: Buffer) => (stdout += d.toString()));
     proc.stderr.on('data', (d: Buffer) => (stderr += d.toString()));
     proc.on('close', (code) => {
       const duration = Date.now() - start;
       if (code === 0) {
         resolve({ success: true, duration });
       } else {
-        console.error(`[rclone:${label}] exit ${code}: ${stderr}`);
+        console.error(`[rclone:${label}] exit ${code}: ${stderr.slice(-600)}`);
         resolve({ success: false, error: stderr.slice(-500), duration });
       }
     });

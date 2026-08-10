@@ -21,26 +21,28 @@ export async function initWorkspaceFromCellar(projectId: string): Promise<void> 
   const isFirst = !syncState || syncState.isFirstSync === 'true';
 
   console.log(`[sync] Restoring workspace ${projectId} (first=${isFirst})`);
+
+  // Always attempt restore — uses rclone copy (remote→local), never wipes local files
   const result = await restoreWorkspace(projectId, isFirst);
 
-  if (result.success) {
-    await db.insert(schema.syncStates).values({
-      projectId,
+  await db.insert(schema.syncStates).values({
+    projectId,
+    isFirstSync: 'false',
+    lastOkAt: result.success ? new Date() : undefined,
+    lastError: result.success ? null : result.error,
+  }).onConflictDoUpdate({
+    target: schema.syncStates.projectId,
+    set: {
       isFirstSync: 'false',
-      lastOkAt: new Date(),
-    }).onConflictDoUpdate({
-      target: schema.syncStates.projectId,
-      set: { isFirstSync: 'false', lastOkAt: new Date(), lastError: null },
-    });
-  } else {
-    await db.insert(schema.syncStates).values({
-      projectId,
-      lastError: result.error,
-    }).onConflictDoUpdate({
-      target: schema.syncStates.projectId,
-      set: { lastError: result.error, updatedAt: new Date() },
-    });
-    throw new Error(`Restore failed: ${result.error}`);
+      lastOkAt: result.success ? new Date() : undefined,
+      lastError: result.success ? null : result.error,
+      updatedAt: new Date(),
+    },
+  });
+
+  if (!result.success) {
+    // Log the error but don't throw — workspace can still function with local files
+    console.error(`[sync] Cellar restore for ${projectId} returned error: ${result.error}. Continuing with local files.`);
   }
 }
 
