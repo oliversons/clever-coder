@@ -53,12 +53,28 @@ async function syncUserSpacesAndWorkspaces(userId: string, activeProjectId?: str
     where: eq(schema.projects.userId, userId),
   });
 
-  // 1. Pull/restore all user project workspaces from Cellar S3 to local container disk
+  // 1. Pull/restore all user project workspaces from Cellar S3 & create human-readable symlinks
   for (const proj of userProjects) {
     try {
       console.log(`📥 [Hermes WebUI] Restoring workspace ${proj.name} (${proj.id}) from Cellar S3...`);
       await ensureWorkspaceFiles(proj.id);
       startWatcher(proj.id);
+
+      // Create human-readable symlink (e.g., /workspaces/website_to_book -> /workspaces/b7d4da0e-...)
+      const realPath = join(config.WORKSPACES_ROOT, proj.id);
+      const cleanName = proj.name.trim().replace(/[^a-zA-Z0-9._-]/g, '_');
+      const namedPath = join(config.WORKSPACES_ROOT, cleanName);
+
+      if (fs.existsSync(realPath) && realPath !== namedPath) {
+        try {
+          if (!fs.existsSync(namedPath)) {
+            fs.symlinkSync(realPath, namedPath, 'dir');
+            console.log(`🔗 [Hermes WebUI] Created symlink ${namedPath} → ${realPath}`);
+          }
+        } catch {
+          // ignore symlink errors if already exists or invalid
+        }
+      }
     } catch (err) {
       console.warn(`[Hermes WebUI] Failed to restore workspace ${proj.id} from Cellar S3:`, err);
     }
@@ -70,36 +86,48 @@ async function syncUserSpacesAndWorkspaces(userId: string, activeProjectId?: str
     targetProject = userProjects[0];
   }
 
-  const activePath = targetProject ? join(config.WORKSPACES_ROOT, targetProject.id) : config.WORKSPACES_ROOT;
   const activeName = targetProject?.name || 'Home';
+  const activeCleanName = targetProject ? targetProject.name.trim().replace(/[^a-zA-Z0-9._-]/g, '_') : '';
+  const activeNamedPath = activeCleanName ? join(config.WORKSPACES_ROOT, activeCleanName) : '';
+  const activeRealPath = targetProject ? join(config.WORKSPACES_ROOT, targetProject.id) : config.WORKSPACES_ROOT;
+  const activePath = (activeNamedPath && fs.existsSync(activeNamedPath)) ? activeNamedPath : activeRealPath;
 
-  // Ensure root workspace directory exists
+  // Ensure active workspace directory exists
   if (!fs.existsSync(activePath)) {
     fs.mkdirSync(activePath, { recursive: true });
   }
 
-  // 3. Pre-seed ~/.hermes/spaces.json & workspaces.json so Hermes WebUI displays all project workspaces
+  // 3. Pre-seed ~/.hermes/spaces.json & workspaces.json with human-readable workspace paths
   const hermesHome = process.env.HERMES_HOME || resolve(process.env.HOME || '/root', '.hermes');
   if (!fs.existsSync(hermesHome)) {
     fs.mkdirSync(hermesHome, { recursive: true });
   }
 
+  const spaceEntries = userProjects.map((p) => {
+    const cleanName = p.name.trim().replace(/[^a-zA-Z0-9._-]/g, '_');
+    const namedPath = join(config.WORKSPACES_ROOT, cleanName);
+    const realPath = join(config.WORKSPACES_ROOT, p.id);
+    const itemPath = fs.existsSync(namedPath) ? namedPath : realPath;
+    const isActive = p.id === targetProject?.id || p.name === activeName;
+    return {
+      name: p.name,
+      path: itemPath,
+      status: isActive ? 'ACTIVE' : 'INACTIVE',
+    };
+  });
+
+  // If activeName is not in userProjects list (e.g. Home), add it
+  if (!spaceEntries.some((s) => s.name === activeName)) {
+    spaceEntries.unshift({
+      name: activeName,
+      path: activePath,
+      status: 'ACTIVE',
+    });
+  }
+
   const spacesConfig = {
     active_space: activeName,
-    spaces: [
-      {
-        name: activeName,
-        path: activePath,
-        status: 'ACTIVE',
-      },
-      ...userProjects
-        .filter((p) => p.id !== targetProject?.id)
-        .map((p) => ({
-          name: p.name,
-          path: join(config.WORKSPACES_ROOT, p.id),
-          status: 'INACTIVE',
-        })),
-    ],
+    spaces: spaceEntries,
   };
 
   try {
