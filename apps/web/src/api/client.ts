@@ -33,13 +33,20 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       }),
-    me: () => request<{ id: string; email: string }>('/auth/me'),
+    me: () => request<{
+      id: string;
+      email: string;
+      name: string;
+      avatarUrl?: string;
+      hasGithubToken?: boolean;
+    }>('/auth/me'),
     logout: () => request('/auth/logout', { method: 'POST' }),
-    githubStart: () => { window.location.href = '/api/v1/auth/github/start'; },
+    githubStartUrl: () => '/api/v1/auth/github/start',
   },
 
   projects: {
     list: () => request<Project[]>('/projects'),
+    listGithubRepos: () => request<GithubRepo[]>('/projects/github/repos'),
     get: (id: string) => request<Project>(`/projects/${id}`),
     update: (id: string, data: Partial<Project>) =>
       request<Project>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -81,6 +88,17 @@ export interface Project {
   updatedAt: string;
 }
 
+export interface GithubRepo {
+  id: number;
+  name: string;
+  fullName: string;
+  isPrivate: boolean;
+  htmlUrl: string;
+  cloneUrl: string;
+  description: string | null;
+  updatedAt: string;
+}
+
 export interface GitStatus {
   branch?: string;
   modified: string[];
@@ -94,6 +112,29 @@ export interface GitStatus {
 export interface Extension {
   id: string;
   path: string;
+}
+
+// OAuth Popup helper
+export function openGithubOAuthPopup(onSuccess?: () => void) {
+  const width = 600;
+  const height = 700;
+  const left = window.screen.width / 2 - width / 2;
+  const top = window.screen.height / 2 - height / 2;
+
+  window.open(
+    api.auth.githubStartUrl(),
+    'github_oauth_popup',
+    `width=${width},height=${height},top=${top},left=${left},status=no,menubar=no,toolbar=no`,
+  );
+
+  const handleMessage = (event: MessageEvent) => {
+    if (event.data?.type === 'GITHUB_AUTH_SUCCESS') {
+      window.removeEventListener('message', handleMessage);
+      onSuccess?.();
+    }
+  };
+
+  window.addEventListener('message', handleMessage);
 }
 
 // SSE helper for project creation

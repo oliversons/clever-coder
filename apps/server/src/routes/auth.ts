@@ -5,6 +5,7 @@ import {
   refreshSession,
   revokeSession,
   upsertGithubUser,
+  getUserById,
 } from '../services/auth.service.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { config } from '../config.js';
@@ -74,7 +75,14 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   // Me
   fastify.get('/me', { preHandler: [authMiddleware] }, async (request) => {
     const user = (request as typeof request & { user: { sub: string; email: string } }).user;
-    return { id: user.sub, email: user.email };
+    const dbUser = await getUserById(user.sub);
+    return {
+      id: user.sub,
+      email: user.email,
+      name: dbUser?.name ?? user.email,
+      avatarUrl: dbUser?.avatarUrl ?? null,
+      hasGithubToken: Boolean(dbUser?.githubTokenEnc),
+    };
   });
 
   // GitHub OAuth Start
@@ -90,7 +98,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     reply.redirect(`https://github.com/login/oauth/authorize?${params}`);
   });
 
-  // GitHub OAuth Callback
+  // GitHub OAuth Callback — Popup friendly
   fastify.get('/github/callback', async (request, reply) => {
     const { code } = request.query as { code?: string };
     if (!code || !config.GITHUB_CLIENT_ID || !config.GITHUB_CLIENT_SECRET) {
@@ -127,7 +135,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         headers: { Authorization: `Bearer ${tokenData.access_token}`, 'User-Agent': 'clever-coder' },
       });
       const emails = await emailRes.json() as Array<{ email: string; primary: boolean }>;
-      email = emails.find(e => e.primary)?.email ?? `${ghUser.login}@github.local`;
+      email = emails?.find?.(e => e.primary)?.email ?? `${ghUser.login}@github.local`;
     }
 
     const { accessToken, refreshToken } = await upsertGithubUser(
@@ -139,7 +147,52 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     );
 
     setAuthCookies(reply, accessToken, refreshToken);
-    reply.redirect(`${config.PUBLIC_URL}/dashboard`);
+
+    // Popup-friendly HTML response
+    reply.type('text/html').send(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>GitHub Connected — CleverCoder</title>
+  <style>
+    body {
+      background: #0a0c14;
+      color: #f0f4ff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(124, 58, 237, 0.2);
+      border-top-color: #7c3aed;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="spinner"></div>
+  <p>GitHub connected successfully!</p>
+  <script>
+    if (window.opener) {
+      window.opener.postMessage({ type: 'GITHUB_AUTH_SUCCESS', accessToken: '${accessToken}' }, '*');
+      setTimeout(() => window.close(), 400);
+    } else {
+      window.location.href = '${config.PUBLIC_URL}/dashboard';
+    }
+  </script>
+</body>
+</html>
+    `);
   });
 };
 

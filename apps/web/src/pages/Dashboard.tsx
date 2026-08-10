@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, RefreshCw, Github, Code2, Terminal, Download, Trash2, GitBranch } from 'lucide-react';
-import { useProjectStore } from '../store';
-import { api, type Project, createProjectSSE } from '../api/client';
+import { Plus, RefreshCw, Github, Code2, Download, Trash2, Lock, Unlock, ExternalLink } from 'lucide-react';
+import { useProjectStore, useAuthStore } from '../store';
+import { api, type Project, type GithubRepo, openGithubOAuthPopup, createProjectSSE } from '../api/client';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function Dashboard() {
@@ -45,7 +45,7 @@ export default function Dashboard() {
       <div className="page-header">
         <div>
           <h1 className="page-title">My Workspaces</h1>
-          <p className="page-subtitle">Manage your GitHub projects and cloud IDEs</p>
+          <p className="page-subtitle">Manage your public & private GitHub projects and cloud IDEs</p>
         </div>
         <div className="flex gap-3">
           <button className="btn btn-secondary" onClick={fetchProjects} disabled={isLoading}>
@@ -67,7 +67,7 @@ export default function Dashboard() {
         <div className="empty-state">
           <span className="empty-state-icon">🚀</span>
           <h3>No projects yet</h3>
-          <p>Add your first GitHub project to get started with your cloud coding workspace.</p>
+          <p>Add your first public or private GitHub project to get started with your cloud coding workspace.</p>
           <button className="btn btn-primary btn-lg" onClick={() => setShowAddModal(true)}>
             <Plus size={18} />
             Add Your First Project
@@ -155,13 +155,55 @@ function AddProjectModal({
   onClose: () => void;
   onAdded: (p: Project) => void;
 }) {
+  const { user, setUser } = useAuthStore();
   const [name, setName] = useState('');
   const [repoUrl, setRepoUrl] = useState('');
   const [description, setDescription] = useState('');
   const [githubToken, setGithubToken] = useState('');
+  const [userRepos, setUserRepos] = useState<GithubRepo[]>([]);
+  const [loadingRepos, setLoadingRepos] = useState(false);
   const [progress, setProgress] = useState<{ pct: number; stage: string } | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const fetchUserRepos = async () => {
+    setLoadingRepos(true);
+    try {
+      const repos = await api.projects.listGithubRepos();
+      setUserRepos(repos);
+    } catch {
+      // ignore if not connected
+    } finally {
+      setLoadingRepos(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUserRepos();
+  }, []);
+
+  const handleConnectGithubPopup = () => {
+    openGithubOAuthPopup(async () => {
+      try {
+        const u = await api.auth.me();
+        setUser(u);
+        await fetchUserRepos();
+      } catch {
+        setError('GitHub connection failed');
+      }
+    });
+  };
+
+  const handleSelectRepo = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedUrl = e.target.value;
+    if (!selectedUrl) return;
+    const selected = userRepos.find(r => r.htmlUrl === selectedUrl || r.cloneUrl === selectedUrl);
+    if (selected) {
+      setRepoUrl(selected.htmlUrl);
+      setName(selected.name);
+      setDescription(selected.description ?? '');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,7 +221,6 @@ function AddProjectModal({
     }
   };
 
-  // Auto-fill name from URL
   const handleUrlChange = (url: string) => {
     setRepoUrl(url);
     if (!name) {
@@ -195,6 +236,7 @@ function AddProjectModal({
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         onClick={e => e.stopPropagation()}
+        style={{ maxWidth: 540 }}
       >
         <div className="modal-header">
           <h2 className="modal-title">Add GitHub Project</h2>
@@ -202,6 +244,60 @@ function AddProjectModal({
         </div>
 
         {error && <div className="alert alert-error mb-4">{error}</div>}
+
+        {/* GitHub Connection Banner */}
+        <div style={{
+          padding: '12px 16px',
+          background: 'var(--bg-overlay)',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border)',
+          marginBottom: 20,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Github size={18} style={{ color: user?.hasGithubToken ? 'var(--success)' : 'var(--text-secondary)' }} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>
+                {user?.hasGithubToken ? 'GitHub Account Connected' : 'Connect GitHub via Popup'}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                {user?.hasGithubToken ? 'Private repos automatically supported' : 'Grant access to private & public repositories'}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            className={`btn ${user?.hasGithubToken ? 'btn-secondary' : 'btn-primary'} btn-sm`}
+            onClick={handleConnectGithubPopup}
+          >
+            {user?.hasGithubToken ? 'Reconnect' : 'Connect Popup'}
+          </button>
+        </div>
+
+        {/* Pick from user's GitHub Repos if connected */}
+        {userRepos.length > 0 && (
+          <div className="input-group">
+            <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Select from Your GitHub Repositories</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{userRepos.length} repos found</span>
+            </label>
+            <select
+              className="input"
+              onChange={handleSelectRepo}
+              disabled={loading || loadingRepos}
+              defaultValue=""
+            >
+              <option value="" disabled>-- Pick a repository (public or private) --</option>
+              {userRepos.map(r => (
+                <option key={r.id} value={r.htmlUrl}>
+                  {r.isPrivate ? '🔒 ' : '🌐 '}{r.fullName}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {loading && progress && (
           <div style={{ marginBottom: 16 }}>
@@ -222,13 +318,14 @@ function AddProjectModal({
               id="repo-url"
               type="url"
               className="input"
-              placeholder="https://github.com/owner/repo"
+              placeholder="https://github.com/owner/private-repo"
               value={repoUrl}
               onChange={e => handleUrlChange(e.target.value)}
               required
               disabled={loading}
             />
           </div>
+
           <div className="input-group">
             <label className="input-label">Project Name *</label>
             <input
@@ -242,6 +339,7 @@ function AddProjectModal({
               disabled={loading}
             />
           </div>
+
           <div className="input-group">
             <label className="input-label">Description</label>
             <input
@@ -253,24 +351,28 @@ function AddProjectModal({
               disabled={loading}
             />
           </div>
-          <div className="input-group">
-            <label className="input-label">GitHub Token (for private repos)</label>
-            <input
-              type="password"
-              className="input"
-              placeholder="ghp_... (optional)"
-              value={githubToken}
-              onChange={e => setGithubToken(e.target.value)}
-              disabled={loading}
-            />
-          </div>
+
+          {!user?.hasGithubToken && (
+            <div className="input-group">
+              <label className="input-label">Personal Access Token (for Private Repos)</label>
+              <input
+                type="password"
+                className="input"
+                placeholder="ghp_... (or connect GitHub above)"
+                value={githubToken}
+                onChange={e => setGithubToken(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+          )}
+
           <div className="modal-actions">
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
               Cancel
             </button>
             <button id="clone-btn" type="submit" className="btn btn-primary" disabled={loading || !repoUrl || !name}>
               {loading ? <span className="spinner" /> : <Github size={14} />}
-              {loading ? 'Cloning...' : 'Clone & Add'}
+              {loading ? 'Cloning...' : 'Clone Workspace'}
             </button>
           </div>
         </form>

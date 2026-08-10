@@ -138,3 +138,16 @@ export async function getUserById(id: string) {
   const db = getDb();
   return db.query.users.findFirst({ where: eq(schema.users.id, id) });
 }
+
+export async function getUserGithubToken(userId: string): Promise<string | null> {
+  const db = getDb();
+  const user = await db.query.users.findFirst({
+    where: eq(schema.users.id, userId),
+  });
+  if (!user || !user.githubTokenEnc) return null;
+  try {
+    return decrypt(user.githubTokenEnc);
+  } catch {
+    return null;
+  }
+}

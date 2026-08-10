@@ -9,6 +9,7 @@ import {
   deleteProject,
   gitPull,
   getGitStatus,
+  listUserGithubRepos,
 } from '../services/github.service.js';
 import { syncWorkspace } from '../utils/rclone.js';
 
@@ -21,6 +22,18 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/', async (request) => {
     const { user } = request as typeof request & AuthRequest;
     return listProjects(user.sub);
+  });
+
+  // List connected GitHub user repos (public + private)
+  fastify.get('/github/repos', async (request, reply) => {
+    const { user } = request as typeof request & AuthRequest;
+    try {
+      return await listUserGithubRepos(user.sub);
+    } catch (err) {
+      return reply.code(400).send({
+        error: err instanceof Error ? err.message : 'Failed to fetch GitHub repos',
+      });
+    }
   });
 
   // Get project

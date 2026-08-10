@@ -2,10 +2,18 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { api, type Project } from '../api/client';
 
+export interface User {
+  id: string;
+  email: string;
+  name?: string;
+  avatarUrl?: string;
+  hasGithubToken?: boolean;
+}
+
 interface AuthState {
-  user: { id: string; email: string } | null;
+  user: User | null;
   isLoading: boolean;
-  setUser: (user: { id: string; email: string } | null) => void;
+  setUser: (user: User | null) => void;
   fetchMe: () => Promise<void>;
   logout: () => Promise<void>;
 }

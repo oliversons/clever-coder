@@ -5,7 +5,7 @@ import { mkdirSync, rmSync, existsSync } from 'fs';
 import { config } from '../config.js';
 import { simpleGit } from 'simple-git';
 import { syncWorkspace, restoreWorkspace } from '../utils/rclone.js';
-import { decrypt } from '../utils/crypto.js';
+import { getUserGithubToken } from './auth.service.js';
 
 export interface CreateProjectInput {
   userId: string;
@@ -43,14 +43,20 @@ export async function createProject(
 ): Promise<typeof schema.projects.$inferSelect> {
   const db = getDb();
 
-  // Normalise repo URL
-  const repoUrl = normaliseRepoUrl(input.repoUrl, input.githubToken);
+  // If githubToken is not explicitly passed, auto-use the user's stored GitHub OAuth token (supports private repos)
+  let token = input.githubToken;
+  if (!token) {
+    token = (await getUserGithubToken(input.userId)) ?? undefined;
+  }
+
+  // Normalise repo URL (embed token if available)
+  const repoUrl = normaliseRepoUrl(input.repoUrl, token);
 
   // Create DB record
   const [project] = await db.insert(schema.projects).values({
     userId: input.userId,
     name: input.name,
-    repoUrl: input.repoUrl, // store clean URL (no token)
+    repoUrl: input.repoUrl, // store clean URL without token
     description: input.description,
     workspacePath: 'pending',
     cellarPrefix: 'pending',
@@ -129,7 +135,6 @@ export async function deleteProject(projectId: string, userId: string) {
     rmSync(project.workspacePath, { recursive: true, force: true });
   }
 
-  // Note: Cellar cleanup is async/best-effort (can be done via scheduled job)
   await db.delete(schema.projects).where(
     and(eq(schema.projects.id, projectId), eq(schema.projects.userId, userId)),
   );
@@ -137,9 +142,14 @@ export async function deleteProject(projectId: string, userId: string) {
 
 export async function gitPull(projectId: string, userId: string) {
   const project = await getProject(projectId, userId);
+  const token = await getUserGithubToken(userId);
+  const repoUrl = normaliseRepoUrl(project.repoUrl, token ?? undefined);
+
   const git = simpleGit(project.workspacePath);
+  if (token) {
+    await git.remote(['set-url', 'origin', repoUrl]);
+  }
   const result = await git.pull();
-  // Sync changes up to Cellar
   await syncWorkspace(projectId);
   return result;
 }
@@ -167,11 +177,53 @@ export async function getGitStatus(projectId: string, userId: string) {
   };
 }
 
+export async function listUserGithubRepos(userId: string) {
+  const token = await getUserGithubToken(userId);
+  if (!token) throw new Error('GitHub account not connected');
+
+  const res = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100&type=all', {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github.v3+json',
+      'User-Agent': 'clever-coder',
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`GitHub API error: ${res.statusText}`);
+  }
+
+  const repos = await res.json() as Array<{
+    id: number;
+    name: string;
+    full_name: string;
+    private: boolean;
+    html_url: string;
+    clone_url: string;
+    description: string | null;
+    updated_at: string;
+  }>;
+
+  return repos.map(r => ({
+    id: r.id,
+    name: r.name,
+    fullName: r.full_name,
+    isPrivate: r.private,
+    htmlUrl: r.html_url,
+    cloneUrl: r.clone_url,
+    description: r.description,
+    updatedAt: r.updated_at,
+  }));
+}
+
 function normaliseRepoUrl(repoUrl: string, token?: string): string {
   if (!token) return repoUrl;
-  // Inject token into HTTPS URL: https://TOKEN@github.com/owner/repo.git
-  const url = new URL(repoUrl.endsWith('.git') ? repoUrl : repoUrl + '.git');
-  url.username = 'oauth2';
-  url.password = token;
-  return url.toString();
+  try {
+    const url = new URL(repoUrl.endsWith('.git') ? repoUrl : repoUrl + '.git');
+    url.username = 'x-access-token';
+    url.password = token;
+    return url.toString();
+  } catch {
+    return repoUrl;
+  }
 }
