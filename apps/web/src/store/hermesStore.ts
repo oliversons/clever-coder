@@ -80,6 +80,7 @@ interface HermesState {
   setActiveSession: (id: string | null) => void;
   loadSessions: (projectId?: string) => Promise<void>;
   createSession: (opts?: { title?: string; projectId?: string }) => Promise<HermesSession>;
+  deleteSession: (id: string, permanent?: boolean) => Promise<void>;
 
   // Messages
   messages: HermesMessage[];
@@ -180,6 +181,18 @@ export const useHermesStore = create<HermesState>()(
         });
         set((s) => ({ sessions: [session, ...s.sessions], activeSessionId: session.id, messages: [] }));
         return session;
+      },
+
+      deleteSession: async (id, permanent = true) => {
+        await apiFetch(`/sessions/${id}${permanent ? '?permanent=true' : ''}`, {
+          method: 'DELETE',
+        });
+        const activeId = get().activeSessionId;
+        set((s) => ({
+          sessions: s.sessions.filter((session) => session.id !== id),
+          activeSessionId: activeId === id ? null : activeId,
+          messages: activeId === id ? [] : s.messages,
+        }));
       },
 
       // Messages

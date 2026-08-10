@@ -56,7 +56,7 @@ export default function HermesDrawer() {
   const {
     isDrawerOpen, closeDrawer,
     mode, workspaceContext, attachWorkspace, detachWorkspace,
-    sessions, activeSessionId, setActiveSession, loadSessions, createSession,
+    sessions, activeSessionId, setActiveSession, loadSessions, createSession, deleteSession,
     messages, sendMessage, isStreaming, cancelStream,
     diffProposal, setDiffProposal,
   } = useHermesStore();
@@ -64,6 +64,8 @@ export default function HermesDrawer() {
   const [input, setInput] = useState('');
   const [showSessions, setShowSessions] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [sessionToDelete, setSessionToDelete] = useState<(typeof sessions)[number] | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -283,6 +285,7 @@ export default function HermesDrawer() {
                     border: `1px solid ${s.id === activeSessionId ? 'rgba(124,58,237,0.3)' : 'transparent'}`,
                     cursor: 'pointer', marginBottom: 4,
                     display: 'flex', alignItems: 'center', gap: 10,
+                    transition: 'all 0.15s',
                   }}
                 >
                   <div style={{
@@ -297,6 +300,30 @@ export default function HermesDrawer() {
                       {s.projectId ? '📂 Workspace' : '🌐 Global'}
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    title="Delete session permanently"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSessionToDelete(s);
+                    }}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--text-muted)', padding: '4px 6px', borderRadius: 4,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'color 0.15s, background 0.15s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = 'var(--danger)';
+                      e.currentTarget.style.background = 'rgba(239,68,68,0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = 'var(--text-muted)';
+                      e.currentTarget.style.background = 'none';
+                    }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
                 </div>
               ))
             )}
@@ -445,6 +472,86 @@ export default function HermesDrawer() {
           </div>
         )}
       </div>
+
+      {/* Permanent Delete Confirmation Modal */}
+      {sessionToDelete && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 990,
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16,
+            animation: 'hermes-fade-in 0.15s ease',
+          }}
+          onClick={() => !isDeleting && setSessionToDelete(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 360,
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 20,
+              boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
+              display: 'flex', flexDirection: 'column', gap: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--danger)', flexShrink: 0,
+              }}>
+                <Trash2 size={18} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                  Delete Conversation
+                </h3>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+                  Permanent removal
+                </p>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Are you sure you want to permanently delete <strong style={{ color: 'var(--text-primary)' }}>"{sessionToDelete.title}"</strong>?
+              All messages, tool logs, and offloaded S3 artifacts will be permanently deleted. This action cannot be undone.
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setSessionToDelete(null)}
+                className="btn btn-secondary btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={async () => {
+                  setIsDeleting(true);
+                  try {
+                    await deleteSession(sessionToDelete.id, true);
+                    setSessionToDelete(null);
+                  } catch (err) {
+                    console.error('[Hermes] Failed to delete session:', err);
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                className="btn btn-danger btn-sm"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Diff Viewer overlay */}
       {diffProposal && <HermesDiffViewer proposal={diffProposal} />}

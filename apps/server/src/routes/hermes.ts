@@ -25,7 +25,7 @@ import {
   type ChatMessage,
   type ToolCall,
 } from '../services/hermes.service.js';
-import { readArtifact, getPresignedReadUrl } from '../services/s3.service.js';
+import { readArtifact, getPresignedReadUrl, deleteArtifact } from '../services/s3.service.js';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { config } from '../config.js';
@@ -98,14 +98,36 @@ export async function hermesRoutes(fastify: FastifyInstance) {
   fastify.delete('/sessions/:id', async (request, reply) => {
     const userId = getUserId(request as FastifyRequest);
     const { id } = request.params as { id: string };
+    const { permanent } = request.query as { permanent?: string };
     const db = getDb();
 
+    if (permanent === 'true' || permanent === '1') {
+      // Find messages with S3 artifacts to clean up from storage
+      const messages = await db.query.hermesMessages.findMany({
+        where: eq(schema.hermesMessages.sessionId, id),
+      });
+
+      for (const m of messages) {
+        if (m.s3ArtifactKey) {
+          deleteArtifact(m.s3ArtifactKey).catch(() => null);
+        }
+      }
+
+      // Hard delete session (cascades to hermesMessages)
+      await db
+        .delete(schema.hermesSessions)
+        .where(and(eq(schema.hermesSessions.id, id), eq(schema.hermesSessions.userId, userId)));
+
+      return reply.send({ ok: true, deleted: true });
+    }
+
+    // Soft delete (archive)
     await db
       .update(schema.hermesSessions)
       .set({ status: 'archived', updatedAt: new Date() })
       .where(and(eq(schema.hermesSessions.id, id), eq(schema.hermesSessions.userId, userId)));
 
-    return reply.send({ ok: true });
+    return reply.send({ ok: true, archived: true });
   });
 
   // ── GET /sessions/:id/messages ────────────────────────────────────────────────

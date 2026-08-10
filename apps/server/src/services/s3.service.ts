@@ -10,6 +10,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createGzip } from 'zlib';
@@ -157,3 +158,15 @@ export async function objectExists(key: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Delete an object from S3.
+ */
+export async function deleteArtifact(key: string): Promise<void> {
+  try {
+    await getClient().send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+  } catch (err) {
+    console.warn(`[S3] Failed to delete object ${key}:`, err);
+  }
+}
+
