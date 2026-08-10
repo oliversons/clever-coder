@@ -64,6 +64,15 @@ export const api = {
       }),
     logout: () => request('/auth/logout', { method: 'POST' }),
     githubStartUrl: () => '/api/v1/auth/github/start',
+    saveGithubToken: (token: string) =>
+      request<{ ok: boolean; hasGithubToken: boolean }>('/auth/github/token', {
+        method: 'POST',
+        body: JSON.stringify({ token }),
+      }),
+    disconnectGithub: () =>
+      request<{ ok: boolean; hasGithubToken: boolean }>('/auth/github/token', {
+        method: 'DELETE',
+      }),
   },
 
   projects: {

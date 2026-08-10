@@ -110,13 +110,28 @@ export default function Settings() {
       try {
         const u = await api.auth.me();
         setUser(u);
-        setMessage({ type: 'success', text: 'GitHub account connected successfully!' });
+        setMessage({ type: 'success', text: 'GitHub account connected and saved to your profile in database!' });
       } catch (err) {
         setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to connect GitHub' });
       } finally {
         setConnecting(false);
       }
     });
+  };
+
+  const handleDisconnectGithub = async () => {
+    if (!confirm('Are you sure you want to disconnect your GitHub account from your profile?')) return;
+    setConnecting(true);
+    try {
+      await api.auth.disconnectGithub();
+      const u = await api.auth.me();
+      setUser(u);
+      setMessage({ type: 'success', text: 'GitHub account disconnected from your database profile.' });
+    } catch (err) {
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to disconnect GitHub' });
+    } finally {
+      setConnecting(false);
+    }
   };
 
   const initial = user?.name?.[0]?.toUpperCase() ?? user?.email?.[0]?.toUpperCase() ?? '?';
@@ -304,30 +319,42 @@ export default function Settings() {
                 </div>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    GitHub Account
+                    GitHub Account & Security
                     {user?.hasGithubToken ? (
-                      <span className="badge badge-ready">Connected</span>
+                      <span className="badge badge-ready">Connected & Stored in DB</span>
                     ) : (
                       <span className="badge badge-error">Not Connected</span>
                     )}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
                     {user?.hasGithubToken
-                      ? 'Access granted for public & private repositories via OAuth'
+                      ? 'Securely linked to your account. Persists across logout & future logins.'
                       : 'Connect your GitHub account via Popup to clone private repos'}
                   </div>
                 </div>
               </div>
 
-              <button
-                type="button"
-                className={`btn ${user?.hasGithubToken ? 'btn-secondary' : 'btn-primary'}`}
-                onClick={handleConnectGithub}
-                disabled={connecting}
-              >
-                {connecting ? <span className="spinner" /> : <Github size={14} />}
-                {connecting ? 'Connecting...' : user?.hasGithubToken ? 'Reconnect' : 'Connect via Popup'}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {user?.hasGithubToken && (
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    onClick={handleDisconnectGithub}
+                    disabled={connecting}
+                  >
+                    Disconnect
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={`btn ${user?.hasGithubToken ? 'btn-secondary' : 'btn-primary'}`}
+                  onClick={handleConnectGithub}
+                  disabled={connecting}
+                >
+                  {connecting ? <span className="spinner" /> : <Github size={14} />}
+                  {connecting ? 'Connecting...' : user?.hasGithubToken ? 'Reconnect' : 'Connect via Popup'}
+                </button>
+              </div>
             </div>
           </div>
         </section>

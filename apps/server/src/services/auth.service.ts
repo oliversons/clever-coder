@@ -124,6 +124,56 @@ async function createSession(userId: string, email: string): Promise<AuthTokens>
   return { accessToken, refreshToken };
 }
 
+export async function linkGithubAccount(
+  userId: string,
+  githubId: string,
+  githubToken: string,
+  avatarUrl?: string,
+): Promise<AuthTokens> {
+  const db = getDb();
+  const encrypted = encrypt(githubToken);
+  const user = await db.query.users.findFirst({
+    where: eq(schema.users.id, userId),
+  });
+  if (!user) throw new Error('User not found');
+
+  await db
+    .update(schema.users)
+    .set({
+      githubId,
+      githubTokenEnc: encrypted,
+      avatarUrl: user.avatarUrl || avatarUrl || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.users.id, userId));
+
+  return createSession(user.id, user.email);
+}
+
+export async function saveUserGithubToken(userId: string, githubToken: string): Promise<void> {
+  const db = getDb();
+  const encrypted = encrypt(githubToken);
+  await db
+    .update(schema.users)
+    .set({
+      githubTokenEnc: encrypted,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.users.id, userId));
+}
+
+export async function removeUserGithubToken(userId: string): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.users)
+    .set({
+      githubId: null,
+      githubTokenEnc: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.users.id, userId));
+}
+
 export async function upsertGithubUser(
   githubId: string,
   email: string,
@@ -134,27 +184,40 @@ export async function upsertGithubUser(
   const db = getDb();
   const encrypted = encrypt(githubToken);
 
-  const existing = await db.query.users.findFirst({
+  // 1. Check if user exists by githubId
+  let user = await db.query.users.findFirst({
     where: eq(schema.users.githubId, githubId),
   });
+
+  // 2. If not found by githubId, check by email
+  if (!user && email) {
+    user = await db.query.users.findFirst({
+      where: eq(schema.users.email, email),
+    });
+  }
 
   let userId: string;
   let userEmail: string;
 
-  if (existing) {
+  if (user) {
     await db
       .update(schema.users)
-      .set({ githubTokenEnc: encrypted, avatarUrl, updatedAt: new Date() })
-      .where(eq(schema.users.id, existing.id));
-    userId = existing.id;
-    userEmail = existing.email;
+      .set({
+        githubId,
+        githubTokenEnc: encrypted,
+        avatarUrl: user.avatarUrl || avatarUrl || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.users.id, user.id));
+    userId = user.id;
+    userEmail = user.email;
   } else {
-    const [user] = await db
+    const [created] = await db
       .insert(schema.users)
       .values({ githubId, email, name, avatarUrl, githubTokenEnc: encrypted })
       .returning();
-    userId = user.id;
-    userEmail = user.email;
+    userId = created.id;
+    userEmail = created.email;
   }
 
   return createSession(userId, userEmail);

@@ -1,4 +1,5 @@
 import { FastifyPluginAsync, FastifyReply } from 'fastify';
+import jwt from 'jsonwebtoken';
 import {
   registerUser,
   loginUser,
@@ -7,6 +8,9 @@ import {
   revokeUserSessions,
   updateUserSettings,
   upsertGithubUser,
+  linkGithubAccount,
+  saveUserGithubToken,
+  removeUserGithubToken,
   getUserById,
 } from '../services/auth.service.js';
 import { authMiddleware, verifyToken } from '../middleware/auth.middleware.js';
@@ -28,12 +32,17 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     },
   }, async (request, reply) => {
     const { email, password, name } = request.body as {
-      email: string; password: string; name: string;
+      email: string;
+      password: string;
+      name: string;
     };
-
-    const { accessToken, refreshToken } = await registerUser(email, password, name);
-    setAuthCookies(reply, accessToken, refreshToken);
-    return { accessToken };
+    try {
+      const { accessToken, refreshToken } = await registerUser(email, password, name);
+      setAuthCookies(reply, accessToken, refreshToken);
+      return { accessToken };
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : 'Registration failed' });
+    }
   });
 
   // Login
@@ -43,27 +52,38 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         type: 'object',
         required: ['email', 'password'],
         properties: {
-          email: { type: 'string' },
+          email: { type: 'string', format: 'email' },
           password: { type: 'string' },
         },
       },
     },
   }, async (request, reply) => {
-    const { email, password } = request.body as { email: string; password: string };
-    const { accessToken, refreshToken } = await loginUser(email, password);
-    setAuthCookies(reply, accessToken, refreshToken);
-    return { accessToken };
+    const { email, password } = request.body as {
+      email: string;
+      password: string;
+    };
+    try {
+      const { accessToken, refreshToken } = await loginUser(email, password);
+      setAuthCookies(reply, accessToken, refreshToken);
+      return { accessToken };
+    } catch (err) {
+      return reply.code(401).send({ error: err instanceof Error ? err.message : 'Invalid credentials' });
+    }
   });
 
   // Refresh
   fastify.post('/refresh', async (request, reply) => {
     const refreshToken = (request.cookies as Record<string, string | undefined>)?.['refresh_token'];
     if (!refreshToken) {
-      return reply.code(401).send({ error: 'No refresh token' });
+      return reply.code(401).send({ error: 'Refresh token missing' });
     }
-    const { accessToken, refreshToken: newRefresh } = await refreshSession(refreshToken);
-    setAuthCookies(reply, accessToken, newRefresh);
-    return { accessToken };
+    try {
+      const { accessToken, refreshToken: newRefresh } = await refreshSession(refreshToken);
+      setAuthCookies(reply, accessToken, newRefresh);
+      return { accessToken };
+    } catch {
+      return reply.code(401).send({ error: 'Invalid refresh token' });
+    }
   });
 
   // Logout
@@ -119,24 +139,77 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     return { settings };
   });
 
+  // Save or update GitHub Personal Access Token directly
+  fastify.post('/github/token', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const user = (request as typeof request & { user: { sub: string } }).user;
+    const { token } = (request.body as { token?: string }) || {};
+    if (!token || !token.trim()) {
+      return reply.code(400).send({ error: 'Token is required' });
+    }
+    await saveUserGithubToken(user.sub, token.trim());
+    return { ok: true, hasGithubToken: true };
+  });
+
+  // Disconnect GitHub Account
+  fastify.delete('/github/token', { preHandler: [authMiddleware] }, async (request) => {
+    const user = (request as typeof request & { user: { sub: string } }).user;
+    await removeUserGithubToken(user.sub);
+    return { ok: true, hasGithubToken: false };
+  });
+
   // GitHub OAuth Start
-  fastify.get('/github/start', async (_request, reply) => {
+  fastify.get('/github/start', async (request, reply) => {
     if (!config.GITHUB_CLIENT_ID) {
       return reply.code(503).send({ error: 'GitHub OAuth not configured' });
     }
+
+    // Check if user is currently logged in (for account linking)
+    let userId: string | undefined;
+    let token = (request.cookies as Record<string, string | undefined>)?.['access_token'];
+    if (!token && request.headers.authorization?.startsWith('Bearer ')) {
+      token = request.headers.authorization.slice(7);
+    }
+    if (token) {
+      try {
+        const payload = verifyToken(token);
+        if (payload?.sub) {
+          userId = payload.sub;
+        }
+      } catch {
+        // Ignore invalid token
+      }
+    }
+
+    const state = jwt.sign(
+      { userId, type: userId ? 'oauth_link' : 'oauth_login' },
+      config.JWT_SECRET,
+      { expiresIn: '15m' },
+    );
+
     const params = new URLSearchParams({
       client_id: config.GITHUB_CLIENT_ID,
       redirect_uri: config.GITHUB_CALLBACK_URL ?? '',
       scope: 'repo read:user user:email',
+      state,
     });
     reply.redirect(`https://github.com/login/oauth/authorize?${params}`);
   });
 
   // GitHub OAuth Callback — Popup friendly
   fastify.get('/github/callback', async (request, reply) => {
-    const { code } = request.query as { code?: string };
+    const { code, state } = request.query as { code?: string; state?: string };
     if (!code || !config.GITHUB_CLIENT_ID || !config.GITHUB_CLIENT_SECRET) {
       return reply.code(400).send({ error: 'Invalid OAuth callback' });
+    }
+
+    let linkUserId: string | undefined;
+    if (state) {
+      try {
+        const statePayload = jwt.verify(state, config.JWT_SECRET) as { userId?: string };
+        linkUserId = statePayload.userId;
+      } catch {
+        // State invalid or expired
+      }
     }
 
     // Exchange code for token
@@ -172,15 +245,27 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       email = emails?.find?.(e => e.primary)?.email ?? `${ghUser.login}@github.local`;
     }
 
-    const { accessToken, refreshToken } = await upsertGithubUser(
-      String(ghUser.id),
-      email,
-      ghUser.name ?? ghUser.login,
-      ghUser.avatar_url,
-      tokenData.access_token,
-    );
+    let authTokens;
+    if (linkUserId) {
+      // Link directly to current authenticated user profile
+      authTokens = await linkGithubAccount(
+        linkUserId,
+        String(ghUser.id),
+        tokenData.access_token,
+        ghUser.avatar_url,
+      );
+    } else {
+      // Login or register via GitHub
+      authTokens = await upsertGithubUser(
+        String(ghUser.id),
+        email,
+        ghUser.name ?? ghUser.login,
+        ghUser.avatar_url,
+        tokenData.access_token,
+      );
+    }
 
-    setAuthCookies(reply, accessToken, refreshToken);
+    setAuthCookies(reply, authTokens.accessToken, authTokens.refreshToken);
 
     // Popup-friendly HTML response
     reply.type('text/html').send(`
@@ -218,7 +303,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   <p>GitHub connected successfully!</p>
   <script>
     if (window.opener) {
-      window.opener.postMessage({ type: 'GITHUB_AUTH_SUCCESS', accessToken: '${accessToken}' }, '*');
+      window.opener.postMessage({ type: 'GITHUB_AUTH_SUCCESS', accessToken: '${authTokens.accessToken}' }, '*');
       setTimeout(() => window.close(), 400);
     } else {
       window.location.href = '${config.PUBLIC_URL}/dashboard';
