@@ -42,8 +42,6 @@ function getCommonFilters(): string[] {
     '--filter', '- *.sock',
     '--filter', '- *.pid',
     '--filter', '- node_modules/**',
-    '--filter', '- .git/objects/**',
-    '--filter', '- .git/refs/**',
     '--filter', '+ **',
   ];
 }

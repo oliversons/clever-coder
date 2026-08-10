@@ -159,24 +159,61 @@ export async function gitPull(projectId: string, userId: string) {
 export async function getGitStatus(projectId: string, userId: string) {
   const project = await getProject(projectId, userId);
   const db = getDb();
-  const git = simpleGit(project.workspacePath);
-  const [status, log, syncState] = await Promise.all([
-    git.status(),
-    git.log({ maxCount: 5 }),
-    db.query.syncStates.findFirst({ where: eq(schema.syncStates.projectId, projectId) }),
-  ]);
-  return {
-    branch: status.current,
-    modified: status.modified,
-    not_added: status.not_added,
-    created: status.created,
-    deleted: status.deleted,
-    recentCommits: log.all,
-    sync: {
-      lastOkAt: syncState?.lastOkAt,
-      lastError: syncState?.lastError,
-    },
-  };
+  const workspacePath = project.workspacePath;
+
+  const syncState = await db.query.syncStates.findFirst({
+    where: eq(schema.syncStates.projectId, projectId),
+  });
+
+  // Check if this is a git repository before running git commands
+  if (!existsSync(join(workspacePath, '.git'))) {
+    return {
+      branch: null,
+      modified: [],
+      not_added: [],
+      created: [],
+      deleted: [],
+      recentCommits: [],
+      sync: {
+        lastOkAt: syncState?.lastOkAt,
+        lastError: syncState?.lastError,
+      },
+    };
+  }
+
+  try {
+    const git = simpleGit(workspacePath);
+    const [status, log] = await Promise.all([
+      git.status(),
+      git.log({ maxCount: 5 }),
+    ]);
+    return {
+      branch: status.current,
+      modified: status.modified,
+      not_added: status.not_added,
+      created: status.created,
+      deleted: status.deleted,
+      recentCommits: log.all,
+      sync: {
+        lastOkAt: syncState?.lastOkAt,
+        lastError: syncState?.lastError,
+      },
+    };
+  } catch (err) {
+    console.warn(`[git] getGitStatus for ${projectId} failed:`, err);
+    return {
+      branch: null,
+      modified: [],
+      not_added: [],
+      created: [],
+      deleted: [],
+      recentCommits: [],
+      sync: {
+        lastOkAt: syncState?.lastOkAt,
+        lastError: syncState?.lastError,
+      },
+    };
+  }
 }
 
 export async function listUserGithubRepos(userId: string) {
