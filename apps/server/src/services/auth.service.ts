@@ -1,6 +1,6 @@
 import { hash, verify } from 'argon2';
 import { getDb, schema } from '../db/index.js';
-import { eq, sql } from 'drizzle-orm';
+import { eq, ne, and, sql } from 'drizzle-orm';
 import { randomToken, encrypt, decrypt } from '../utils/crypto.js';
 import {
   signAccessToken,
@@ -137,6 +137,16 @@ export async function linkGithubAccount(
   });
   if (!user) throw new Error('User not found');
 
+  // Clear githubId on any other user row first to prevent unique constraint 23505 violation
+  await db
+    .update(schema.users)
+    .set({
+      githubId: null,
+      githubTokenEnc: null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(schema.users.githubId, githubId), ne(schema.users.id, userId)));
+
   await db
     .update(schema.users)
     .set({
@@ -200,6 +210,16 @@ export async function upsertGithubUser(
   let userEmail: string;
 
   if (user) {
+    // Clear githubId on any other user row first to prevent unique constraint 23505 violation
+    await db
+      .update(schema.users)
+      .set({
+        githubId: null,
+        githubTokenEnc: null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(schema.users.githubId, githubId), ne(schema.users.id, user.id)));
+
     await db
       .update(schema.users)
       .set({
