@@ -6,6 +6,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import ProjectDetail from './pages/ProjectDetail';
 import Workspace from './pages/Workspace';
+import Settings from './pages/Settings';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -35,6 +36,7 @@ export default function App() {
       >
         <Route index element={<Navigate to="/dashboard" />} />
         <Route path="dashboard" element={<Dashboard />} />
+        <Route path="settings" element={<Settings />} />
         <Route path="projects/:id" element={<ProjectDetail />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" />} />

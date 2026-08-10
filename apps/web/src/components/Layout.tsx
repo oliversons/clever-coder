@@ -1,11 +1,15 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, LogOut, Github, Settings } from 'lucide-react';
+import { NavLink, Outlet } from 'react-router-dom';
+import { LayoutDashboard, LogOut, Settings, Sun, Moon } from 'lucide-react';
 import { useAuthStore } from '../store';
+import { useThemeStore } from '../store/themeStore';
 import { motion } from 'framer-motion';
 
 export default function Layout() {
   const { user, logout } = useAuthStore();
-  const initial = user?.email?.[0]?.toUpperCase() ?? '?';
+  const { theme, toggleTheme } = useThemeStore();
+
+  const displayName = user?.name || user?.email || 'User';
+  const initial = displayName[0]?.toUpperCase() ?? '?';
 
   return (
     <div className="app-layout">
@@ -30,12 +34,39 @@ export default function Layout() {
         </nav>
 
         <div className="sidebar-user">
-          <div className="avatar">{initial}</div>
+          {user?.avatarUrl ? (
+            <img
+              src={user.avatarUrl}
+              alt={displayName}
+              style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid var(--border)' }}
+            />
+          ) : (
+            <div className="avatar">{initial}</div>
+          )}
+
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="truncate" style={{ fontSize: 13, fontWeight: 500 }}>{user?.email}</div>
+            <div className="truncate" style={{ fontSize: 13, fontWeight: 600 }}>{displayName}</div>
+            <div className="truncate" style={{ fontSize: 11, color: 'var(--text-muted)' }}>{user?.email}</div>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={logout} title="Logout">
-            <LogOut size={14} />
+
+          {/* Theme Switcher Button */}
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+            style={{ padding: '6px' }}
+          >
+            {theme === 'dark' ? <Sun size={15} style={{ color: 'var(--warning)' }} /> : <Moon size={15} style={{ color: 'var(--text-accent)' }} />}
+          </button>
+
+          {/* Logout Button */}
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={logout}
+            title="Logout"
+            style={{ padding: '6px' }}
+          >
+            <LogOut size={15} />
           </button>
         </div>
       </aside>
