@@ -116,9 +116,9 @@ async function bootstrap() {
       return;
     }
 
-    // Hijack response from Fastify so http-proxy-middleware streams directly to reply.raw
+    // Hijack response from Fastify so http-proxy streams directly to reply.raw
     reply.hijack();
-    await createWorkspaceProxy(request.raw, reply.raw, id);
+    await createWorkspaceProxy(request.raw, reply.raw as ServerResponse, id);
   });
 
   fastify.all('/workspace/:id', async (request, reply) => {
@@ -165,60 +165,83 @@ async function bootstrap() {
       });
   }
 
-  // ── WebSocket Upgrade Handler for Code-Server Workbench ───────────────────
-  // MUST be registered BEFORE fastify.listen() so it captures raw upgrade events
-  // before @fastify/websocket can intercept them.
-  const rawServer = fastify.server;
-  rawServer.on('upgrade', (req: IncomingMessage, socket, head) => {
-    const match = req.url?.match(/^\/workspace\/([^/]+)/);
-    if (!match) return;
-    const projectId = match[1];
-
-    // Auth check via cookie, Bearer, or ?token= query param on the URL
-    const url = new URL(req.url ?? '/', `http://127.0.0.1:${config.PORT}`);
-    const cookieHeader = req.headers.cookie ?? '';
-    const cookieToken = cookieHeader.split(';')
-      .map((c) => c.trim())
-      .find((c) => c.startsWith('access_token='))
-      ?.split('=')[1];
-    const authHeader = req.headers.authorization as string | undefined;
-    const queryToken = url.searchParams.get('token') ?? undefined;
-    const token = cookieToken || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined) || queryToken;
-
-    if (!token) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-
-    try {
-      verifyToken(token);
-    } catch {
-      socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-
-    // If workspace isn't started yet, start it async and then proxy
-    const port = getWorkspacePort(projectId);
-    if (!port) {
-      startWorkspace(projectId).then(() => {
-        proxyWorkspaceUpgrade(req, socket, head, projectId);
-      }).catch((err: Error) => {
-        fastify.log.error(`[upgrade] Failed to start workspace ${projectId}: ${err.message}`);
-        socket.write('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
-        socket.destroy();
-      });
-      return;
-    }
-
-    // Directly proxy active workspace's internal VSCode WebSockets
-    proxyWorkspaceUpgrade(req, socket, head, projectId);
-  });
-
   // ── Start server ───────────────────────────────────────────────────────────
+  // fastify.listen() initializes all plugins including @fastify/websocket,
+  // which registers its own server.on('upgrade') that calls socket.destroy()
+  // for any URL not matching a registered WS route. We start the server first,
+  // then intercept and replace the upgrade event listeners.
   await fastify.listen({ port: config.PORT, host: '0.0.0.0' });
   fastify.log.info(`🚀  Server running at http://0.0.0.0:${config.PORT}`);
+
+  // ── WebSocket Upgrade Router ───────────────────────────────────────────────
+  // After listen(), @fastify/websocket has already registered its own upgrade
+  // handler. We capture all existing handlers, remove them, then add ONE combined
+  // handler that:
+  //   - Routes /workspace/:id/* upgrades → raw TCP tunnel to code-server
+  //   - Routes everything else           → original handlers (@fastify/websocket)
+  //
+  // This prevents @fastify/websocket from calling socket.destroy() on workspace
+  // WebSocket connections that don't match any registered Fastify WS route.
+  const rawServer = fastify.server;
+  const existingUpgradeListeners = rawServer.rawListeners('upgrade').slice();
+  rawServer.removeAllListeners('upgrade');
+
+  rawServer.on('upgrade', (req: IncomingMessage, socket, head) => {
+    const workspaceMatch = req.url?.match(/^\/workspace\/([^/]+)/);
+
+    if (workspaceMatch) {
+      // ── Workspace WebSocket → raw TCP tunnel ──────────────────────────────
+      const projectId = workspaceMatch[1];
+
+      // Auth check: cookie, Authorization header, or ?token= query param
+      const url = new URL(req.url ?? '/', `http://127.0.0.1:${config.PORT}`);
+      const cookieHeader = req.headers.cookie ?? '';
+      const cookieToken = cookieHeader.split(';')
+        .map((c) => c.trim())
+        .find((c) => c.startsWith('access_token='))
+        ?.split('=')[1];
+      const authHeader = req.headers.authorization as string | undefined;
+      const queryToken = url.searchParams.get('token') ?? undefined;
+      const token = cookieToken
+        || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined)
+        || queryToken;
+
+      if (!token) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      try {
+        verifyToken(token);
+      } catch {
+        socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      const port = getWorkspacePort(projectId);
+      if (!port) {
+        // Workspace not running yet — start it, then proxy
+        startWorkspace(projectId)
+          .then(() => proxyWorkspaceUpgrade(req, socket, head, projectId))
+          .catch((err: Error) => {
+            fastify.log.error(`[upgrade] Failed to start workspace ${projectId}: ${err.message}`);
+            socket.write('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
+            socket.destroy();
+          });
+        return;
+      }
+
+      proxyWorkspaceUpgrade(req, socket, head, projectId);
+
+    } else {
+      // ── All other WebSockets (terminal etc.) → @fastify/websocket ─────────
+      for (const listener of existingUpgradeListeners) {
+        (listener as (...args: unknown[]) => void).call(rawServer, req, socket, head);
+      }
+    }
+  });
 }
 
 // ── Graceful shutdown ──────────────────────────────────────────────────────
