@@ -31,22 +31,25 @@ export async function syncHermesConfigFiles(userId?: string) {
     fs.mkdirSync(hermesHome, { recursive: true });
   }
 
-  let apiKey = 'cag_cb210c79b7c941f1bffc176520104ab893aaae2aec9edd5e';
-  let baseUrl = 'https://app-fcbf4053-74e6-4498-ac0e-eb160010a3c5.cleverapps.io/v1';
-  let model = 'agentrouter/claude-opus-5';
-  let provider = 'custom';
+  let apiKey = process.env.OPENAI_API_KEY || process.env.DEFAULT_API_KEY || '';
+  let baseUrl = process.env.OPENAI_BASE_URL || process.env.DEFAULT_BASE_URL || '';
+  let model = process.env.HERMES_MODEL || 'nousresearch/hermes-3-llama-3.1-405b';
+  let provider = process.env.HERMES_PROVIDER || 'custom';
 
   if (userId) {
     try {
       const settings = await getHermesSettings(userId);
       if (settings) {
-        apiKey = getDecryptedApiKey(settings) || apiKey;
+        const decryptedKey = getDecryptedApiKey(settings);
+        if (decryptedKey) apiKey = decryptedKey;
         if (settings.baseUrl) baseUrl = settings.baseUrl;
         if (settings.model) model = settings.model;
-        provider = settings.provider === 'custom_openai' ? 'custom' : settings.provider;
+        if (settings.provider) {
+          provider = settings.provider === 'custom_openai' ? 'custom' : settings.provider;
+        }
       }
     } catch (err) {
-      console.warn('[Hermes WebUI] Could not fetch DB settings for sync, using defaults:', err);
+      console.warn('[Hermes WebUI] Could not fetch DB settings for sync:', err);
     }
   }
 
@@ -225,22 +228,25 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
   const scriptDir = path.dirname(scriptPath);
   const totalCores = getAvailableCpuCores();
 
-  let apiKey = 'cag_cb210c79b7c941f1bffc176520104ab893aaae2aec9edd5e';
-  let baseUrl = 'https://app-fcbf4053-74e6-4498-ac0e-eb160010a3c5.cleverapps.io/v1';
-  let model = 'agentrouter/claude-opus-5';
-  let provider = 'custom';
+  let apiKey = process.env.OPENAI_API_KEY || process.env.DEFAULT_API_KEY || '';
+  let baseUrl = process.env.OPENAI_BASE_URL || process.env.DEFAULT_BASE_URL || '';
+  let model = process.env.HERMES_MODEL || 'nousresearch/hermes-3-llama-3.1-405b';
+  let provider = process.env.HERMES_PROVIDER || 'custom';
 
   if (config.userId) {
     try {
       const settings = await getHermesSettings(config.userId);
       if (settings) {
-        apiKey = getDecryptedApiKey(settings) || apiKey;
+        const decryptedKey = getDecryptedApiKey(settings);
+        if (decryptedKey) apiKey = decryptedKey;
         if (settings.baseUrl) baseUrl = settings.baseUrl;
         if (settings.model) model = settings.model;
-        provider = settings.provider === 'custom_openai' ? 'custom' : (settings.provider || 'custom');
+        if (settings.provider) {
+          provider = settings.provider === 'custom_openai' ? 'custom' : settings.provider;
+        }
       }
     } catch {
-      // fallback
+      // fallback to env
     }
   }
 
