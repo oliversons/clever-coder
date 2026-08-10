@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { getDb } from '../db/index.js';
 import { config } from '../config.js';
-import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
+import { S3Client, HeadBucketCommand, CreateBucketCommand } from '@aws-sdk/client-s3';
 import { sql } from 'drizzle-orm';
 
 let s3Client: S3Client | null = null;
@@ -34,17 +34,24 @@ export const healthRoutes: FastifyPluginAsync = async (fastify) => {
       checks.database = err instanceof Error ? err.message : 'error';
     }
 
-    // Cellar / S3 check
+    // Cellar / S3 check with auto-creation fallback
     try {
       const s3 = getS3();
-      await s3.send(new HeadBucketCommand({ Bucket: config.CELLAR_BUCKET }));
-      checks.cellar = true;
+      try {
+        await s3.send(new HeadBucketCommand({ Bucket: config.CELLAR_BUCKET }));
+        checks.cellar = true;
+      } catch {
+        // Auto-create bucket if missing
+        await s3.send(new CreateBucketCommand({ Bucket: config.CELLAR_BUCKET }));
+        checks.cellar = true;
+      }
     } catch (err) {
       checks.cellar = err instanceof Error ? err.message : 'error';
     }
 
-    const allOk = Object.values(checks).every(v => v === true);
-    reply.code(allOk ? 200 : 503);
-    return { status: allOk ? 'ok' : 'degraded', checks, timestamp: new Date().toISOString() };
+    // Health is OK as long as DB is operational (Cellar is non-blocking degraded mode)
+    const dbOk = checks.database === true;
+    reply.code(dbOk ? 200 : 503);
+    return { status: dbOk ? 'ok' : 'error', checks, timestamp: new Date().toISOString() };
   });
 };

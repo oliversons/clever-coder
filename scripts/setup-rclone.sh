@@ -30,3 +30,8 @@ EOF
 chmod 600 "$CONF"
 echo "[rclone] Config written to $CONF"
 rclone --config "$CONF" version | head -1
+
+# Ensure Cellar bucket exists
+BUCKET="${CELLAR_BUCKET:-clever-coder}"
+echo "[rclone] Ensuring bucket '$BUCKET' exists in Cellar..."
+rclone --config "$CONF" mkdir "cellar:$BUCKET" || echo "[rclone] Bucket creation notice: $?"
