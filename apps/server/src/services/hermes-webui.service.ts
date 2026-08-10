@@ -71,20 +71,7 @@ async function resolveCredentials(userId?: string): Promise<ResolvedCredentials>
     }
   } catch (err) {
     console.warn('[Hermes WebUI] Could not load credentials from DB, using env fallbacks:', err);
-  }
-
-  // ── LiteLLM routing fix ──────────────────────────────────────────────────
-  // When using a custom OpenAI-compatible endpoint (e.g. agentrouter), litellm
-  // interprets provider-prefixed model IDs (e.g. "agentrouter/claude-opus-5")
-  // as a route to that external provider's servers, ignoring the custom base URL.
-  // Prefixing with "openai/" forces litellm to treat it as an OpenAI-compatible
-  // request and route to OPENAI_BASE_URL instead.
-  const isCustomProvider = provider === 'custom' || provider === 'custom_openai';
-  if (isCustomProvider && model && !model.startsWith('openai/')) {
-    model = `openai/${model}`;
-  }
-
-  return { apiKey, baseUrl, model, provider };
+  }  return { apiKey, baseUrl, model, provider };
 }
 
 /**
@@ -246,10 +233,6 @@ def _patch_all():
         orig_completion = getattr(litellm, 'completion', None)
         if orig_completion and not getattr(orig_completion, '_is_patched', False):
             def patched_completion(*args, **kwargs):
-                model = kwargs.get('model')
-                if model and isinstance(model, str) and base_url:
-                    if not model.startswith('openai/'):
-                        kwargs['model'] = f"openai/{model}"
                 if base_url:
                     kwargs['api_base'] = base_url
                     kwargs['base_url'] = base_url
@@ -263,10 +246,6 @@ def _patch_all():
         orig_acompletion = getattr(litellm, 'acompletion', None)
         if orig_acompletion and not getattr(orig_acompletion, '_is_patched', False):
             async def patched_acompletion(*args, **kwargs):
-                model = kwargs.get('model')
-                if model and isinstance(model, str) and base_url:
-                    if not model.startswith('openai/'):
-                        kwargs['model'] = f"openai/{model}"
                 if base_url:
                     kwargs['api_base'] = base_url
                     kwargs['base_url'] = base_url
