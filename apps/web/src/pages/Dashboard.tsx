@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, RefreshCw, Github, Code2, Download, Trash2, Lock, Unlock, ExternalLink } from 'lucide-react';
+import { Plus, RefreshCw, Github, Code2, Download, Trash2, X, AlertTriangle } from 'lucide-react';
 import { useProjectStore, useAuthStore } from '../store';
 import { api, type Project, type GithubRepo, openGithubOAuthPopup, createProjectSSE } from '../api/client';
 import { formatDistanceToNow } from 'date-fns';
@@ -9,24 +9,24 @@ import { formatDistanceToNow } from 'date-fns';
 export default function Dashboard() {
   const { projects, isLoading, fetchProjects, addProject, removeProject } = useProjectStore();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => { fetchProjects(); }, []);
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    if (!confirm('Delete this project and all its files?')) return;
+  const handleDeleteConfirm = async () => {
+    if (!projectToDelete) return;
+    setIsDeleting(true);
     try {
-      await api.projects.delete(id);
-      removeProject(id);
+      await api.projects.delete(projectToDelete.id);
+      removeProject(projectToDelete.id);
+      setProjectToDelete(null);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setIsDeleting(false);
     }
-  };
-
-  const handleDownload = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    window.open(api.projects.archiveUrl(id), '_blank');
   };
 
   const statusBadge = (status: Project['status']) => {
@@ -60,12 +60,12 @@ export default function Dashboard() {
       </div>
 
       {isLoading && projects.length === 0 ? (
-        <div className="flex items-center justify-content-center" style={{ padding: '80px', justifyContent: 'center' }}>
+        <div className="flex items-center" style={{ justifyContent: 'center', padding: 80 }}>
           <span className="spinner spinner-lg" />
         </div>
       ) : projects.length === 0 ? (
         <div className="empty-state">
-          <span className="empty-state-icon">🚀</span>
+          <div className="empty-state-icon">⚡</div>
           <h3>No projects yet</h3>
           <p>Add your first public or private GitHub project to get started with your cloud coding workspace.</p>
           <button className="btn btn-primary btn-lg" onClick={() => setShowAddModal(true)}>
@@ -80,32 +80,28 @@ export default function Dashboard() {
               <motion.div
                 key={project.id}
                 className="glass-card project-card"
+                onClick={() => navigate(`/projects/${project.id}`)}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 whileHover={{ y: -2 }}
                 transition={{ duration: 0.2 }}
+                style={{ cursor: 'pointer' }}
               >
-                <div
-                  className="project-card-body-clickable"
-                  onClick={() => navigate(`/projects/${project.id}`)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="project-card-header">
-                    <div>
-                      <div className="project-card-title">{project.name}</div>
-                      <div className="project-card-repo">
-                        <Github size={12} />
-                        {project.repoUrl.replace('https://github.com/', '')}
-                      </div>
+                <div className="project-card-header">
+                  <div>
+                    <div className="project-card-title">{project.name}</div>
+                    <div className="project-card-repo">
+                      <Github size={12} />
+                      {project.repoUrl.replace('https://github.com/', '')}
                     </div>
-                    {statusBadge(project.status)}
                   </div>
-
-                  {project.description && (
-                    <p className="project-card-desc">{project.description}</p>
-                  )}
+                  {statusBadge(project.status)}
                 </div>
+
+                {project.description && (
+                  <p className="project-card-desc">{project.description}</p>
+                )}
 
                 <div className="project-card-footer" onClick={(e) => e.stopPropagation()}>
                   <span className="project-card-meta">
@@ -121,30 +117,28 @@ export default function Dashboard() {
                           e.stopPropagation();
                           window.open(`/workspace/${project.id}`, '_blank');
                         }}
+                        title="Open IDE in new tab"
                       >
                         <Code2 size={12} />
                         Open IDE
                       </button>
                     )}
-                    <button
-                      type="button"
+                    <a
+                      href={api.projects.archiveUrl(project.id)}
+                      download={`${project.name}.zip`}
                       className="btn btn-secondary btn-sm"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleDownload(e, project.id);
-                      }}
+                      onClick={(e) => e.stopPropagation()}
                       title="Download zip"
                     >
                       <Download size={12} />
-                    </button>
+                    </a>
                     <button
                       type="button"
                       className="btn btn-danger btn-sm"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        handleDelete(e, project.id);
+                        setProjectToDelete(project);
                       }}
                       title="Delete project"
                     >
@@ -157,6 +151,78 @@ export default function Dashboard() {
           </AnimatePresence>
         </motion.div>
       )}
+
+      <AnimatePresence>
+        {projectToDelete && (
+          <div className="modal-overlay" onClick={() => !isDeleting && setProjectToDelete(null)}>
+            <motion.div
+              className="modal"
+              style={{ maxWidth: 460 }}
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-header" style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 'var(--radius-md)',
+                    background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--danger)'
+                  }}>
+                    <Trash2 size={18} />
+                  </div>
+                  <h2 className="modal-title" style={{ fontSize: 18, fontWeight: 700 }}>Delete Project</h2>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => !isDeleting && setProjectToDelete(null)}
+                  disabled={isDeleting}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>
+                  Are you sure you want to delete <strong style={{ color: 'var(--text-primary)' }}>{projectToDelete.name}</strong>?
+                </p>
+                <div style={{
+                  padding: '12px 14px', borderRadius: 'var(--radius-md)',
+                  background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)',
+                  fontSize: 13, color: 'var(--danger)', display: 'flex', alignItems: 'flex-start', gap: 8
+                }}>
+                  <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <span>
+                    This will permanently delete the project workspace, code-server data, and remove all backups from Cellar object storage. This action cannot be undone.
+                  </span>
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setProjectToDelete(null)}
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={isDeleting}
+                  onClick={handleDeleteConfirm}
+                >
+                  {isDeleting ? <span className="spinner" /> : <Trash2 size={14} />}
+                  {isDeleting ? 'Deleting...' : 'Delete Project'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {showAddModal && (
         <AddProjectModal
