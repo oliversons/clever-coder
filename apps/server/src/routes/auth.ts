@@ -65,10 +65,35 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // Logout
-  fastify.post('/logout', { preHandler: [authMiddleware] }, async (request, reply) => {
+  fastify.post('/logout', async (request, reply) => {
     const refreshToken = (request.cookies as Record<string, string | undefined>)?.['refresh_token'];
-    if (refreshToken) await revokeSession(refreshToken);
-    reply.clearCookie('access_token').clearCookie('refresh_token');
+    if (refreshToken) {
+      try {
+        await revokeSession(refreshToken);
+      } catch {
+        // Ignore errors if session was already expired or revoked
+      }
+    }
+    const isProd = config.NODE_ENV === 'production';
+    reply
+      .clearCookie('access_token', {
+        path: '/',
+        httpOnly: true,
+        secure: isProd,
+        sameSite: 'strict',
+      })
+      .clearCookie('refresh_token', {
+        path: '/api/v1/auth',
+        httpOnly: true,
+        secure: isProd,
+        sameSite: 'strict',
+      })
+      .clearCookie('refresh_token', {
+        path: '/',
+        httpOnly: true,
+        secure: isProd,
+        sameSite: 'strict',
+      });
     return { ok: true };
   });
 
@@ -208,7 +233,7 @@ function setAuthCookies(
       secure: isProd,
       sameSite: 'strict',
       path: '/',
-      maxAge: 60 * 15, // 15 min
+      maxAge: 60 * 60 * 24 * 7, // 7 days (1 week)
     })
     .setCookie('refresh_token', refreshToken, {
       httpOnly: true,

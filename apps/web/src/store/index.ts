@@ -34,9 +34,15 @@ export const useAuthStore = create<AuthState>()(
         }
       },
       logout: async () => {
-        await api.auth.logout();
-        set({ user: null });
-        window.location.href = '/login';
+        try {
+          await api.auth.logout();
+        } catch (err) {
+          console.warn('Logout network call failed, clearing local state:', err);
+        } finally {
+          set({ user: null });
+          localStorage.removeItem('auth-store');
+          window.location.href = '/login';
+        }
       },
     }),
     { name: 'auth-store', partialize: (s) => ({ user: s.user }) },

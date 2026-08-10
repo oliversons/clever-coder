@@ -61,8 +61,13 @@ export default function Layout() {
 
           {/* Logout Button */}
           <button
+            type="button"
             className="btn btn-ghost btn-sm"
-            onClick={logout}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              logout();
+            }}
             title="Logout"
             style={{ padding: '6px' }}
           >
