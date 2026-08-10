@@ -52,9 +52,9 @@ export function startWatcher(projectId: string): void {
     ignoreInitial: true,
     ignored: [
       /node_modules/,
-      /\.git/,
-      /\.code-server/,
-      /\.extensions/,
+      /\.git\/objects/,
+      /\.log$/,
+      /\.sock$/,
     ],
     persistent: true,
     awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 },
