@@ -159,6 +159,20 @@ custom_base_url: "${baseUrl}"
 setup_completed: true
 onboarding_completed: true
 
+providers:
+  custom:
+    api_key: "${apiKey}"
+    base_url: "${baseUrl}"
+  default:
+    api_key: "${apiKey}"
+    base_url: "${baseUrl}"
+  openai:
+    api_key: "${apiKey}"
+    base_url: "${baseUrl}"
+  custom_openai:
+    api_key: "${apiKey}"
+    base_url: "${baseUrl}"
+
 custom:
   api_key: "${apiKey}"
   base_url: "${baseUrl}"
@@ -192,17 +206,40 @@ openai:
     ];
     fs.writeFileSync(path.join(hermesHome, '.env'), envLines.join('\n'), 'utf8');
 
-    // 5. Write ~/.hermes/sitecustomize.py to monkeypatch litellm completion calls in Python
+    // 5. Write ~/.hermes/sitecustomize.py to monkeypatch openai and litellm completion calls in Python
     const sitecustomizeContent = `import os
 import sys
 
-def _patch_litellm():
+def _patch_all():
+    base_url = os.environ.get('OPENAI_BASE_URL') or os.environ.get('OPENAI_API_BASE') or os.environ.get('CUSTOM_BASE_URL')
+    api_key = os.environ.get('OPENAI_API_KEY') or os.environ.get('CUSTOM_API_KEY') or os.environ.get('DEFAULT_API_KEY')
+
+    # Patch OpenAI Python SDK if imported
+    try:
+        import openai
+        orig_openai_init = openai.OpenAI.__init__
+        def patched_openai_init(self, *args, **kwargs):
+            if base_url:
+                kwargs['base_url'] = base_url
+            if api_key:
+                kwargs['api_key'] = api_key
+            orig_openai_init(self, *args, **kwargs)
+        openai.OpenAI.__init__ = patched_openai_init
+
+        orig_async_init = openai.AsyncOpenAI.__init__
+        def patched_async_init(self, *args, **kwargs):
+            if base_url:
+                kwargs['base_url'] = base_url
+            if api_key:
+                kwargs['api_key'] = api_key
+            orig_async_init(self, *args, **kwargs)
+        openai.AsyncOpenAI.__init__ = patched_async_init
+    except Exception as e:
+        pass
+
+    # Patch LiteLLM if imported
     try:
         import litellm
-        
-        base_url = os.environ.get('OPENAI_BASE_URL') or os.environ.get('OPENAI_API_BASE') or os.environ.get('CUSTOM_BASE_URL')
-        api_key = os.environ.get('OPENAI_API_KEY') or os.environ.get('CUSTOM_API_KEY') or os.environ.get('DEFAULT_API_KEY')
-
         if os.environ.get('LITELLM_LOG') == 'DEBUG':
             litellm.set_verbose = True
 
@@ -240,11 +277,11 @@ def _patch_litellm():
             patched_acompletion._is_patched = True
             litellm.acompletion = patched_acompletion
 
-        print(f"[sitecustomize] Successfully patched litellm with base_url={base_url}", file=sys.stderr)
+        print(f"[sitecustomize] Successfully patched openai & litellm with base_url={base_url}", file=sys.stderr)
     except Exception as e:
         print(f"[sitecustomize] Note: {e}", file=sys.stderr)
 
-_patch_litellm()
+_patch_all()
 `;
     fs.writeFileSync(path.join(hermesHome, 'sitecustomize.py'), sitecustomizeContent, 'utf8');
 
