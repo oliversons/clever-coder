@@ -15,7 +15,7 @@ import { getDb, schema } from './db/index.js';
 import { eq } from 'drizzle-orm';
 import { setupRcloneConfig } from './utils/rclone.js';
 import { flushAllSyncs, initWorkspaceFromCellar, startWatcher } from './services/sync.service.js';
-import { stopAllWorkspaces } from './services/workspace.service.js';
+import { stopAllWorkspaces, getWorkspacePort } from './services/workspace.service.js';
 
 import { authRoutes } from './routes/auth.js';
 import { projectRoutes } from './routes/projects.js';
@@ -169,37 +169,21 @@ async function bootstrap() {
   await fastify.listen({ port: config.PORT, host: '0.0.0.0' });
   fastify.log.info(`🚀  Server running at http://0.0.0.0:${config.PORT}`);
 
-  // ── WebSocket Upgrade Handler for Code-Server Proxy ────────────────────────
+  // ── WebSocket Upgrade Handler for Code-Server Workbench ───────────────────
   const rawServer = fastify.server;
   rawServer.on('upgrade', (req: IncomingMessage, socket, head) => {
     const match = req.url?.match(/^\/workspace\/([^/]+)/);
     if (!match) return;
     const projectId = match[1];
 
-    const cookieHeader = req.headers.cookie ?? '';
-    const cookieToken = cookieHeader.split(';')
-      .map(c => c.trim().split('='))
-      .find(([k]) => k === 'access_token')?.[1];
-
-    const host = req.headers.host || 'localhost';
-    const urlObj = new URL(req.url ?? '/', `http://${host}`);
-    const queryToken = urlObj.searchParams.get('token') ?? undefined;
-
-    const token = cookieToken || queryToken;
-    if (!token) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    const port = getWorkspacePort(projectId);
+    if (!port) {
+      socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
       socket.destroy();
       return;
     }
 
-    try {
-      verifyToken(token);
-    } catch {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-
+    // Directly proxy active workspace's internal VSCode WebSockets (extension host, terminal, file watcher)
     proxyWorkspaceUpgrade(req, socket, head, projectId);
   });
 }
