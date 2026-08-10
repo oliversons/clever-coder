@@ -97,30 +97,35 @@ async function syncUserSpacesAndWorkspaces(userId: string, activeProjectId?: str
     fs.mkdirSync(activePath, { recursive: true });
   }
 
-  // 3. Pre-seed ~/.hermes/spaces.json & workspaces.json with human-readable workspace paths
+  // 3. Pre-seed ~/.hermes/ & ~/.hermes/webui_state/ configuration files
   const hermesHome = process.env.HERMES_HOME || resolve(process.env.HOME || '/root', '.hermes');
+  const webuiStateDir = join(hermesHome, 'webui_state');
   if (!fs.existsSync(hermesHome)) {
     fs.mkdirSync(hermesHome, { recursive: true });
   }
+  if (!fs.existsSync(webuiStateDir)) {
+    fs.mkdirSync(webuiStateDir, { recursive: true });
+  }
 
-  const spaceEntries: Array<{ name: string; path: string; status: string }> = [
-    {
-      name: 'Home',
-      path: config.WORKSPACES_ROOT,
-      status: activeName === 'Home' ? 'ACTIVE' : 'INACTIVE',
-    },
-  ];
+  const spaceEntries: Array<{ name: string; path: string; status: string }> = [];
+  const workspaceItems: Array<{ name: string; path: string }> = [];
 
   for (const p of userProjects) {
     const cleanName = p.name.trim().replace(/[^a-zA-Z0-9._-]/g, '_');
     const namedPath = join(config.WORKSPACES_ROOT, cleanName);
     const realPath = join(config.WORKSPACES_ROOT, p.id);
     const isActive = p.id === targetProject?.id || p.name === activeName;
+    const targetItemPath = fs.existsSync(namedPath) ? namedPath : realPath;
 
     spaceEntries.push({
       name: p.name,
-      path: fs.existsSync(namedPath) ? namedPath : realPath,
+      path: targetItemPath,
       status: isActive ? 'ACTIVE' : 'INACTIVE',
+    });
+
+    workspaceItems.push({
+      name: p.name,
+      path: targetItemPath,
     });
 
     if (fs.existsSync(namedPath) && realPath !== namedPath) {
@@ -129,8 +134,23 @@ async function syncUserSpacesAndWorkspaces(userId: string, activeProjectId?: str
         path: realPath,
         status: isActive ? 'ACTIVE' : 'INACTIVE',
       });
+      workspaceItems.push({
+        name: `${p.name} (ID)`,
+        path: realPath,
+      });
     }
   }
+
+  // Home fallback workspace
+  spaceEntries.push({
+    name: 'Home',
+    path: config.WORKSPACES_ROOT,
+    status: activeName === 'Home' ? 'ACTIVE' : 'INACTIVE',
+  });
+  workspaceItems.push({
+    name: 'Home',
+    path: config.WORKSPACES_ROOT,
+  });
 
   const spacesConfig = {
     active_space: activeName,
@@ -138,11 +158,23 @@ async function syncUserSpacesAndWorkspaces(userId: string, activeProjectId?: str
   };
 
   try {
-    fs.writeFileSync(join(hermesHome, 'spaces.json'), JSON.stringify(spacesConfig, null, 2), 'utf8');
-    fs.writeFileSync(join(hermesHome, 'workspaces.json'), JSON.stringify(spacesConfig, null, 2), 'utf8');
-    console.log(`✅ [Hermes WebUI] Pre-seeded spaces.json with ${spacesConfig.spaces.length} workspace(s) for user ${userId}`);
+    // Array format required by load_workspaces() in Python backend
+    const workspacesJsonStr = JSON.stringify(workspaceItems, null, 2);
+    fs.writeFileSync(join(hermesHome, 'workspaces.json'), workspacesJsonStr, 'utf8');
+    fs.writeFileSync(join(webuiStateDir, 'workspaces.json'), workspacesJsonStr, 'utf8');
+
+    // Object format for spaces.json
+    const spacesJsonStr = JSON.stringify(spacesConfig, null, 2);
+    fs.writeFileSync(join(hermesHome, 'spaces.json'), spacesJsonStr, 'utf8');
+    fs.writeFileSync(join(webuiStateDir, 'spaces.json'), spacesJsonStr, 'utf8');
+
+    // last_workspace.txt for default active workspace resolution
+    fs.writeFileSync(join(hermesHome, 'last_workspace.txt'), activePath, 'utf8');
+    fs.writeFileSync(join(webuiStateDir, 'last_workspace.txt'), activePath, 'utf8');
+
+    console.log(`✅ [Hermes WebUI] Synced ${workspaceItems.length} workspace(s) to workspaces.json, spaces.json & last_workspace.txt (active=${activePath})`);
   } catch (err) {
-    console.error('[Hermes WebUI] Failed to write spaces.json:', err);
+    console.error('[Hermes WebUI] Failed to write workspaces state files:', err);
   }
 
   return { activePath, activeName };

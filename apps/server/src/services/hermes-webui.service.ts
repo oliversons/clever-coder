@@ -152,7 +152,13 @@ export async function syncHermesConfigFiles(userId?: string, activeWorkspacePath
       allowed_workspaces: allowedWorkspaces,
       workspaces: allowedWorkspaces,
     };
-    fs.writeFileSync(path.join(hermesHome, 'webui.json'), JSON.stringify(webuiJson, null, 2), 'utf8');
+    const webuiStateDir = path.join(hermesHome, 'webui_state');
+    if (!fs.existsSync(webuiStateDir)) {
+      fs.mkdirSync(webuiStateDir, { recursive: true });
+    }
+
+    fs.writeFileSync(path.join(hermesHome, 'last_workspace.txt'), targetWorkspace, 'utf8');
+    fs.writeFileSync(path.join(webuiStateDir, 'last_workspace.txt'), targetWorkspace, 'utf8');
 
     // 3. ~/.hermes/config.yaml
     const yamlContent = `model:
