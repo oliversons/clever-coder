@@ -63,7 +63,22 @@ async function bootstrap() {
     process.exit(1);
   }
 
-  // ── Plugins ────────────────────────────────────────────────────────────────
+  // ── Plugins & Parsers ──────────────────────────────────────────────────────
+  fastify.removeAllContentTypeParsers();
+  fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    if (!body || (typeof body === 'string' && body.trim() === '')) {
+      return done(null, {});
+    }
+    try {
+      const json = JSON.parse(body as string);
+      done(null, json);
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  });
+  fastify.addContentTypeParser('*', { parseAs: 'buffer' }, (_req, body, done) => {
+    done(null, body);
+  });
   await fastify.register(fastifyCors, {
     origin: config.PUBLIC_URL,
     credentials: true,
