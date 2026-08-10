@@ -15,7 +15,7 @@ import { getDb, schema } from './db/index.js';
 import { eq } from 'drizzle-orm';
 import { setupRcloneConfig } from './utils/rclone.js';
 import { flushAllSyncs, initWorkspaceFromCellar, startWatcher } from './services/sync.service.js';
-import { stopAllWorkspaces, getWorkspacePort } from './services/workspace.service.js';
+import { stopAllWorkspaces, getWorkspacePort, startWorkspace } from './services/workspace.service.js';
 
 import { authRoutes } from './routes/auth.js';
 import { projectRoutes } from './routes/projects.js';
@@ -165,27 +165,60 @@ async function bootstrap() {
       });
   }
 
-  // ── Start server ───────────────────────────────────────────────────────────
-  await fastify.listen({ port: config.PORT, host: '0.0.0.0' });
-  fastify.log.info(`🚀  Server running at http://0.0.0.0:${config.PORT}`);
-
   // ── WebSocket Upgrade Handler for Code-Server Workbench ───────────────────
+  // MUST be registered BEFORE fastify.listen() so it captures raw upgrade events
+  // before @fastify/websocket can intercept them.
   const rawServer = fastify.server;
   rawServer.on('upgrade', (req: IncomingMessage, socket, head) => {
     const match = req.url?.match(/^\/workspace\/([^/]+)/);
     if (!match) return;
     const projectId = match[1];
 
-    const port = getWorkspacePort(projectId);
-    if (!port) {
-      socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+    // Auth check via cookie, Bearer, or ?token= query param on the URL
+    const url = new URL(req.url ?? '/', `http://127.0.0.1:${config.PORT}`);
+    const cookieHeader = req.headers.cookie ?? '';
+    const cookieToken = cookieHeader.split(';')
+      .map((c) => c.trim())
+      .find((c) => c.startsWith('access_token='))
+      ?.split('=')[1];
+    const authHeader = req.headers.authorization as string | undefined;
+    const queryToken = url.searchParams.get('token') ?? undefined;
+    const token = cookieToken || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined) || queryToken;
+
+    if (!token) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
       socket.destroy();
       return;
     }
 
-    // Directly proxy active workspace's internal VSCode WebSockets (extension host, terminal, file watcher)
+    try {
+      verifyToken(token);
+    } catch {
+      socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
+    // If workspace isn't started yet, start it async and then proxy
+    const port = getWorkspacePort(projectId);
+    if (!port) {
+      startWorkspace(projectId).then(() => {
+        proxyWorkspaceUpgrade(req, socket, head, projectId);
+      }).catch((err: Error) => {
+        fastify.log.error(`[upgrade] Failed to start workspace ${projectId}: ${err.message}`);
+        socket.write('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+      });
+      return;
+    }
+
+    // Directly proxy active workspace's internal VSCode WebSockets
     proxyWorkspaceUpgrade(req, socket, head, projectId);
   });
+
+  // ── Start server ───────────────────────────────────────────────────────────
+  await fastify.listen({ port: config.PORT, host: '0.0.0.0' });
+  fastify.log.info(`🚀  Server running at http://0.0.0.0:${config.PORT}`);
 }
 
 // ── Graceful shutdown ──────────────────────────────────────────────────────

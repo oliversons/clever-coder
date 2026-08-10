@@ -56,6 +56,9 @@ importers:
       fastify:
         specifier: ^5.3.3
         version: 5.11.3
+      http-proxy:
+        specifier: ^1.18.1
+        version: 1.18.1(debug@4.4.3)
       http-proxy-middleware:
         specifier: ^3.0.3
         version: 3.0.7
@@ -93,6 +96,9 @@ importers:
       '@types/archiver':
         specifier: ^6.0.3
         version: 6.0.4
+      '@types/http-proxy':
+        specifier: ^1.17.17
+        version: 1.17.17
       '@types/jsonwebtoken':
         specifier: ^9.0.9
         version: 9.0.10
