@@ -8,8 +8,8 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import net from 'node:net';
 import path from 'node:path';
-import { existsSync } from 'node:fs';
-import { getAvailableCpuCores, buildMultiCoreEnv } from './hermes.service.js';
+import fs, { existsSync } from 'node:fs';
+import { getAvailableCpuCores, buildMultiCoreEnv, getHermesSettings, getDecryptedApiKey } from './hermes.service.js';
 
 let webuiProcess: ChildProcess | null = null;
 let currentPort = 8787;
@@ -18,6 +18,41 @@ export interface WebUIServiceConfig {
   port?: number;
   password?: string;
   workspacePath?: string;
+  userId?: string;
+}
+
+/**
+ * Auto-sync Hermes credentials & configuration to ~/.hermes/.env to bypass First-Run setup wizard
+ */
+export async function syncHermesEnvFile(userId?: string) {
+  if (!userId) return;
+  try {
+    const settings = await getHermesSettings(userId);
+    if (!settings) return;
+
+    const hermesHome = process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes');
+    if (!fs.existsSync(hermesHome)) {
+      fs.mkdirSync(hermesHome, { recursive: true });
+    }
+
+    const apiKey = getDecryptedApiKey(settings) ?? '';
+    const baseUrl = settings.baseUrl || (settings.provider === 'openai' ? 'https://api.openai.com/v1' : '');
+    const model = settings.model || 'nousresearch/hermes-3-llama-3.1-405b';
+    const provider = settings.provider === 'custom_openai' ? 'custom' : settings.provider;
+
+    const envLines = [
+      `HERMES_MODEL=${model}`,
+      `OPENAI_API_KEY=${apiKey}`,
+      `OPENAI_BASE_URL=${baseUrl}`,
+      `HERMES_PROVIDER=${provider}`,
+      `SETUP_COMPLETED=true`,
+    ];
+
+    fs.writeFileSync(path.join(hermesHome, '.env'), envLines.join('\n'), 'utf8');
+    console.log(`[Hermes WebUI] Synced Hermes config to ${path.join(hermesHome, '.env')}`);
+  } catch (err) {
+    console.error('[Hermes WebUI] Failed to sync Hermes .env file:', err);
+  }
 }
 
 /**
@@ -77,6 +112,11 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
   const port = config.port && config.port > 0 ? config.port : 8787;
   currentPort = port;
 
+  // Sync DB credentials & settings to ~/.hermes/.env
+  if (config.userId) {
+    await syncHermesEnvFile(config.userId);
+  }
+
   // 1. If port is already accepting TCP connections, return immediately
   if (await isPortOpen(port)) {
     return { ok: true, port, message: 'Hermes WebUI is actively listening' };
@@ -106,6 +146,7 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
     HERMES_WEBUI_HOST: '127.0.0.1',
     HERMES_HOME: process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes'),
     HERMES_WORKSPACE: config.workspacePath || process.env.WORKSPACES_ROOT || '/workspaces',
+    SETUP_COMPLETED: 'true',
   };
 
   if (config.password) {

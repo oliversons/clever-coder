@@ -30,6 +30,8 @@ function getWebUIProxy(port: number): httpProxy {
     xfwd: true,
     changeOrigin: true,
     autoRewrite: true,
+    proxyTimeout: 120000,
+    timeout: 120000,
   });
 
   proxy.on('error', (err, _req, res) => {
@@ -63,7 +65,7 @@ export const hermesWebUIRoutes: FastifyPluginAsync = async (fastify) => {
     const password = settings?.webuiPassword ?? undefined;
     const workspacePath = projectId ? join(config.WORKSPACES_ROOT, projectId) : config.WORKSPACES_ROOT;
 
-    const result = await startHermesWebUI({ port, password, workspacePath });
+    const result = await startHermesWebUI({ port, password, workspacePath, userId: user.sub });
 
     const targetUrl = projectId
       ? `/hermes-ui/?workspace=${encodeURIComponent(workspacePath)}`
