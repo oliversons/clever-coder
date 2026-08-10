@@ -73,6 +73,17 @@ async function resolveCredentials(userId?: string): Promise<ResolvedCredentials>
     console.warn('[Hermes WebUI] Could not load credentials from DB, using env fallbacks:', err);
   }
 
+  // ── LiteLLM routing fix ──────────────────────────────────────────────────
+  // When using a custom OpenAI-compatible endpoint (e.g. agentrouter), litellm
+  // interprets provider-prefixed model IDs (e.g. "agentrouter/claude-opus-5")
+  // as a route to that external provider's servers, ignoring the custom base URL.
+  // Prefixing with "openai/" forces litellm to treat it as an OpenAI-compatible
+  // request and route to OPENAI_BASE_URL instead.
+  const isCustomProvider = provider === 'custom' || provider === 'custom_openai';
+  if (isCustomProvider && model && !model.startsWith('openai/')) {
+    model = `openai/${model}`;
+  }
+
   return { apiKey, baseUrl, model, provider };
 }
 
@@ -170,6 +181,9 @@ openai:
       `CUSTOM_API_KEY=${apiKey}`,
       `OPENAI_API_KEY=${apiKey}`,
       `OPENAI_BASE_URL=${baseUrl}`,
+      `OPENAI_API_BASE=${baseUrl}`,
+      `HERMES_BASE_URL=${baseUrl}`,
+      `HERMES_CUSTOM_BASE_URL=${baseUrl}`,
       `CUSTOM_BASE_URL=${baseUrl}`,
       `DEFAULT_BASE_URL=${baseUrl}`,
       `SETUP_COMPLETED=true`,
@@ -296,6 +310,10 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
     CUSTOM_API_KEY: apiKey,
     OPENAI_API_KEY: apiKey,
     OPENAI_BASE_URL: baseUrl,
+    // litellm also checks OPENAI_API_BASE as an alternative env key
+    OPENAI_API_BASE: baseUrl,
+    HERMES_BASE_URL: baseUrl,
+    HERMES_CUSTOM_BASE_URL: baseUrl,
     CUSTOM_BASE_URL: baseUrl,
     DEFAULT_BASE_URL: baseUrl,
     HERMES_MODEL: model,
