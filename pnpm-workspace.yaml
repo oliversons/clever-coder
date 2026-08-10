@@ -1,0 +1,13 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+onlyBuiltDependencies:
+  - argon2
+  - esbuild
+  - node-pty
+
+allowBuilds:
+  argon2: true
+  esbuild: true
+  node-pty: true
