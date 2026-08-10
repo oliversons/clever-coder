@@ -40,6 +40,26 @@ const fastify = Fastify({
   },
 });
 
+/**
+ * Locate the compiled web frontend dist.
+ * Priority order:
+ *   1. WEB_DIST_PATH env var (set explicitly in Dockerfile / .env)
+ *   2. <server-dist>/../../../web   (Docker: /app/apps/server/dist → /app/web)
+ *   3. <server-dist>/../../web      (flat layout fallback)
+ *   4. <server-dist>/../web         (dev build inside apps/server/dist)
+ */
+function findWebDist(): string | null {
+  if (process.env.WEB_DIST_PATH && existsSync(process.env.WEB_DIST_PATH)) {
+    return process.env.WEB_DIST_PATH;
+  }
+  const candidates = [
+    join(__dirname, '..', '..', '..', 'web'),
+    join(__dirname, '..', '..', 'web'),
+    join(__dirname, '..', 'web'),
+  ];
+  return candidates.find(existsSync) ?? null;
+}
+
 async function bootstrap() {
   // ── Plugins ────────────────────────────────────────────────────────────────
   await fastify.register(fastifyCors, {
@@ -68,15 +88,16 @@ async function bootstrap() {
   await fastify.register(archiveRoutes, { prefix: '/api/v1/projects' });
 
   // ── Static frontend ────────────────────────────────────────────────────────
-  const webDistPath = join(__dirname, '..', 'web');
-  if (existsSync(webDistPath)) {
+  const webDistPath = findWebDist();
+  if (webDistPath) {
+    fastify.log.info(`Serving frontend from: ${webDistPath}`);
     await fastify.register(fastifyStatic, {
       root: webDistPath,
       prefix: '/',
       decorateReply: true,
     });
 
-    // SPA fallback — catch non-API, non-workspace routes
+    // SPA fallback
     fastify.setNotFoundHandler((req, reply) => {
       if (!req.url.startsWith('/api') && !req.url.startsWith('/workspace')) {
         reply.sendFile('index.html');
@@ -84,6 +105,8 @@ async function bootstrap() {
         reply.code(404).send({ error: 'Not found' });
       }
     });
+  } else {
+    fastify.log.warn('Web dist not found — API-only mode');
   }
 
   // ── Infrastructure setup ───────────────────────────────────────────────────
@@ -104,22 +127,16 @@ async function bootstrap() {
   }
 
   // ── Start server ───────────────────────────────────────────────────────────
-  const server = await fastify.listen({ port: config.PORT, host: '0.0.0.0' });
+  await fastify.listen({ port: config.PORT, host: '0.0.0.0' });
   fastify.log.info(`🚀  Server running at http://0.0.0.0:${config.PORT}`);
 
   // ── Workspace proxy ────────────────────────────────────────────────────────
-  // Must be attached to the raw Node HTTP server AFTER Fastify starts,
-  // to intercept /workspace/:id/* before Fastify handles them.
-  // We use server.on('request') at the raw level.
   const rawServer = fastify.server;
-
   rawServer.on('request', (req: IncomingMessage, res: ServerResponse) => {
     const match = req.url?.match(/^\/workspace\/([^/]+)\//);
-    if (!match) return; // not a workspace request — already handled by Fastify
-
+    if (!match) return;
     const projectId = match[1];
 
-    // Validate JWT from cookie or Authorization header
     const cookieHeader = req.headers.cookie ?? '';
     const cookieToken = cookieHeader.split(';')
       .map(c => c.trim().split('='))
@@ -151,16 +168,9 @@ async function bootstrap() {
 // ── Graceful shutdown ──────────────────────────────────────────────────────
 async function shutdown(signal: string) {
   fastify.log.info(`[${signal}] Initiating graceful shutdown...`);
-
-  // 1. Stop accepting new connections
   await fastify.close();
-
-  // 2. Flush all workspace syncs to Cellar
   await flushAllSyncs();
-
-  // 3. Stop all code-server processes
   await stopAllWorkspaces();
-
   fastify.log.info('Shutdown complete.');
   process.exit(0);
 }
