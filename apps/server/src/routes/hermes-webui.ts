@@ -97,14 +97,14 @@ async function syncUserSpacesAndWorkspaces(userId: string, activeProjectId?: str
     fs.mkdirSync(activePath, { recursive: true });
   }
 
-  // 3. Pre-seed ~/.hermes/ & ~/.hermes/webui_state/ configuration files
+  // 3. Pre-seed ~/.hermes/, ~/.hermes/webui_state/ & ~/.hermes/webui/ configuration files
   const hermesHome = process.env.HERMES_HOME || resolve(process.env.HOME || '/root', '.hermes');
   const webuiStateDir = join(hermesHome, 'webui_state');
-  if (!fs.existsSync(hermesHome)) {
-    fs.mkdirSync(hermesHome, { recursive: true });
-  }
-  if (!fs.existsSync(webuiStateDir)) {
-    fs.mkdirSync(webuiStateDir, { recursive: true });
+  const webuiDir = join(hermesHome, 'webui');
+  for (const dir of [hermesHome, webuiStateDir, webuiDir]) {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
   }
 
   const spaceEntries: Array<{ name: string; path: string; status: string }> = [];
@@ -160,19 +160,16 @@ async function syncUserSpacesAndWorkspaces(userId: string, activeProjectId?: str
   try {
     // Array format required by load_workspaces() in Python backend
     const workspacesJsonStr = JSON.stringify(workspaceItems, null, 2);
-    fs.writeFileSync(join(hermesHome, 'workspaces.json'), workspacesJsonStr, 'utf8');
-    fs.writeFileSync(join(webuiStateDir, 'workspaces.json'), workspacesJsonStr, 'utf8');
-
     // Object format for spaces.json
     const spacesJsonStr = JSON.stringify(spacesConfig, null, 2);
-    fs.writeFileSync(join(hermesHome, 'spaces.json'), spacesJsonStr, 'utf8');
-    fs.writeFileSync(join(webuiStateDir, 'spaces.json'), spacesJsonStr, 'utf8');
 
-    // last_workspace.txt for default active workspace resolution
-    fs.writeFileSync(join(hermesHome, 'last_workspace.txt'), activePath, 'utf8');
-    fs.writeFileSync(join(webuiStateDir, 'last_workspace.txt'), activePath, 'utf8');
+    for (const dir of [hermesHome, webuiStateDir, webuiDir]) {
+      fs.writeFileSync(join(dir, 'workspaces.json'), workspacesJsonStr, 'utf8');
+      fs.writeFileSync(join(dir, 'spaces.json'), spacesJsonStr, 'utf8');
+      fs.writeFileSync(join(dir, 'last_workspace.txt'), activePath, 'utf8');
+    }
 
-    console.log(`✅ [Hermes WebUI] Synced ${workspaceItems.length} workspace(s) to workspaces.json, spaces.json & last_workspace.txt (active=${activePath})`);
+    console.log(`✅ [Hermes WebUI] Synced ${workspaceItems.length} workspace(s) to workspaces.json, spaces.json & last_workspace.txt across state dirs (active=${activePath})`);
   } catch (err) {
     console.error('[Hermes WebUI] Failed to write workspaces state files:', err);
   }
