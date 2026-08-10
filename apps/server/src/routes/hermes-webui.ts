@@ -13,7 +13,7 @@ import type { Duplex } from 'stream';
 import net from 'net';
 import httpProxy from 'http-proxy';
 import { authMiddleware, type JwtPayload } from '../middleware/auth.middleware.js';
-import { startHermesWebUI, getHermesWebUIPort, isHermesWebUIRunning } from '../services/hermes-webui.service.js';
+import { startHermesWebUI, getHermesWebUIPort, isHermesWebUIRunning, isPortOpen } from '../services/hermes-webui.service.js';
 import { getDb, schema } from '../db/index.js';
 import { eq } from 'drizzle-orm';
 import { join } from 'path';
@@ -79,9 +79,11 @@ export const hermesWebUIRoutes: FastifyPluginAsync = async (fastify) => {
 
   // Status check
   fastify.get('/status', { preHandler: [authMiddleware] }, async () => {
+    const port = getHermesWebUIPort();
+    const listening = await isPortOpen(port);
     return {
-      running: isHermesWebUIRunning(),
-      port: getHermesWebUIPort(),
+      running: listening || isHermesWebUIRunning(),
+      port,
     };
   });
 };
@@ -95,8 +97,19 @@ export async function createHermesWebUIProxy(
 ): Promise<void> {
   const port = getHermesWebUIPort();
 
-  if (!isHermesWebUIRunning()) {
-    await startHermesWebUI({ port });
+  if (!(await isPortOpen(port))) {
+    console.log(`[Hermes WebUI Proxy] Port ${port} not open yet. Auto-starting WebUI daemon...`);
+    const startResult = await startHermesWebUI({ port });
+    if (!startResult.ok) {
+      if (!res.headersSent) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          error: 'Hermes WebUI service unavailable',
+          detail: startResult.message,
+        }));
+      }
+      return;
+    }
   }
 
   const proxy = getWebUIProxy(port);

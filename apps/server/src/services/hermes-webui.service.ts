@@ -6,6 +6,7 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
+import net from 'node:net';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { getAvailableCpuCores, buildMultiCoreEnv } from './hermes.service.js';
@@ -20,7 +21,43 @@ export interface WebUIServiceConfig {
 }
 
 /**
- * Check if the Hermes WebUI daemon is running.
+ * Checks if a TCP port is open and accepting connections
+ */
+export function isPortOpen(port: number, host = '127.0.0.1'): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    socket.setTimeout(1000);
+    socket.on('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.on('timeout', () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.on('error', () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.connect(port, host);
+  });
+}
+
+/**
+ * Polls a port until it opens or times out
+ */
+export async function waitForPort(port: number, timeoutMs = 15000): Promise<boolean> {
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeoutMs) {
+    const open = await isPortOpen(port);
+    if (open) return true;
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  return false;
+}
+
+/**
+ * Check if the Hermes WebUI process reference is active.
  */
 export function isHermesWebUIRunning(): boolean {
   return webuiProcess !== null && !webuiProcess.killed && webuiProcess.exitCode === null;
@@ -34,14 +71,20 @@ export function getHermesWebUIPort(): number {
 }
 
 /**
- * Start or ensure the Hermes WebUI daemon is running.
+ * Start or ensure the Hermes WebUI daemon is running and accepting connections.
  */
 export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise<{ ok: boolean; port: number; message: string }> {
   const port = config.port && config.port > 0 ? config.port : 8787;
   currentPort = port;
 
-  if (isHermesWebUIRunning()) {
-    return { ok: true, port: currentPort, message: 'Hermes WebUI is already running' };
+  // 1. If port is already accepting TCP connections, return immediately
+  if (await isPortOpen(port)) {
+    return { ok: true, port, message: 'Hermes WebUI is actively listening' };
+  }
+
+  // 2. Kill stale process reference if dead
+  if (webuiProcess && webuiProcess.killed) {
+    webuiProcess = null;
   }
 
   // Find main.py location (/opt/hermes-webui or local fallback)
@@ -51,10 +94,6 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
     path.join(process.cwd(), 'hermes-webui', 'main.py'),
   ];
   const targetScript = candidatePaths.find(existsSync);
-
-  if (!targetScript) {
-    console.warn('[Hermes WebUI] Script main.py not found in /opt/hermes-webui. Spawning dummy loopback simulator or waiting.');
-  }
 
   const scriptPath = targetScript ?? '/opt/hermes-webui/main.py';
   const scriptDir = path.dirname(scriptPath);
@@ -75,60 +114,44 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
 
   console.log(`[Hermes WebUI] Spawning python process: python3 ${scriptPath} on 127.0.0.1:${port}...`);
 
-  return new Promise((resolve) => {
-    try {
-      webuiProcess = spawn('python3', [scriptPath, '--no-browser'], {
-        env,
-        cwd: existsSync(scriptDir) ? scriptDir : process.cwd(),
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+  try {
+    webuiProcess = spawn('python3', [scriptPath, '--no-browser'], {
+      env,
+      cwd: existsSync(scriptDir) ? scriptDir : process.cwd(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
 
-      let resolved = false;
+    webuiProcess.stdout?.on('data', (chunk: Buffer) => {
+      console.log(`[Hermes WebUI Out]: ${chunk.toString().trim()}`);
+    });
 
-      webuiProcess.stdout?.on('data', (data: Buffer) => {
-        const text = data.toString();
-        console.log(`[Hermes WebUI stdout]: ${text.trim()}`);
-        if (!resolved && (text.includes('http://') || text.includes('Uvicorn running') || text.includes('Application startup complete'))) {
-          resolved = true;
-          resolve({ ok: true, port, message: 'Hermes WebUI started successfully' });
-        }
-      });
+    webuiProcess.stderr?.on('data', (chunk: Buffer) => {
+      console.error(`[Hermes WebUI Err]: ${chunk.toString().trim()}`);
+    });
 
-      webuiProcess.stderr?.on('data', (data: Buffer) => {
-        console.error(`[Hermes WebUI stderr]: ${data.toString().trim()}`);
-      });
+    webuiProcess.on('error', (err) => {
+      console.error('[Hermes WebUI Spawn Error]:', err);
+      webuiProcess = null;
+    });
 
-      webuiProcess.on('exit', (code) => {
-        console.warn(`[Hermes WebUI] Daemon exited with code ${code}`);
-        webuiProcess = null;
-        if (!resolved) {
-          resolved = true;
-          // Return ok true so proxy attempts connection (Uvicorn may already be running or bind instantly)
-          resolve({ ok: true, port, message: `Process exited with code ${code}` });
-        }
-      });
+    webuiProcess.on('exit', (code) => {
+      console.warn(`[Hermes WebUI Exited] Code: ${code}`);
+      webuiProcess = null;
+    });
 
-      webuiProcess.on('error', (err) => {
-        console.error('[Hermes WebUI] Failed to spawn python process:', err);
-        webuiProcess = null;
-        if (!resolved) {
-          resolved = true;
-          resolve({ ok: false, port, message: err.message });
-        }
-      });
-
-      // Fallback timer: resolve after 2.5s if stdout pattern wasn't matched
-      setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          resolve({ ok: true, port, message: 'Hermes WebUI process launched' });
-        }
-      }, 2500);
-    } catch (err) {
-      console.error('[Hermes WebUI] Error launching daemon:', err);
-      resolve({ ok: false, port, message: err instanceof Error ? err.message : String(err) });
+    // 3. Poll TCP port 8787 until accepting connections
+    const ready = await waitForPort(port, 15000);
+    if (ready) {
+      console.log(`✅ [Hermes WebUI] Ready and accepting connections on port ${port}`);
+      return { ok: true, port, message: 'Hermes WebUI started and listening' };
+    } else {
+      console.error(`❌ [Hermes WebUI] Timed out waiting for port ${port}`);
+      return { ok: false, port, message: `Timed out waiting for port ${port}` };
     }
-  });
+  } catch (err) {
+    console.error('Failed to start Hermes WebUI process:', err);
+    return { ok: false, port, message: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 /**
@@ -140,3 +163,4 @@ export function stopHermesWebUI(): void {
     webuiProcess = null;
   }
 }
+
