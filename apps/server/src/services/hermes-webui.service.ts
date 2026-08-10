@@ -89,6 +89,19 @@ export async function syncHermesConfigFiles(userId?: string, activeWorkspacePath
   const targetWorkspace = activeWorkspacePath || '/workspaces';
 
   try {
+    // Collect all project directories under /workspaces
+    const allowedWorkspaces = ['/workspaces', targetWorkspace];
+    try {
+      if (fs.existsSync('/workspaces')) {
+        const entries = fs.readdirSync('/workspaces');
+        for (const e of entries) {
+          allowedWorkspaces.push(path.join('/workspaces', e));
+        }
+      }
+    } catch {
+      // ignore
+    }
+
     // 1. ~/.hermes/config.json
     const configJson = {
       provider,
@@ -108,9 +121,12 @@ export async function syncHermesConfigFiles(userId?: string, activeWorkspacePath
       // Mark setup as completed so the wizard is NOT shown
       setup_completed: true,
       onboarding_completed: true,
-      default_workspace: targetWorkspace,
+      default_workspace: '/workspaces',
+      active_workspace: targetWorkspace,
       workspace: targetWorkspace,
       workspace_path: targetWorkspace,
+      allowed_workspaces: allowedWorkspaces,
+      workspaces: allowedWorkspaces,
       custom: { api_key: apiKey, base_url: baseUrl },
       default: { api_key: apiKey, base_url: baseUrl },
       openai: { api_key: apiKey, base_url: baseUrl },
@@ -129,10 +145,12 @@ export async function syncHermesConfigFiles(userId?: string, activeWorkspacePath
       default_api_key: apiKey,
       custom_api_key: apiKey,
       openai_api_key: apiKey,
-      default_workspace: targetWorkspace,
+      default_workspace: '/workspaces',
       active_workspace: targetWorkspace,
       workspace: targetWorkspace,
       workspace_path: targetWorkspace,
+      allowed_workspaces: allowedWorkspaces,
+      workspaces: allowedWorkspaces,
     };
     fs.writeFileSync(path.join(hermesHome, 'webui.json'), JSON.stringify(webuiJson, null, 2), 'utf8');
 
@@ -403,7 +421,7 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
     HERMES_WEBUI_PORT: String(port),
     HERMES_WEBUI_HOST: '127.0.0.1',
     HERMES_HOME: hermesHome,
-    HERMES_WORKSPACE: config.workspacePath || process.env.WORKSPACES_ROOT || '/workspaces',
+    HERMES_WORKSPACE: process.env.WORKSPACES_ROOT || '/workspaces',
     // Inject decrypted credentials directly into the Python process environment
     DEFAULT_API_KEY: apiKey,
     CUSTOM_API_KEY: apiKey,

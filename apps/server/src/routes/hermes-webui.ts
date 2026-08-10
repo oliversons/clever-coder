@@ -103,26 +103,33 @@ async function syncUserSpacesAndWorkspaces(userId: string, activeProjectId?: str
     fs.mkdirSync(hermesHome, { recursive: true });
   }
 
-  const spaceEntries = userProjects.map((p) => {
+  const spaceEntries: Array<{ name: string; path: string; status: string }> = [
+    {
+      name: 'Home',
+      path: config.WORKSPACES_ROOT,
+      status: activeName === 'Home' ? 'ACTIVE' : 'INACTIVE',
+    },
+  ];
+
+  for (const p of userProjects) {
     const cleanName = p.name.trim().replace(/[^a-zA-Z0-9._-]/g, '_');
     const namedPath = join(config.WORKSPACES_ROOT, cleanName);
     const realPath = join(config.WORKSPACES_ROOT, p.id);
-    const itemPath = fs.existsSync(namedPath) ? namedPath : realPath;
     const isActive = p.id === targetProject?.id || p.name === activeName;
-    return {
-      name: p.name,
-      path: itemPath,
-      status: isActive ? 'ACTIVE' : 'INACTIVE',
-    };
-  });
 
-  // If activeName is not in userProjects list (e.g. Home), add it
-  if (!spaceEntries.some((s) => s.name === activeName)) {
-    spaceEntries.unshift({
-      name: activeName,
-      path: activePath,
-      status: 'ACTIVE',
+    spaceEntries.push({
+      name: p.name,
+      path: fs.existsSync(namedPath) ? namedPath : realPath,
+      status: isActive ? 'ACTIVE' : 'INACTIVE',
     });
+
+    if (fs.existsSync(namedPath) && realPath !== namedPath) {
+      spaceEntries.push({
+        name: `${p.name} (ID)`,
+        path: realPath,
+        status: isActive ? 'ACTIVE' : 'INACTIVE',
+      });
+    }
   }
 
   const spacesConfig = {
