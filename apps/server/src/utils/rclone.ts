@@ -2,13 +2,14 @@ import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import { config } from '../config.js';
 import { join } from 'path';
-import { existsSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, writeFileSync, mkdirSync, readdirSync } from 'fs';
 import pRetry from 'p-retry';
 
 const execAsync = promisify(exec);
 
 const RCLONE_CONF_PATH = '/app/rclone.conf';
 const RCLONE_CACHE_DIR = '/app/rclone-cache';
+const RCLONE_WORKDIR = '/app/rclone-cache/bisync';
 
 export function setupRcloneConfig(): void {
   const host = config.CELLAR_ADDON_HOST.replace(/^https?:\/\//, '');
@@ -26,6 +27,7 @@ no_check_bucket = false
 `;
 
   mkdirSync(RCLONE_CACHE_DIR, { recursive: true });
+  mkdirSync(RCLONE_WORKDIR, { recursive: true });
   writeFileSync(RCLONE_CONF_PATH, conf, { mode: 0o600 });
   console.log('[rclone] Config written to', RCLONE_CONF_PATH);
 }
@@ -38,8 +40,32 @@ function getLocalPath(projectId: string): string {
   return join(config.WORKSPACES_ROOT, projectId);
 }
 
-function getBisyncDir(projectId: string): string {
-  return join(RCLONE_CACHE_DIR, 'bisync', projectId);
+function hasPriorListing(projectId: string): boolean {
+  if (!existsSync(RCLONE_WORKDIR)) return false;
+  try {
+    const files = readdirSync(RCLONE_WORKDIR);
+    return files.some((f) => f.includes(projectId) && f.endsWith('.lst'));
+  } catch {
+    return false;
+  }
+}
+
+function getBaseBisyncArgs(projectId: string): string[] {
+  const localPath = getLocalPath(projectId);
+  const remote = getRcloneRemote(projectId);
+  return [
+    'bisync',
+    remote,
+    localPath,
+    '--config', RCLONE_CONF_PATH,
+    '--cache-dir', RCLONE_CACHE_DIR,
+    '--workdir', RCLONE_WORKDIR,
+    '--conflict-resolve', 'newer',
+    '--max-delete', '50',
+    '--transfers', '16',
+    '--checkers', '16',
+    '-v',
+  ];
 }
 
 export interface SyncResult {
@@ -53,25 +79,13 @@ export async function restoreWorkspace(
   isFirstSync: boolean,
 ): Promise<SyncResult> {
   const localPath = getLocalPath(projectId);
-  const remote = getRcloneRemote(projectId);
-
   mkdirSync(localPath, { recursive: true });
+  mkdirSync(RCLONE_WORKDIR, { recursive: true });
 
-  const args = [
-    'bisync',
-    remote,
-    localPath,
-    '--config', RCLONE_CONF_PATH,
-    '--cache-dir', RCLONE_CACHE_DIR,
-    '--conflict-resolve', 'newer',
-    '--max-delete', '50',
-    '--transfers', '16',
-    '--checkers', '16',
-    '--no-traverse',
-    '-v',
-  ];
+  const args = getBaseBisyncArgs(projectId);
 
-  if (isFirstSync) {
+  // If first sync or if this container has no prior listing in workdir, pass --resync
+  if (isFirstSync || !hasPriorListing(projectId)) {
     args.push('--resync');
   }
 
@@ -80,7 +94,7 @@ export async function restoreWorkspace(
   // Auto-recover if bisync requires --resync due to missing listings
   if (!result.success && shouldResync(result.error)) {
     console.warn(`[rclone:restore:${projectId}] Bisync requires --resync. Retrying with --resync...`);
-    return rcloneRun([...args, '--resync'], `restore:${projectId}:resync`);
+    return rcloneRun([...getBaseBisyncArgs(projectId), '--resync'], `restore:${projectId}:resync`);
   }
 
   return result;
@@ -88,29 +102,21 @@ export async function restoreWorkspace(
 
 export async function syncWorkspace(projectId: string): Promise<SyncResult> {
   const localPath = getLocalPath(projectId);
-  const remote = getRcloneRemote(projectId);
-
   if (!existsSync(localPath)) return { success: true, duration: 0 };
+  mkdirSync(RCLONE_WORKDIR, { recursive: true });
 
-  const args = [
-    'bisync',
-    localPath,
-    remote,
-    '--config', RCLONE_CONF_PATH,
-    '--cache-dir', RCLONE_CACHE_DIR,
-    '--conflict-resolve', 'newer',
-    '--max-delete', '50',
-    '--transfers', '16',
-    '--checkers', '16',
-    '--no-traverse',
-    '-v',
-  ];
+  const args = getBaseBisyncArgs(projectId);
+
+  // If no prior listing exists in this container, pass --resync directly
+  if (!hasPriorListing(projectId)) {
+    args.push('--resync');
+  }
 
   const runWithResyncFallback = async () => {
     const res = await rcloneRun(args, `sync:${projectId}`);
     if (!res.success && shouldResync(res.error)) {
       console.warn(`[rclone:sync:${projectId}] Bisync requires --resync. Retrying with --resync...`);
-      return rcloneRun([...args, '--resync'], `sync:${projectId}:resync`);
+      return rcloneRun([...getBaseBisyncArgs(projectId), '--resync'], `sync:${projectId}:resync`);
     }
     if (!res.success) {
       throw new Error(res.error || 'Sync failed');
