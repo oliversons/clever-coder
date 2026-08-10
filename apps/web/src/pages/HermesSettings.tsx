@@ -17,10 +17,11 @@ import {
   ToggleLeft, ToggleRight, Server, Globe, FlaskConical,
 } from 'lucide-react';
 import { useHermesStore } from '../store/hermesStore';
+import { api } from '../api/client';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type TabId = 'model' | 'execution' | 'memory' | 'tools' | 's3';
+type TabId = 'model' | 'execution' | 'memory' | 'tools' | 's3' | 'webui';
 
 const TABS: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
   { id: 'model', label: 'Model & API', icon: <Bot size={16} /> },
@@ -28,6 +29,7 @@ const TABS: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
   { id: 'memory', label: 'Memory & Skills', icon: <Brain size={16} /> },
   { id: 'tools', label: 'Tools & MCP', icon: <Wrench size={16} /> },
   { id: 's3', label: 'S3 & Storage', icon: <Database size={16} /> },
+  { id: 'webui', label: 'Hermes WebUI', icon: <Globe size={16} /> },
 ];
 
 const PROVIDERS = [
@@ -562,6 +564,100 @@ export default function HermesSettings() {
                       <li>Tool outputs and diffs are always stored in S3</li>
                       <li>Full trajectory exports available as gzip-compressed JSON</li>
                     </ul>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* ── Tab 6: Hermes Standalone WebUI ──────────────────────────── */}
+            {activeTab === 'webui' && (
+              <section className="glass-card" style={{ padding: 28 }}>
+                <SectionTitle icon={<Globe size={18} />} title="Hermes Standalone WebUI" subtitle="Manage and launch the official nesquena/hermes-webui interface" />
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {/* Launch Card Banner */}
+                  <div style={{
+                    padding: 20,
+                    background: 'linear-gradient(135deg, rgba(124,58,237,0.15), rgba(6,182,212,0.1))',
+                    border: '1px solid rgba(124,58,237,0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    boxShadow: 'var(--shadow-md)',
+                  }}>
+                    <div style={{ flex: 1, paddingRight: 20 }}>
+                      <h4 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 6px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        🖥️ Official Standalone WebUI
+                      </h4>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                        Launch the full three-panel web interface (<code style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>nesquena/hermes-webui</code>) in a new browser tab with full access to sessions, memory, file browsers, and agent tools.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const res = await api.hermes.launchWebUI();
+                          if (res?.url) {
+                            window.open(res.url, '_blank', 'noopener,noreferrer');
+                          }
+                        } catch (err) {
+                          console.error('Failed to launch WebUI:', err);
+                        }
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '10px 18px', fontSize: 13, fontWeight: 700,
+                        background: 'linear-gradient(135deg, #7c3aed, #06b6d4)',
+                        border: 'none', borderRadius: 'var(--radius-md)', color: '#fff',
+                        cursor: 'pointer', whiteSpace: 'nowrap',
+                        boxShadow: '0 4px 14px rgba(124,58,237,0.4)',
+                        transition: 'transform 0.15s, opacity 0.15s',
+                      }}
+                    >
+                      <span>Open Hermes WebUI</span>
+                      <span>↗</span>
+                    </button>
+                  </div>
+
+                  {/* Config Controls */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div style={{
+                      background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)', padding: 16, display: 'flex', flexDirection: 'column', gap: 8,
+                    }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                        WebUI Server Port
+                      </label>
+                      <input
+                        type="number"
+                        value={Number(form.webuiPort ?? 8787)}
+                        onChange={(e) => set('webuiPort', Number(e.target.value))}
+                        style={inputStyle}
+                      />
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        Internal container loopback port (default: 8787). Proxied via <code style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>/hermes-ui/*</code>.
+                      </span>
+                    </div>
+
+                    <div style={{
+                      background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)', padding: 16, display: 'flex', flexDirection: 'column', gap: 8,
+                    }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Optional Web Password
+                      </label>
+                      <input
+                        type="password"
+                        value={String(form.webuiPassword ?? '')}
+                        onChange={(e) => set('webuiPassword', e.target.value)}
+                        placeholder="•••••••• (optional)"
+                        style={inputStyle}
+                      />
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        Optional password passed as <code style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>HERMES_WEBUI_PASSWORD</code>.
+                      </span>
+                    </div>
                   </div>
                 </div>
               </section>

@@ -41,6 +41,9 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
         systemPrompt: null,
         enabledTools: ['shell', 'web_search', 'code_runner'],
         s3ArchivingEnabled: true,
+        webuiEnabled: true,
+        webuiPort: 8787,
+        webuiPassword: null,
       });
     }
     return reply.send(maskSettings(settings));
@@ -78,6 +81,9 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
       systemPrompt: typeof body.systemPrompt === 'string' ? body.systemPrompt : undefined,
       enabledTools: Array.isArray(body.enabledTools) ? body.enabledTools as string[] : undefined,
       s3ArchivingEnabled: typeof body.s3ArchivingEnabled === 'boolean' ? body.s3ArchivingEnabled : undefined,
+      webuiEnabled: typeof body.webuiEnabled === 'boolean' ? body.webuiEnabled : undefined,
+      webuiPort: typeof body.webuiPort === 'number' ? body.webuiPort : undefined,
+      webuiPassword: typeof body.webuiPassword === 'string' ? body.webuiPassword : undefined,
     });
 
     return reply.send(maskSettings(settings));

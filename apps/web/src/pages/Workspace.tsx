@@ -72,6 +72,32 @@ export default function Workspace() {
           <Download size={13} />
         </a>
 
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(6,182,212,0.2))',
+            border: '1px solid rgba(124,58,237,0.4)',
+            color: 'var(--text-primary)', fontWeight: 600, fontSize: 12,
+          }}
+          onClick={async () => {
+            try {
+              const res = await api.hermes.launchWebUI(id);
+              if (res?.url) {
+                window.open(res.url, '_blank', 'noopener,noreferrer');
+              }
+            } catch (err) {
+              console.error('[Hermes] Failed to launch WebUI:', err);
+            }
+          }}
+          title="Open standalone Hermes WebUI pre-bound to this workspace"
+        >
+          <span>🤖</span>
+          <span>Hermes WebUI</span>
+          <span>↗</span>
+        </button>
+
         {/* Hermes AI Trigger */}
         <HermesIcon /></div>
 

@@ -118,6 +118,11 @@ export const hermesSettings = pgTable('hermes_settings', {
   // S3 Archiving
   s3ArchivingEnabled: boolean('s3_archiving_enabled').notNull().default(true),
 
+  // Hermes WebUI Server
+  webuiEnabled: boolean('webui_enabled').notNull().default(true),
+  webuiPort: integer('webui_port').notNull().default(8787),
+  webuiPassword: text('webui_password'),
+
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

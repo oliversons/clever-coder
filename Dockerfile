@@ -49,6 +49,15 @@ RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.96.4
 RUN curl -fsSL https://rclone.org/install.sh | bash \
     && rclone version
 
+# ── Hermes AI Agent & Standalone Hermes WebUI ──────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3-pip python3-venv \
+    && rm -rf /var/lib/apt/lists/* \
+    && (pip install --no-cache-dir hermes-agent --break-system-packages || true) \
+    && git clone https://github.com/nesquena/hermes-webui.git /opt/hermes-webui \
+    && cd /opt/hermes-webui \
+    && (pip install --no-cache-dir -r requirements.txt --break-system-packages || true)
+
 # ── App ────────────────────────────────────────────────────────
 WORKDIR /app
 

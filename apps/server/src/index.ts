@@ -31,6 +31,8 @@ import { archiveRoutes } from './routes/archive.js';
 import { healthRoutes } from './routes/health.js';
 import { hermesRoutes } from './routes/hermes.js';
 import { hermesSettingsRoutes } from './routes/hermes-settings.js';
+import { hermesWebUIRoutes, createHermesWebUIProxy, proxyHermesWebUIUpgrade } from './routes/hermes-webui.js';
+import { stopHermesWebUI } from './services/hermes-webui.service.js';
 import { verifyToken } from './middleware/auth.middleware.js';
 import { runMigrations } from './db/migrate.js';
 
@@ -113,6 +115,17 @@ async function bootstrap() {
   // ── Hermes AI Agent Routes ─────────────────────────────────────────────────
   await fastify.register(hermesRoutes, { prefix: '/api/v1/hermes' });
   await fastify.register(hermesSettingsRoutes, { prefix: '/api/v1/hermes' });
+  await fastify.register(hermesWebUIRoutes, { prefix: '/api/v1/hermes/webui' });
+
+  // ── Standalone Hermes WebUI Proxy Route ──────────────────────────────────
+  fastify.all('/hermes-ui/*', async (request, reply) => {
+    reply.hijack();
+    await createHermesWebUIProxy(request.raw, reply.raw as ServerResponse);
+  });
+
+  fastify.all('/hermes-ui', async (_request, reply) => {
+    reply.redirect('/hermes-ui/');
+  });
 
   // ── Workspace Proxy Routes (HTTP iframe embedding) ──────────────────────────
   fastify.all('/workspace/:id/*', async (request, reply) => {
@@ -162,9 +175,9 @@ async function bootstrap() {
       decorateReply: true,
     });
 
-    // SPA fallback (ignore /api and /workspace paths)
+    // SPA fallback (ignore /api, /workspace, and /hermes-ui paths)
     fastify.setNotFoundHandler((req, reply) => {
-      if (!req.url.startsWith('/api') && !req.url.startsWith('/workspace')) {
+      if (!req.url.startsWith('/api') && !req.url.startsWith('/workspace') && !req.url.startsWith('/hermes-ui')) {
         reply.sendFile('index.html');
       } else {
         reply.code(404).send({ error: 'Not found' });
@@ -215,7 +228,10 @@ async function bootstrap() {
   rawServer.on('upgrade', (req: IncomingMessage, socket, head) => {
     const workspaceMatch = req.url?.match(/^\/workspace\/([^/]+)/);
 
-    if (workspaceMatch) {
+    if (req.url?.startsWith('/hermes-ui')) {
+      // ── Hermes Standalone WebUI WebSocket → raw TCP tunnel ──────────────────
+      proxyHermesWebUIUpgrade(req, socket, head);
+    } else if (workspaceMatch) {
       // ── Workspace WebSocket → raw TCP tunnel ──────────────────────────────
       const projectId = workspaceMatch[1];
 
@@ -273,6 +289,7 @@ async function bootstrap() {
 // ── Graceful shutdown ──────────────────────────────────────────────────────
 async function shutdown(signal: string) {
   fastify.log.info(`[${signal}] Initiating graceful shutdown...`);
+  stopHermesWebUI();
   await fastify.close();
   await flushAllSyncs();
   await stopAllWorkspaces();

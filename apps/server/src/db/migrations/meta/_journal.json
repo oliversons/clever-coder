@@ -43,6 +43,13 @@
       "when": 1786365000000,
       "tag": "0005_update_hermes_cpu_default",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786368000000,
+      "tag": "0006_add_hermes_webui",
+      "breakpoints": true
     }
   ]
 }

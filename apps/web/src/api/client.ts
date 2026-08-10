@@ -101,6 +101,15 @@ export const api = {
     },
     archiveUrl: (id: string) => `/api/v1/projects/${id}/archive`,
   },
+
+  hermes: {
+    launchWebUI: (projectId?: string) =>
+      request<{ success: boolean; url: string; port: number; message: string }>(
+        `/hermes/webui/launch${projectId ? `?projectId=${projectId}` : ''}`,
+      ),
+    getWebUIStatus: () =>
+      request<{ running: boolean; port: number }>('/hermes/webui/status'),
+  },
 };
 
 // Types
