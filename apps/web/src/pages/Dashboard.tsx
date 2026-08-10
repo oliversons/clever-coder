@@ -80,34 +80,37 @@ export default function Dashboard() {
               <motion.div
                 key={project.id}
                 className="glass-card project-card"
-                onClick={() => navigate(`/projects/${project.id}`)}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 whileHover={{ y: -2 }}
                 transition={{ duration: 0.2 }}
-                style={{ cursor: 'pointer' }}
               >
-                <div className="project-card-header">
-                  <div>
-                    <div className="project-card-title">{project.name}</div>
-                    <div className="project-card-repo">
-                      <Github size={12} />
-                      {project.repoUrl.replace('https://github.com/', '')}
+                <div
+                  className="project-card-main"
+                  onClick={() => navigate(`/projects/${project.id}`)}
+                >
+                  <div className="project-card-header">
+                    <div>
+                      <div className="project-card-title">{project.name}</div>
+                      <div className="project-card-repo">
+                        <Github size={12} />
+                        {project.repoUrl.replace('https://github.com/', '')}
+                      </div>
                     </div>
+                    {statusBadge(project.status)}
                   </div>
-                  {statusBadge(project.status)}
+
+                  {project.description && (
+                    <p className="project-card-desc">{project.description}</p>
+                  )}
                 </div>
 
-                {project.description && (
-                  <p className="project-card-desc">{project.description}</p>
-                )}
-
-                <div className="project-card-footer" onClick={(e) => e.stopPropagation()}>
+                <div className="project-card-footer">
                   <span className="project-card-meta">
                     {formatDistanceToNow(new Date(project.updatedAt), { addSuffix: true })}
                   </span>
-                  <div className="project-card-actions" onClick={(e) => e.stopPropagation()}>
+                  <div className="project-card-actions">
                     {project.status === 'ready' && (
                       <button
                         type="button"

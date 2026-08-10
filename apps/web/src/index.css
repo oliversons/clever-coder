@@ -553,9 +553,18 @@ body::before {
 /* ─── Project Card ──────────────────────────────────────────── */
 .project-card {
   padding: var(--space-6);
-  cursor: pointer;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.project-card-main {
+  cursor: pointer;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .project-card::before {
