@@ -188,10 +188,67 @@ openai:
       `DEFAULT_BASE_URL=${baseUrl}`,
       `SETUP_COMPLETED=true`,
       `HERMES_ONBOARDING_COMPLETED=true`,
+      `LITELLM_LOG=DEBUG`,
     ];
     fs.writeFileSync(path.join(hermesHome, '.env'), envLines.join('\n'), 'utf8');
 
-    console.log(`✅ [Hermes WebUI] Config synced to ${hermesHome} (provider=${provider}, model=${model}, apiKey=${apiKey ? '***' : 'MISSING'})`);
+    // 5. Write ~/.hermes/sitecustomize.py to monkeypatch litellm completion calls in Python
+    const sitecustomizeContent = `import os
+import sys
+
+def _patch_litellm():
+    try:
+        import litellm
+        
+        base_url = os.environ.get('OPENAI_BASE_URL') or os.environ.get('OPENAI_API_BASE') or os.environ.get('CUSTOM_BASE_URL')
+        api_key = os.environ.get('OPENAI_API_KEY') or os.environ.get('CUSTOM_API_KEY') or os.environ.get('DEFAULT_API_KEY')
+
+        if os.environ.get('LITELLM_LOG') == 'DEBUG':
+            litellm.set_verbose = True
+
+        orig_completion = getattr(litellm, 'completion', None)
+        if orig_completion and not getattr(orig_completion, '_is_patched', False):
+            def patched_completion(*args, **kwargs):
+                model = kwargs.get('model')
+                if model and isinstance(model, str) and base_url:
+                    if not model.startswith('openai/'):
+                        kwargs['model'] = f"openai/{model}"
+                if base_url:
+                    kwargs['api_base'] = base_url
+                    kwargs['base_url'] = base_url
+                    kwargs['custom_llm_provider'] = 'openai'
+                if api_key:
+                    kwargs['api_key'] = api_key
+                return orig_completion(*args, **kwargs)
+            patched_completion._is_patched = True
+            litellm.completion = patched_completion
+
+        orig_acompletion = getattr(litellm, 'acompletion', None)
+        if orig_acompletion and not getattr(orig_acompletion, '_is_patched', False):
+            async def patched_acompletion(*args, **kwargs):
+                model = kwargs.get('model')
+                if model and isinstance(model, str) and base_url:
+                    if not model.startswith('openai/'):
+                        kwargs['model'] = f"openai/{model}"
+                if base_url:
+                    kwargs['api_base'] = base_url
+                    kwargs['base_url'] = base_url
+                    kwargs['custom_llm_provider'] = 'openai'
+                if api_key:
+                    kwargs['api_key'] = api_key
+                return await orig_acompletion(*args, **kwargs)
+            patched_acompletion._is_patched = True
+            litellm.acompletion = patched_acompletion
+
+        print(f"[sitecustomize] Successfully patched litellm with base_url={base_url}", file=sys.stderr)
+    except Exception as e:
+        print(f"[sitecustomize] Note: {e}", file=sys.stderr)
+
+_patch_litellm()
+`;
+    fs.writeFileSync(path.join(hermesHome, 'sitecustomize.py'), sitecustomizeContent, 'utf8');
+
+    console.log(`✅ [Hermes WebUI] Config & sitecustomize.py synced to ${hermesHome} (provider=${provider}, model=${model}, apiKey=${apiKey ? '***' : 'MISSING'})`);
   } catch (err) {
     console.error('[Hermes WebUI] Failed to write Hermes config files:', err);
   }
@@ -298,19 +355,37 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
 
   const { apiKey, baseUrl, model, provider } = creds;
 
+  const hermesHome = process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes');
+
+  // Copy sitecustomize.py to scriptDir if scriptDir exists and is writable
+  try {
+    if (existsSync(scriptDir)) {
+      const sitecustomizePath = path.join(hermesHome, 'sitecustomize.py');
+      if (existsSync(sitecustomizePath)) {
+        fs.copyFileSync(sitecustomizePath, path.join(scriptDir, 'sitecustomize.py'));
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  const existingPythonPath = process.env.PYTHONPATH || '';
+  const pythonPath = [hermesHome, scriptDir, existingPythonPath].filter(Boolean).join(':');
+
   const env: Record<string, string> = {
     ...process.env,
     ...buildMultiCoreEnv(totalCores),
+    PYTHONPATH: pythonPath,
+    LITELLM_LOG: 'DEBUG',
     HERMES_WEBUI_PORT: String(port),
     HERMES_WEBUI_HOST: '127.0.0.1',
-    HERMES_HOME: process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes'),
+    HERMES_HOME: hermesHome,
     HERMES_WORKSPACE: config.workspacePath || process.env.WORKSPACES_ROOT || '/workspaces',
     // Inject decrypted credentials directly into the Python process environment
     DEFAULT_API_KEY: apiKey,
     CUSTOM_API_KEY: apiKey,
     OPENAI_API_KEY: apiKey,
     OPENAI_BASE_URL: baseUrl,
-    // litellm also checks OPENAI_API_BASE as an alternative env key
     OPENAI_API_BASE: baseUrl,
     HERMES_BASE_URL: baseUrl,
     HERMES_CUSTOM_BASE_URL: baseUrl,
@@ -327,7 +402,7 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
     env.HERMES_WEBUI_PASSWORD = config.password;
   }
 
-  console.log(`[Hermes WebUI] Spawning python process: python3 ${scriptPath} on 127.0.0.1:${port} (provider=${provider}, model=${model}, apiKey=${apiKey ? '***' : 'MISSING'})...`);
+  console.log(`[Hermes WebUI] Spawning python process: python3 ${scriptPath} on 127.0.0.1:${port} (provider=${provider}, model=${model}, baseUrl=${baseUrl}, apiKey=${apiKey ? '***' : 'MISSING'})...`);
 
   try {
     webuiProcess = spawn('python3', [scriptPath, '--no-browser'], {
@@ -337,11 +412,17 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
     });
 
     webuiProcess.stdout?.on('data', (chunk: Buffer) => {
-      console.log(`[Hermes WebUI Out]: ${chunk.toString().trim()}`);
+      for (const line of chunk.toString().split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed) console.log(`[Hermes WebUI Out] ${trimmed}`);
+      }
     });
 
     webuiProcess.stderr?.on('data', (chunk: Buffer) => {
-      console.error(`[Hermes WebUI Err]: ${chunk.toString().trim()}`);
+      for (const line of chunk.toString().split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed) console.error(`[Hermes WebUI Err] ${trimmed}`);
+      }
     });
 
     webuiProcess.on('error', (err) => {

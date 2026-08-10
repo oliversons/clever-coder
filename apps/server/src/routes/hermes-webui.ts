@@ -135,15 +135,35 @@ export async function createHermesWebUIProxy(
   }
 
   const proxy = getWebUIProxy(port);
-  const originalUrl = req.url ?? '/';
+  let originalUrl = req.url ?? '/';
+
+  // Rewrite model parameter in URL query string if present and missing openai/ prefix
+  if (originalUrl.includes('model=')) {
+    originalUrl = originalUrl.replace(/model=([^&]+)/g, (_match, modelVal) => {
+      const decoded = decodeURIComponent(modelVal);
+      if (!decoded.startsWith('openai/')) {
+        return `model=${encodeURIComponent(`openai/${decoded}`)}`;
+      }
+      return `model=${modelVal}`;
+    });
+  }
+
   req.url = originalUrl.replace(/^\/hermes-ui/, '') || '/';
   req.headers.host = `127.0.0.1:${port}`;
   req.headers.origin = `http://127.0.0.1:${port}`;
 
   if (body !== undefined && body !== null && (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH')) {
-    const bodyStr = typeof body === 'string' || Buffer.isBuffer(body)
-      ? body
-      : JSON.stringify(body);
+    let payload = body;
+    if (typeof payload === 'object' && payload !== null) {
+      const p = payload as Record<string, unknown>;
+      if (typeof p.model === 'string' && !p.model.startsWith('openai/')) {
+        payload = { ...p, model: `openai/${p.model}` };
+      }
+    }
+
+    const bodyStr = typeof payload === 'string' || Buffer.isBuffer(payload)
+      ? payload
+      : JSON.stringify(payload);
     req.headers['content-length'] = String(Buffer.byteLength(bodyStr));
     const stream = Readable.from([bodyStr]);
     proxy.web(req, res, { buffer: stream });
