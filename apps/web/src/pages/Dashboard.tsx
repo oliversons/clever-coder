@@ -251,25 +251,30 @@ function AddProjectModal({
   const [githubToken, setGithubToken] = useState('');
   const [userRepos, setUserRepos] = useState<GithubRepo[]>([]);
   const [loadingRepos, setLoadingRepos] = useState(false);
+  const [repoError, setRepoError] = useState('');
   const [progress, setProgress] = useState<{ pct: number; stage: string } | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const fetchUserRepos = async () => {
+    if (!user?.hasGithubToken) return;
     setLoadingRepos(true);
+    setRepoError('');
     try {
       const repos = await api.projects.listGithubRepos();
       setUserRepos(repos);
-    } catch {
-      // ignore if not connected
+    } catch (err) {
+      setRepoError(err instanceof Error ? err.message : 'Failed to fetch repositories');
     } finally {
       setLoadingRepos(false);
     }
   };
 
   useEffect(() => {
-    fetchUserRepos();
-  }, []);
+    if (user?.hasGithubToken) {
+      fetchUserRepos();
+    }
+  }, [user?.hasGithubToken]);
 
   const handleConnectGithubPopup = () => {
     openGithubOAuthPopup(async () => {
@@ -365,26 +370,54 @@ function AddProjectModal({
           </button>
         </div>
 
-        {/* Pick from user's GitHub Repos if connected */}
-        {userRepos.length > 0 && (
-          <div className="input-group">
-            <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Select from Your GitHub Repositories</span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{userRepos.length} repos found</span>
+        {/* Select Connected Repository (always rendered when connected) */}
+        {user?.hasGithubToken && (
+          <div className="input-group" style={{ marginBottom: 20 }}>
+            <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Select Connected Repository</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  {loadingRepos ? 'Loading...' : `${userRepos.length} repos found`}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs"
+                  onClick={fetchUserRepos}
+                  disabled={loadingRepos}
+                  title="Refresh Repositories"
+                  style={{ padding: '2px 6px', fontSize: 11 }}
+                >
+                  <RefreshCw size={12} className={loadingRepos ? 'spin' : ''} />
+                </button>
+              </div>
             </label>
-            <select
-              className="input"
-              onChange={handleSelectRepo}
-              disabled={loading || loadingRepos}
-              defaultValue=""
-            >
-              <option value="" disabled>-- Pick a repository (public or private) --</option>
-              {userRepos.map(r => (
-                <option key={r.id} value={r.htmlUrl}>
-                  {r.isPrivate ? '🔒 ' : '🌐 '}{r.fullName}
+
+            {repoError ? (
+              <div style={{ fontSize: 12, color: 'var(--danger)', padding: '6px 0' }}>
+                ⚠️ {repoError}. Please click Reconnect above.
+              </div>
+            ) : (
+              <select
+                className="input"
+                onChange={handleSelectRepo}
+                disabled={loading || loadingRepos}
+                value={userRepos.find(r => r.htmlUrl === repoUrl || r.cloneUrl === repoUrl)?.htmlUrl || ''}
+                style={{
+                  background: 'var(--bg-elevated)',
+                  borderColor: repoUrl ? 'var(--accent)' : 'var(--border)',
+                  fontWeight: 500
+                }}
+              >
+                <option value="">
+                  {loadingRepos ? '⏳ Loading your repositories...' : userRepos.length > 0 ? '-- Select a Repository from your GitHub Account --' : '-- No Repositories Found --'}
                 </option>
-              ))}
-            </select>
+                {userRepos.map(r => (
+                  <option key={r.id} value={r.htmlUrl}>
+                    {r.isPrivate ? '🔒 ' : '🌐 '} {r.fullName} {r.isPrivate ? '(Private)' : '(Public)'}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         )}
 
