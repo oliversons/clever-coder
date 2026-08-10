@@ -95,7 +95,7 @@ export default function ProjectDetail() {
             <button
               id="open-ide-btn"
               className="btn btn-primary"
-              onClick={() => navigate(`/workspace/${project.id}`)}
+              onClick={() => window.open(`/workspace/${project.id}`, '_blank')}
             >
               <Code2 size={14} />
               Open IDE

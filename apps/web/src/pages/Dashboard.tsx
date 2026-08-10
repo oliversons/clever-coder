@@ -110,7 +110,10 @@ export default function Dashboard() {
                     {project.status === 'ready' && (
                       <button
                         className="btn btn-primary btn-sm"
-                        onClick={(e) => { e.stopPropagation(); navigate(`/workspace/${project.id}`); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(`/workspace/${project.id}`, '_blank');
+                        }}
                       >
                         <Code2 size={12} />
                         Open IDE
