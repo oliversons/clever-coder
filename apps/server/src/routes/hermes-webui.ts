@@ -1,23 +1,17 @@
-/**
- * Hermes WebUI Routes & Reverse Proxy Handlers
- *
- * Provides:
- *  - GET /api/v1/hermes/webui/launch -> starts webui process, resolves project workspace, returns URL
- *  - HTTP Proxy Handler -> forwards /hermes-ui/* to 127.0.0.1:8787
- *  - WebSocket Tunnel Handler -> raw TCP tunnel for WebUI WebSockets & SSE flushes
- */
-
 import type { FastifyPluginAsync } from 'fastify';
 import type { IncomingMessage, ServerResponse } from 'http';
-import type { Duplex } from 'stream';
+import type { Duplex } from 'node:stream';
 import { Readable } from 'node:stream';
-import net from 'net';
+import net from 'node:net';
+import fs from 'node:fs';
 import httpProxy from 'http-proxy';
 import { authMiddleware, verifyToken, type JwtPayload } from '../middleware/auth.middleware.js';
 import { startHermesWebUI, restartHermesWebUI, getHermesWebUIPort, isHermesWebUIRunning, isPortOpen } from '../services/hermes-webui.service.js';
+import { ensureWorkspaceFiles } from '../services/workspace.service.js';
+import { startWatcher } from '../services/sync.service.js';
 import { getDb, schema } from '../db/index.js';
 import { eq } from 'drizzle-orm';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { config } from '../config.js';
 
 type AuthRequest = { user: JwtPayload };
@@ -50,6 +44,75 @@ function getWebUIProxy(port: number): httpProxy {
   return proxy;
 }
 
+/**
+ * Helper to sync user project workspaces from Cellar S3 to disk and pre-seed ~/.hermes/spaces.json
+ */
+async function syncUserSpacesAndWorkspaces(userId: string, activeProjectId?: string): Promise<{ activePath: string; activeName: string }> {
+  const db = getDb();
+  const userProjects = await db.query.projects.findMany({
+    where: eq(schema.projects.userId, userId),
+  });
+
+  // 1. Pull/restore all user project workspaces from Cellar S3 to local container disk
+  for (const proj of userProjects) {
+    try {
+      console.log(`📥 [Hermes WebUI] Restoring workspace ${proj.name} (${proj.id}) from Cellar S3...`);
+      await ensureWorkspaceFiles(proj.id);
+      startWatcher(proj.id);
+    } catch (err) {
+      console.warn(`[Hermes WebUI] Failed to restore workspace ${proj.id} from Cellar S3:`, err);
+    }
+  }
+
+  // 2. Determine active project
+  let targetProject = userProjects.find((p) => p.id === activeProjectId);
+  if (!targetProject && userProjects.length > 0) {
+    targetProject = userProjects[0];
+  }
+
+  const activePath = targetProject ? join(config.WORKSPACES_ROOT, targetProject.id) : config.WORKSPACES_ROOT;
+  const activeName = targetProject?.name || 'Home';
+
+  // Ensure root workspace directory exists
+  if (!fs.existsSync(activePath)) {
+    fs.mkdirSync(activePath, { recursive: true });
+  }
+
+  // 3. Pre-seed ~/.hermes/spaces.json & workspaces.json so Hermes WebUI displays all project workspaces
+  const hermesHome = process.env.HERMES_HOME || resolve(process.env.HOME || '/root', '.hermes');
+  if (!fs.existsSync(hermesHome)) {
+    fs.mkdirSync(hermesHome, { recursive: true });
+  }
+
+  const spacesConfig = {
+    active_space: activeName,
+    spaces: [
+      {
+        name: activeName,
+        path: activePath,
+        status: 'ACTIVE',
+      },
+      ...userProjects
+        .filter((p) => p.id !== targetProject?.id)
+        .map((p) => ({
+          name: p.name,
+          path: join(config.WORKSPACES_ROOT, p.id),
+          status: 'INACTIVE',
+        })),
+    ],
+  };
+
+  try {
+    fs.writeFileSync(join(hermesHome, 'spaces.json'), JSON.stringify(spacesConfig, null, 2), 'utf8');
+    fs.writeFileSync(join(hermesHome, 'workspaces.json'), JSON.stringify(spacesConfig, null, 2), 'utf8');
+    console.log(`✅ [Hermes WebUI] Pre-seeded spaces.json with ${spacesConfig.spaces.length} workspace(s) for user ${userId}`);
+  } catch (err) {
+    console.error('[Hermes WebUI] Failed to write spaces.json:', err);
+  }
+
+  return { activePath, activeName };
+}
+
 export const hermesWebUIRoutes: FastifyPluginAsync = async (fastify) => {
   // Launch / Ensure WebUI status
   fastify.get('/launch', { preHandler: [authMiddleware] }, async (request, reply) => {
@@ -64,17 +127,17 @@ export const hermesWebUIRoutes: FastifyPluginAsync = async (fastify) => {
 
     const port = settings?.webuiPort ?? 8787;
     const password = settings?.webuiPassword ?? undefined;
-    const workspacePath = projectId ? join(config.WORKSPACES_ROOT, projectId) : config.WORKSPACES_ROOT;
 
-    const result = await startHermesWebUI({ port, password, workspacePath, userId: user.sub });
-    // If process was already running, restart it to pick up fresh credentials
+    // Restore workspaces from Cellar S3 & pre-seed ~/.hermes/spaces.json
+    const { activePath } = await syncUserSpacesAndWorkspaces(user.sub, projectId);
+
+    const result = await startHermesWebUI({ port, password, workspacePath: activePath, userId: user.sub });
+    // If process was already running, restart it to pick up fresh credentials & workspace path
     if (result.message === 'Hermes WebUI is actively listening') {
-      await restartHermesWebUI({ port, password, workspacePath, userId: user.sub });
+      await restartHermesWebUI({ port, password, workspacePath: activePath, userId: user.sub });
     }
 
-    const targetUrl = projectId
-      ? `/hermes-ui/?workspace=${encodeURIComponent(workspacePath)}`
-      : '/hermes-ui/';
+    const targetUrl = `/hermes-ui/?workspace=${encodeURIComponent(activePath)}`;
 
     return reply.send({
       success: result.ok,
@@ -106,7 +169,7 @@ export async function createHermesWebUIProxy(
   const port = getHermesWebUIPort();
 
   if (!(await isPortOpen(port))) {
-    // Extract userId from JWT cookie or Authorization header so we pick up the correct API key
+    // Extract userId from JWT cookie or Authorization header so we pick up the correct API key & workspaces
     let userId: string | undefined;
     try {
       const cookieHeader = req.headers.cookie ?? '';
@@ -120,8 +183,15 @@ export async function createHermesWebUIProxy(
     } catch {
       // Proceed without userId — will use latest DB row or env
     }
-    console.log(`[Hermes WebUI Proxy] Port ${port} not open yet. Auto-starting WebUI daemon (userId=${userId ?? 'none'})...`);
-    const startResult = await startHermesWebUI({ port, userId });
+
+    let workspacePath = config.WORKSPACES_ROOT;
+    if (userId) {
+      const synced = await syncUserSpacesAndWorkspaces(userId);
+      workspacePath = synced.activePath;
+    }
+
+    console.log(`[Hermes WebUI Proxy] Port ${port} not open yet. Auto-starting WebUI daemon (userId=${userId ?? 'none'}, workspacePath=${workspacePath})...`);
+    const startResult = await startHermesWebUI({ port, userId, workspacePath });
     if (!startResult.ok) {
       if (!res.headersSent) {
         res.writeHead(503, { 'Content-Type': 'application/json' });
