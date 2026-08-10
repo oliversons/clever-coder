@@ -4,6 +4,7 @@ import { config } from '../config.js';
 import { getDb, schema } from '../db/index.js';
 import { eq } from 'drizzle-orm';
 import { createServer } from 'net';
+import { existsSync, mkdirSync } from 'fs';
 
 interface WorkspaceEntry {
   projectId: string;
@@ -11,6 +12,7 @@ interface WorkspaceEntry {
   process: ChildProcess;
   status: 'starting' | 'ready' | 'stopping';
   lastActivity: Date;
+  stderr: string[];
   idleTimer?: ReturnType<typeof setTimeout>;
 }
 
@@ -28,7 +30,7 @@ async function getFreePort(): Promise<number> {
       return p;
     }
   }
-  throw new Error('No free ports available');
+  throw new Error('No free ports available in range 3100-3999');
 }
 
 function isPortFree(port: number): Promise<boolean> {
@@ -39,6 +41,12 @@ function isPortFree(port: number): Promise<boolean> {
   });
 }
 
+function getCodeServerBinary(): string {
+  if (existsSync('/usr/bin/code-server')) return '/usr/bin/code-server';
+  if (existsSync('/usr/local/bin/code-server')) return '/usr/local/bin/code-server';
+  return 'code-server';
+}
+
 export async function startWorkspace(projectId: string): Promise<number> {
   const existing = registry.get(projectId);
   if (existing && existing.status === 'ready') {
@@ -47,7 +55,6 @@ export async function startWorkspace(projectId: string): Promise<number> {
     return existing.port;
   }
   if (existing && existing.status === 'starting') {
-    // Wait for it to be ready
     return waitForReady(projectId);
   }
 
@@ -56,7 +63,15 @@ export async function startWorkspace(projectId: string): Promise<number> {
   const userDataDir = join(workspacePath, '.code-server');
   const extensionsDir = join(workspacePath, '.extensions');
 
-  const proc = spawn('code-server', [
+  // Pre-create all workspace and code-server configuration directories
+  mkdirSync(workspacePath, { recursive: true });
+  mkdirSync(userDataDir, { recursive: true });
+  mkdirSync(extensionsDir, { recursive: true });
+
+  const bin = getCodeServerBinary();
+  console.log(`[workspace] Spawning code-server (${bin}) on port ${port} for ${projectId}...`);
+
+  const proc = spawn(bin, [
     '--bind-addr', `127.0.0.1:${port}`,
     '--auth', 'none',
     '--disable-telemetry',
@@ -70,34 +85,58 @@ export async function startWorkspace(projectId: string): Promise<number> {
   });
 
   const entry: WorkspaceEntry = {
-    projectId, port, process: proc, status: 'starting', lastActivity: new Date(),
+    projectId,
+    port,
+    process: proc,
+    status: 'starting',
+    lastActivity: new Date(),
+    stderr: [],
   };
   registry.set(projectId, entry);
 
-  proc.stdout?.on('data', (d: Buffer) => process.stdout.write(`[cs:${projectId}] ${d}`));
-  proc.stderr?.on('data', (d: Buffer) => process.stderr.write(`[cs:${projectId}] ${d}`));
+  proc.stdout?.on('data', (d: Buffer) => {
+    const msg = d.toString();
+    process.stdout.write(`[cs:${projectId}] ${msg}`);
+  });
 
-  proc.on('exit', (code) => {
-    console.log(`[workspace] code-server for ${projectId} exited with ${code}`);
+  proc.stderr?.on('data', (d: Buffer) => {
+    const msg = d.toString();
+    process.stderr.write(`[cs:${projectId}:err] ${msg}`);
+    entry.stderr.push(msg);
+    if (entry.stderr.length > 30) entry.stderr.shift();
+  });
+
+  proc.on('exit', (code, signal) => {
+    console.log(`[workspace] code-server for ${projectId} exited (code: ${code}, signal: ${signal})`);
     registry.delete(projectId);
     usedPorts.delete(port);
-    // Update DB
     getDb().update(schema.projects).set({ codeServerPort: null }).where(
       eq(schema.projects.id, projectId),
     ).catch(() => {});
   });
 
-  // Wait for port to open
-  await waitForPort(port, STARTUP_TIMEOUT);
-  entry.status = 'ready';
+  try {
+    // Wait for code-server port to listen and respond
+    await waitForPort(port, STARTUP_TIMEOUT, proc, entry);
+    entry.status = 'ready';
 
-  // Update DB with port
-  await getDb().update(schema.projects).set({ codeServerPort: port }).where(
-    eq(schema.projects.id, projectId),
-  );
+    // Update DB with active port
+    await getDb().update(schema.projects).set({ codeServerPort: port }).where(
+      eq(schema.projects.id, projectId),
+    );
 
-  resetIdleTimer(projectId);
-  return port;
+    resetIdleTimer(projectId);
+    console.log(`[workspace] code-server for ${projectId} is READY on port ${port}`);
+    return port;
+  } catch (err) {
+    // Cleanup on failure
+    proc.kill('SIGKILL');
+    registry.delete(projectId);
+    usedPorts.delete(port);
+    const lastErr = entry.stderr.join('\n').slice(-400);
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`${msg}${lastErr ? ` (code-server output: ${lastErr})` : ''}`);
+  }
 }
 
 export async function stopWorkspace(projectId: string): Promise<void> {
@@ -138,14 +177,46 @@ function resetIdleTimer(projectId: string): void {
   }, idleMs);
 }
 
-async function waitForPort(port: number, timeoutMs: number): Promise<void> {
+async function waitForPort(
+  port: number,
+  timeoutMs: number,
+  proc: ChildProcess,
+  entry: WorkspaceEntry,
+): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
+    // Check if process exited early
+    if (proc.exitCode !== null || proc.killed) {
+      const logs = entry.stderr.join('').trim();
+      throw new Error(`code-server process exited prematurely with code ${proc.exitCode}: ${logs || 'No log output'}`);
+    }
+
     const free = await isPortFree(port);
-    if (!free) return; // port is now occupied (listening)
-    await new Promise(r => setTimeout(r, 200));
+    if (!free) {
+      // Confirm HTTP readiness
+      const ready = await checkHttpReady(port);
+      if (ready) return;
+    }
+
+    await new Promise(r => setTimeout(r, 250));
   }
-  throw new Error(`code-server did not start on port ${port} within ${timeoutMs}ms`);
+  const logs = entry.stderr.join('').trim();
+  throw new Error(`code-server did not start on port ${port} within ${timeoutMs}ms${logs ? ` Details: ${logs}` : ''}`);
+}
+
+async function checkHttpReady(port: number): Promise<boolean> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/healthz`, { signal: AbortSignal.timeout(1000) });
+    return res.status === 200 || res.status === 302;
+  } catch {
+    // Also test root / if healthz returns non-200
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(1000) });
+      return res.status < 500;
+    } catch {
+      return false;
+    }
+  }
 }
 
 async function waitForReady(projectId: string): Promise<number> {

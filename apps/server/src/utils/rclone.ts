@@ -54,10 +54,8 @@ export async function restoreWorkspace(
 ): Promise<SyncResult> {
   const localPath = getLocalPath(projectId);
   const remote = getRcloneRemote(projectId);
-  const bisyncDir = getBisyncDir(projectId);
 
   mkdirSync(localPath, { recursive: true });
-  mkdirSync(bisyncDir, { recursive: true });
 
   const args = [
     'bisync',
@@ -77,14 +75,21 @@ export async function restoreWorkspace(
     args.push('--resync');
   }
 
-  return rcloneRun(args, `restore:${projectId}`);
+  const result = await rcloneRun(args, `restore:${projectId}`);
+
+  // Auto-recover if bisync requires --resync due to missing listings
+  if (!result.success && shouldResync(result.error)) {
+    console.warn(`[rclone:restore:${projectId}] Bisync requires --resync. Retrying with --resync...`);
+    return rcloneRun([...args, '--resync'], `restore:${projectId}:resync`);
+  }
+
+  return result;
 }
 
 export async function syncWorkspace(projectId: string): Promise<SyncResult> {
   const localPath = getLocalPath(projectId);
   const remote = getRcloneRemote(projectId);
 
-  // Check workspace exists
   if (!existsSync(localPath)) return { success: true, duration: 0 };
 
   const args = [
@@ -101,9 +106,33 @@ export async function syncWorkspace(projectId: string): Promise<SyncResult> {
     '-v',
   ];
 
-  return pRetry(
-    () => rcloneRun(args, `sync:${projectId}`),
-    { retries: 3, minTimeout: 1000, factor: 2 },
+  const runWithResyncFallback = async () => {
+    const res = await rcloneRun(args, `sync:${projectId}`);
+    if (!res.success && shouldResync(res.error)) {
+      console.warn(`[rclone:sync:${projectId}] Bisync requires --resync. Retrying with --resync...`);
+      return rcloneRun([...args, '--resync'], `sync:${projectId}:resync`);
+    }
+    if (!res.success) {
+      throw new Error(res.error || 'Sync failed');
+    }
+    return res;
+  };
+
+  try {
+    return await pRetry(runWithResyncFallback, { retries: 2, minTimeout: 1000, factor: 2 });
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Sync failed', duration: 0 };
+  }
+}
+
+function shouldResync(error?: string): boolean {
+  if (!error) return false;
+  const lower = error.toLowerCase();
+  return (
+    lower.includes('bisync aborted') ||
+    lower.includes('cannot find prior') ||
+    lower.includes('must run --resync') ||
+    lower.includes('critical error')
   );
 }
 
