@@ -25,6 +25,7 @@ import { extensionRoutes } from './routes/extensions.js';
 import { archiveRoutes } from './routes/archive.js';
 import { healthRoutes } from './routes/health.js';
 import { verifyToken } from './middleware/auth.middleware.js';
+import { runMigrations } from './db/migrate.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -61,6 +62,14 @@ function findWebDist(): string | null {
 }
 
 async function bootstrap() {
+  // ── Run DB migrations first (idempotent — safe on every start) ────────────
+  try {
+    await runMigrations();
+  } catch (err) {
+    console.error('FATAL: DB migration failed, refusing to start:', err);
+    process.exit(1);
+  }
+
   // ── Plugins ────────────────────────────────────────────────────────────────
   await fastify.register(fastifyCors, {
     origin: config.PUBLIC_URL,
