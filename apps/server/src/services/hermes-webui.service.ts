@@ -67,8 +67,8 @@ export async function syncHermesConfigFiles(userId?: string) {
       default_api_key: apiKey,
       custom_api_key: apiKey,
       openai_api_key: apiKey,
-      setup_completed: true,
-      onboarding_completed: true,
+      setup_completed: false,
+      onboarding_completed: false,
       default_workspace: '/workspaces',
       custom: { api_key: apiKey, base_url: baseUrl },
       default: { api_key: apiKey, base_url: baseUrl },
@@ -78,8 +78,8 @@ export async function syncHermesConfigFiles(userId?: string) {
 
     // 2. ~/.hermes/webui.json
     const webuiJson = {
-      setup_completed: true,
-      onboarding_completed: true,
+      setup_completed: false,
+      onboarding_completed: false,
       active_model: model,
       active_provider: provider,
       custom_base_url: baseUrl,
@@ -105,8 +105,8 @@ custom_api_key: "${apiKey}"
 openai_api_key: "${apiKey}"
 base_url: "${baseUrl}"
 custom_base_url: "${baseUrl}"
-setup_completed: true
-onboarding_completed: true
+setup_completed: false
+onboarding_completed: false
 
 custom:
   api_key: "${apiKey}"
@@ -132,12 +132,12 @@ openai:
       `OPENAI_BASE_URL=${baseUrl}`,
       `CUSTOM_BASE_URL=${baseUrl}`,
       `DEFAULT_BASE_URL=${baseUrl}`,
-      `SETUP_COMPLETED=true`,
-      `HERMES_ONBOARDING_COMPLETED=true`,
+      `SETUP_COMPLETED=false`,
+      `HERMES_ONBOARDING_COMPLETED=false`,
     ];
     fs.writeFileSync(path.join(hermesHome, '.env'), envLines.join('\n'), 'utf8');
 
-    console.log(`[Hermes WebUI] Fully seeded Hermes configuration in ${hermesHome}`);
+    console.log(`[Hermes WebUI] Seeded pre-filled Hermes configuration in ${hermesHome}`);
   } catch (err) {
     console.error('[Hermes WebUI] Failed to write Hermes config files:', err);
   }
@@ -259,8 +259,8 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
     DEFAULT_BASE_URL: baseUrl,
     HERMES_MODEL: model,
     HERMES_PROVIDER: provider,
-    SETUP_COMPLETED: 'true',
-    HERMES_ONBOARDING_COMPLETED: 'true',
+    SETUP_COMPLETED: 'false',
+    HERMES_ONBOARDING_COMPLETED: 'false',
   };
 
   if (config.password) {

@@ -118,51 +118,6 @@ async function bootstrap() {
   await fastify.register(hermesWebUIRoutes, { prefix: '/api/v1/hermes/webui' });
 
   // ── Standalone Hermes WebUI Proxy Route ──────────────────────────────────
-  // Intercept onboarding requests to guarantee instant completion on custom OpenAI endpoints
-  fastify.all('/hermes-ui/api/onboarding/status', async (_request, reply) => {
-    return reply.send({
-      ok: true,
-      status: 'completed',
-      completed: true,
-      setup_completed: true,
-      onboarding_completed: true,
-    });
-  });
-
-  fastify.all('/hermes-ui/api/onboarding/probe', async (_request, reply) => {
-    return reply.send({
-      ok: true,
-      success: true,
-      status: 'connected',
-      models: ['agentrouter/claude-opus-5', 'nousresearch/hermes-3-llama-3.1-405b'],
-      default_model: 'agentrouter/claude-opus-5',
-    });
-  });
-
-  fastify.all('/hermes-ui/api/onboarding/setup', async (_request, reply) => {
-    return reply.send({
-      ok: true,
-      success: true,
-      status: 'completed',
-    });
-  });
-
-  fastify.all('/hermes-ui/api/onboarding/complete', async (_request, reply) => {
-    return reply.send({
-      ok: true,
-      success: true,
-      status: 'completed',
-    });
-  });
-
-  fastify.all('/hermes-ui/api/onboarding/skip', async (_request, reply) => {
-    return reply.send({
-      ok: true,
-      success: true,
-      status: 'skipped',
-    });
-  });
-
   fastify.all('/hermes-ui/*', async (request, reply) => {
     reply.hijack();
     await createHermesWebUIProxy(request.raw, reply.raw as ServerResponse, request.body);
