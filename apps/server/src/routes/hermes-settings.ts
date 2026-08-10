@@ -11,6 +11,7 @@ import {
   getDecryptedApiKey,
   testProviderConnection,
 } from '../services/hermes.service.js';
+import { isHermesWebUIRunning, syncHermesConfigFiles, restartHermesWebUI } from '../services/hermes-webui.service.js';
 
 export async function hermesSettingsRoutes(fastify: FastifyInstance) {
   // ── GET /api/v1/hermes/settings ──────────────────────────────────────────────
@@ -85,6 +86,23 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
       webuiPort: typeof body.webuiPort === 'number' ? body.webuiPort : undefined,
       webuiPassword: typeof body.webuiPassword === 'string' ? body.webuiPassword : undefined,
     });
+
+    // Re-sync ~/.hermes/ config files with the freshly saved (decrypted) API key
+    // If the WebUI daemon is already running, restart it so the new key takes effect immediately
+    try {
+      if (isHermesWebUIRunning()) {
+        restartHermesWebUI({ userId: payload.sub }).catch((e: unknown) =>
+          console.error('[Hermes Settings] Failed to restart WebUI after settings save:', e)
+        );
+      } else {
+        syncHermesConfigFiles(payload.sub).catch((e: unknown) =>
+          console.error('[Hermes Settings] Failed to sync config files after settings save:', e)
+        );
+      }
+    } catch (e) {
+      // Non-critical — don't fail the settings save
+      console.error('[Hermes Settings] Non-critical WebUI sync error:', e);
+    }
 
     return reply.send(maskSettings(settings));
   });

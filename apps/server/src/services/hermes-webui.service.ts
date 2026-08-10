@@ -9,6 +9,8 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import net from 'node:net';
 import path from 'node:path';
 import fs, { existsSync } from 'node:fs';
+import { desc } from 'drizzle-orm';
+import { getDb, schema } from '../db/index.js';
 import { getAvailableCpuCores, buildMultiCoreEnv, getHermesSettings, getDecryptedApiKey } from './hermes.service.js';
 
 let webuiProcess: ChildProcess | null = null;
@@ -21,38 +23,71 @@ export interface WebUIServiceConfig {
   userId?: string;
 }
 
-/**
- * Auto-sync Hermes credentials & configuration to ~/.hermes/ (config.json, webui.json, config.yaml, .env)
- * to mark setup and onboarding as completed, bypassing the First-Run wizard.
- */
-export async function syncHermesConfigFiles(userId?: string) {
-  const hermesHome = process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes');
-  if (!fs.existsSync(hermesHome)) {
-    fs.mkdirSync(hermesHome, { recursive: true });
-  }
+interface ResolvedCredentials {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  provider: string;
+}
 
+/**
+ * Resolves credentials from DB by userId, falling back to the most recently updated
+ * settings row if no userId is provided, then to environment variables.
+ */
+async function resolveCredentials(userId?: string): Promise<ResolvedCredentials> {
+  // Start with env fallbacks
   let apiKey = process.env.OPENAI_API_KEY || process.env.DEFAULT_API_KEY || '';
   let baseUrl = process.env.OPENAI_BASE_URL || process.env.DEFAULT_BASE_URL || '';
   let model = process.env.HERMES_MODEL || 'nousresearch/hermes-3-llama-3.1-405b';
   let provider = process.env.HERMES_PROVIDER || 'custom';
 
-  if (userId) {
-    try {
-      const settings = await getHermesSettings(userId);
-      if (settings) {
-        const decryptedKey = getDecryptedApiKey(settings);
-        if (decryptedKey?.trim()) apiKey = decryptedKey.trim();
-        if (settings.baseUrl?.trim()) baseUrl = settings.baseUrl.trim();
-        if (settings.model?.trim()) model = settings.model.trim();
-        if (settings.provider?.trim()) {
-          const p = settings.provider.trim();
-          provider = p === 'custom_openai' ? 'custom' : p;
-        }
-      }
-    } catch (err) {
-      console.warn('[Hermes WebUI] Could not fetch DB settings for sync:', err);
+  try {
+    let settings: Awaited<ReturnType<typeof getHermesSettings>> | undefined;
+
+    if (userId) {
+      settings = await getHermesSettings(userId);
     }
+
+    // Fallback: load the most recently updated settings row from DB
+    if (!settings) {
+      const db = getDb();
+      const rows = await db
+        .select()
+        .from(schema.hermesSettings)
+        .orderBy(desc(schema.hermesSettings.updatedAt))
+        .limit(1);
+      settings = rows[0];
+    }
+
+    if (settings) {
+      const decryptedKey = getDecryptedApiKey(settings);
+      if (decryptedKey?.trim()) apiKey = decryptedKey.trim();
+      if (settings.baseUrl?.trim()) baseUrl = settings.baseUrl.trim();
+      if (settings.model?.trim()) model = settings.model.trim();
+      if (settings.provider?.trim()) {
+        const p = settings.provider.trim();
+        provider = p === 'custom_openai' ? 'custom' : p;
+      }
+    }
+  } catch (err) {
+    console.warn('[Hermes WebUI] Could not load credentials from DB, using env fallbacks:', err);
   }
+
+  return { apiKey, baseUrl, model, provider };
+}
+
+/**
+ * Auto-sync Hermes credentials & configuration to ~/.hermes/ (config.json, webui.json, config.yaml, .env).
+ * Writes setup_completed: true so the WebUI bypasses the onboarding wizard and goes straight to chat.
+ */
+export async function syncHermesConfigFiles(userId?: string): Promise<ResolvedCredentials> {
+  const hermesHome = process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes');
+  if (!fs.existsSync(hermesHome)) {
+    fs.mkdirSync(hermesHome, { recursive: true });
+  }
+
+  const creds = await resolveCredentials(userId);
+  const { apiKey, baseUrl, model, provider } = creds;
 
   try {
     // 1. ~/.hermes/config.json
@@ -71,8 +106,9 @@ export async function syncHermesConfigFiles(userId?: string) {
       default_api_key: apiKey,
       custom_api_key: apiKey,
       openai_api_key: apiKey,
-      setup_completed: false,
-      onboarding_completed: false,
+      // Mark setup as completed so the wizard is NOT shown
+      setup_completed: true,
+      onboarding_completed: true,
       default_workspace: '/workspaces',
       custom: { api_key: apiKey, base_url: baseUrl },
       default: { api_key: apiKey, base_url: baseUrl },
@@ -82,8 +118,8 @@ export async function syncHermesConfigFiles(userId?: string) {
 
     // 2. ~/.hermes/webui.json
     const webuiJson = {
-      setup_completed: false,
-      onboarding_completed: false,
+      setup_completed: true,
+      onboarding_completed: true,
       active_model: model,
       active_provider: provider,
       custom_base_url: baseUrl,
@@ -109,8 +145,8 @@ custom_api_key: "${apiKey}"
 openai_api_key: "${apiKey}"
 base_url: "${baseUrl}"
 custom_base_url: "${baseUrl}"
-setup_completed: false
-onboarding_completed: false
+setup_completed: true
+onboarding_completed: true
 
 custom:
   api_key: "${apiKey}"
@@ -136,15 +172,17 @@ openai:
       `OPENAI_BASE_URL=${baseUrl}`,
       `CUSTOM_BASE_URL=${baseUrl}`,
       `DEFAULT_BASE_URL=${baseUrl}`,
-      `SETUP_COMPLETED=false`,
-      `HERMES_ONBOARDING_COMPLETED=false`,
+      `SETUP_COMPLETED=true`,
+      `HERMES_ONBOARDING_COMPLETED=true`,
     ];
     fs.writeFileSync(path.join(hermesHome, '.env'), envLines.join('\n'), 'utf8');
 
-    console.log(`[Hermes WebUI] Seeded pre-filled Hermes configuration in ${hermesHome}`);
+    console.log(`✅ [Hermes WebUI] Config synced to ${hermesHome} (provider=${provider}, model=${model}, apiKey=${apiKey ? '***' : 'MISSING'})`);
   } catch (err) {
     console.error('[Hermes WebUI] Failed to write Hermes config files:', err);
   }
+
+  return creds;
 }
 
 /**
@@ -198,21 +236,36 @@ export function getHermesWebUIPort(): number {
 }
 
 /**
+ * Stop Hermes WebUI daemon.
+ */
+export function stopHermesWebUI(): void {
+  if (webuiProcess) {
+    try {
+      webuiProcess.kill('SIGTERM');
+    } catch {
+      // ignore
+    }
+    webuiProcess = null;
+  }
+}
+
+/**
  * Start or ensure the Hermes WebUI daemon is running and accepting connections.
+ * Always syncs the latest decrypted API key from DB before spawning.
  */
 export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise<{ ok: boolean; port: number; message: string }> {
   const port = config.port && config.port > 0 ? config.port : 8787;
   currentPort = port;
 
-  // Sync DB credentials & settings to ~/.hermes/ config files
-  await syncHermesConfigFiles(config.userId);
+  // Always sync the latest credentials from DB → disk config files
+  const creds = await syncHermesConfigFiles(config.userId);
 
-  // 1. If port is already accepting TCP connections, return immediately
+  // If already running on port, return immediately (no restart needed)
   if (await isPortOpen(port)) {
     return { ok: true, port, message: 'Hermes WebUI is actively listening' };
   }
 
-  // 2. Kill stale process reference if dead
+  // Kill stale process reference if dead
   if (webuiProcess && webuiProcess.killed) {
     webuiProcess = null;
   }
@@ -229,28 +282,7 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
   const scriptDir = path.dirname(scriptPath);
   const totalCores = getAvailableCpuCores();
 
-  let apiKey = process.env.OPENAI_API_KEY || process.env.DEFAULT_API_KEY || '';
-  let baseUrl = process.env.OPENAI_BASE_URL || process.env.DEFAULT_BASE_URL || '';
-  let model = process.env.HERMES_MODEL || 'nousresearch/hermes-3-llama-3.1-405b';
-  let provider = process.env.HERMES_PROVIDER || 'custom';
-
-  if (config.userId) {
-    try {
-      const settings = await getHermesSettings(config.userId);
-      if (settings) {
-        const decryptedKey = getDecryptedApiKey(settings);
-        if (decryptedKey?.trim()) apiKey = decryptedKey.trim();
-        if (settings.baseUrl?.trim()) baseUrl = settings.baseUrl.trim();
-        if (settings.model?.trim()) model = settings.model.trim();
-        if (settings.provider?.trim()) {
-          const p = settings.provider.trim();
-          provider = p === 'custom_openai' ? 'custom' : p;
-        }
-      }
-    } catch {
-      // fallback to env
-    }
-  }
+  const { apiKey, baseUrl, model, provider } = creds;
 
   const env: Record<string, string> = {
     ...process.env,
@@ -259,6 +291,7 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
     HERMES_WEBUI_HOST: '127.0.0.1',
     HERMES_HOME: process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes'),
     HERMES_WORKSPACE: config.workspacePath || process.env.WORKSPACES_ROOT || '/workspaces',
+    // Inject decrypted credentials directly into the Python process environment
     DEFAULT_API_KEY: apiKey,
     CUSTOM_API_KEY: apiKey,
     OPENAI_API_KEY: apiKey,
@@ -267,15 +300,16 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
     DEFAULT_BASE_URL: baseUrl,
     HERMES_MODEL: model,
     HERMES_PROVIDER: provider,
-    SETUP_COMPLETED: 'false',
-    HERMES_ONBOARDING_COMPLETED: 'false',
+    // Mark setup as completed — wizard should not appear
+    SETUP_COMPLETED: 'true',
+    HERMES_ONBOARDING_COMPLETED: 'true',
   };
 
   if (config.password) {
     env.HERMES_WEBUI_PASSWORD = config.password;
   }
 
-  console.log(`[Hermes WebUI] Spawning python process: python3 ${scriptPath} on 127.0.0.1:${port}...`);
+  console.log(`[Hermes WebUI] Spawning python process: python3 ${scriptPath} on 127.0.0.1:${port} (provider=${provider}, model=${model}, apiKey=${apiKey ? '***' : 'MISSING'})...`);
 
   try {
     webuiProcess = spawn('python3', [scriptPath, '--no-browser'], {
@@ -302,7 +336,7 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
       webuiProcess = null;
     });
 
-    // 3. Poll TCP port 8787 until accepting connections
+    // Poll TCP port until accepting connections
     const ready = await waitForPort(port, 15000);
     if (ready) {
       console.log(`✅ [Hermes WebUI] Ready and accepting connections on port ${port}`);
@@ -318,12 +352,13 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
 }
 
 /**
- * Stop Hermes WebUI daemon.
+ * Restart Hermes WebUI daemon with fresh credentials from DB.
+ * Used when user saves updated settings in the CleverCoder settings page.
  */
-export function stopHermesWebUI(): void {
-  if (webuiProcess) {
-    webuiProcess.kill('SIGTERM');
-    webuiProcess = null;
-  }
+export async function restartHermesWebUI(config: WebUIServiceConfig = {}): Promise<{ ok: boolean; port: number; message: string }> {
+  console.log('[Hermes WebUI] Restarting daemon with refreshed credentials...');
+  stopHermesWebUI();
+  // Brief delay so the port is released
+  await new Promise((r) => setTimeout(r, 500));
+  return startHermesWebUI(config);
 }
-

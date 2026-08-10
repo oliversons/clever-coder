@@ -13,8 +13,8 @@ import type { Duplex } from 'stream';
 import { Readable } from 'node:stream';
 import net from 'net';
 import httpProxy from 'http-proxy';
-import { authMiddleware, type JwtPayload } from '../middleware/auth.middleware.js';
-import { startHermesWebUI, getHermesWebUIPort, isHermesWebUIRunning, isPortOpen } from '../services/hermes-webui.service.js';
+import { authMiddleware, verifyToken, type JwtPayload } from '../middleware/auth.middleware.js';
+import { startHermesWebUI, restartHermesWebUI, getHermesWebUIPort, isHermesWebUIRunning, isPortOpen } from '../services/hermes-webui.service.js';
 import { getDb, schema } from '../db/index.js';
 import { eq } from 'drizzle-orm';
 import { join } from 'path';
@@ -67,6 +67,10 @@ export const hermesWebUIRoutes: FastifyPluginAsync = async (fastify) => {
     const workspacePath = projectId ? join(config.WORKSPACES_ROOT, projectId) : config.WORKSPACES_ROOT;
 
     const result = await startHermesWebUI({ port, password, workspacePath, userId: user.sub });
+    // If process was already running, restart it to pick up fresh credentials
+    if (result.message === 'Hermes WebUI is actively listening') {
+      await restartHermesWebUI({ port, password, workspacePath, userId: user.sub });
+    }
 
     const targetUrl = projectId
       ? `/hermes-ui/?workspace=${encodeURIComponent(workspacePath)}`
@@ -102,8 +106,22 @@ export async function createHermesWebUIProxy(
   const port = getHermesWebUIPort();
 
   if (!(await isPortOpen(port))) {
-    console.log(`[Hermes WebUI Proxy] Port ${port} not open yet. Auto-starting WebUI daemon...`);
-    const startResult = await startHermesWebUI({ port });
+    // Extract userId from JWT cookie or Authorization header so we pick up the correct API key
+    let userId: string | undefined;
+    try {
+      const cookieHeader = req.headers.cookie ?? '';
+      const cookieToken = cookieHeader.split(';').map(c => c.trim()).find(c => c.startsWith('access_token='))?.split('=').slice(1).join('=');
+      const bearerToken = (req.headers.authorization ?? '').replace(/^Bearer /, '');
+      const token = cookieToken || bearerToken;
+      if (token) {
+        const payload = verifyToken(token);
+        userId = payload.sub;
+      }
+    } catch {
+      // Proceed without userId — will use latest DB row or env
+    }
+    console.log(`[Hermes WebUI Proxy] Port ${port} not open yet. Auto-starting WebUI daemon (userId=${userId ?? 'none'})...`);
+    const startResult = await startHermesWebUI({ port, userId });
     if (!startResult.ok) {
       if (!res.headersSent) {
         res.writeHead(503, { 'Content-Type': 'application/json' });
