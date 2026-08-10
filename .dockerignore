@@ -1,0 +1,35 @@
+# Don't send these into the Docker build context — speeds up build significantly
+node_modules
+**/node_modules
+**/dist
+**/.pnpm-store
+
+# Dev files
+.env
+.env.*
+!.env.example
+docker-compose.dev.yml
+*.log
+
+# Test artifacts
+**/__tests__
+**/*.test.ts
+**/*.spec.ts
+
+# Editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Rclone cache (runtime dir, not needed at build)
+rclone-cache
+/workspaces
