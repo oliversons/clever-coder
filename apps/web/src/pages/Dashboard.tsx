@@ -80,37 +80,44 @@ export default function Dashboard() {
               <motion.div
                 key={project.id}
                 className="glass-card project-card"
-                onClick={() => navigate(`/projects/${project.id}`)}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 whileHover={{ y: -2 }}
                 transition={{ duration: 0.2 }}
               >
-                <div className="project-card-header">
-                  <div>
-                    <div className="project-card-title">{project.name}</div>
-                    <div className="project-card-repo">
-                      <Github size={12} />
-                      {project.repoUrl.replace('https://github.com/', '')}
+                <div
+                  className="project-card-body-clickable"
+                  onClick={() => navigate(`/projects/${project.id}`)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="project-card-header">
+                    <div>
+                      <div className="project-card-title">{project.name}</div>
+                      <div className="project-card-repo">
+                        <Github size={12} />
+                        {project.repoUrl.replace('https://github.com/', '')}
+                      </div>
                     </div>
+                    {statusBadge(project.status)}
                   </div>
-                  {statusBadge(project.status)}
+
+                  {project.description && (
+                    <p className="project-card-desc">{project.description}</p>
+                  )}
                 </div>
 
-                {project.description && (
-                  <p className="project-card-desc">{project.description}</p>
-                )}
-
-                <div className="project-card-footer">
+                <div className="project-card-footer" onClick={(e) => e.stopPropagation()}>
                   <span className="project-card-meta">
                     {formatDistanceToNow(new Date(project.updatedAt), { addSuffix: true })}
                   </span>
-                  <div className="project-card-actions">
+                  <div className="project-card-actions" onClick={(e) => e.stopPropagation()}>
                     {project.status === 'ready' && (
                       <button
+                        type="button"
                         className="btn btn-primary btn-sm"
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           window.open(`/workspace/${project.id}`, '_blank');
                         }}
@@ -120,15 +127,25 @@ export default function Dashboard() {
                       </button>
                     )}
                     <button
+                      type="button"
                       className="btn btn-secondary btn-sm"
-                      onClick={(e) => handleDownload(e, project.id)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDownload(e, project.id);
+                      }}
                       title="Download zip"
                     >
                       <Download size={12} />
                     </button>
                     <button
+                      type="button"
                       className="btn btn-danger btn-sm"
-                      onClick={(e) => handleDelete(e, project.id)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDelete(e, project.id);
+                      }}
                       title="Delete project"
                     >
                       <Trash2 size={12} />
