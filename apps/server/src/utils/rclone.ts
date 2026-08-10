@@ -55,11 +55,14 @@ function getBaseBisyncArgs(projectId: string): string[] {
   const remote = getRcloneRemote(projectId);
   return [
     'bisync',
-    remote,
     localPath,
+    remote,
     '--config', RCLONE_CONF_PATH,
     '--cache-dir', RCLONE_CACHE_DIR,
     '--workdir', RCLONE_WORKDIR,
+    '--filter', '- .code-server/**',
+    '--filter', '- .extensions/**',
+    '--filter', '- node_modules/**',
     '--conflict-resolve', 'newer',
     '--max-delete', '50',
     '--transfers', '16',
@@ -74,6 +77,47 @@ export interface SyncResult {
   duration: number;
 }
 
+export async function downloadWorkspaceFromCellar(projectId: string): Promise<SyncResult> {
+  const localPath = getLocalPath(projectId);
+  const remote = getRcloneRemote(projectId);
+  mkdirSync(localPath, { recursive: true });
+
+  const args = [
+    'copy',
+    remote,
+    localPath,
+    '--config', RCLONE_CONF_PATH,
+    '--cache-dir', RCLONE_CACHE_DIR,
+    '--filter', '- .code-server/**',
+    '--filter', '- .extensions/**',
+    '--transfers', '16',
+    '-v',
+  ];
+
+  return rcloneRun(args, `download:${projectId}`);
+}
+
+export async function uploadWorkspaceToCellar(projectId: string): Promise<SyncResult> {
+  const localPath = getLocalPath(projectId);
+  const remote = getRcloneRemote(projectId);
+  if (!existsSync(localPath)) return { success: true, duration: 0 };
+
+  const args = [
+    'copy',
+    localPath,
+    remote,
+    '--config', RCLONE_CONF_PATH,
+    '--cache-dir', RCLONE_CACHE_DIR,
+    '--filter', '- .code-server/**',
+    '--filter', '- .extensions/**',
+    '--filter', '- node_modules/**',
+    '--transfers', '16',
+    '-v',
+  ];
+
+  return rcloneRun(args, `upload:${projectId}`);
+}
+
 export async function restoreWorkspace(
   projectId: string,
   isFirstSync: boolean,
@@ -81,6 +125,11 @@ export async function restoreWorkspace(
   const localPath = getLocalPath(projectId);
   mkdirSync(localPath, { recursive: true });
   mkdirSync(RCLONE_WORKDIR, { recursive: true });
+
+  // If restoring for the first time or on a fresh boot, first download any existing files from Cellar
+  if (isFirstSync) {
+    await downloadWorkspaceFromCellar(projectId);
+  }
 
   const args = getBaseBisyncArgs(projectId);
 

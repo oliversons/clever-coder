@@ -4,7 +4,7 @@ import { join } from 'path';
 import { mkdirSync, rmSync, existsSync } from 'fs';
 import { config } from '../config.js';
 import { simpleGit } from 'simple-git';
-import { syncWorkspace, restoreWorkspace } from '../utils/rclone.js';
+import { syncWorkspace, restoreWorkspace, uploadWorkspaceToCellar, downloadWorkspaceFromCellar } from '../utils/rclone.js';
 import { getUserGithubToken } from './auth.service.js';
 
 export interface CreateProjectInput {
@@ -83,9 +83,11 @@ export async function createProject(
     const localGit = simpleGit(workspacePath);
     const branch = (await localGit.revparse(['--abbrev-ref', 'HEAD'])).trim();
 
-    // Initial sync to Cellar
-    onProgress?.(95, 'syncing to storage');
-    await restoreWorkspace(project.id, true); // first sync = resync
+    // Initial backup of cloned files to Cellar & initialize bisync baseline
+    onProgress?.(90, 'uploading to cloud storage');
+    await uploadWorkspaceToCellar(project.id).catch((err) => console.warn('[createProject] Cellar upload error:', err));
+    onProgress?.(95, 'initializing sync');
+    await restoreWorkspace(project.id, true).catch((err) => console.warn('[createProject] Bisync baseline error:', err));
 
     // Create sync state
     await db.insert(schema.syncStates).values({
@@ -216,7 +218,7 @@ export async function listUserGithubRepos(userId: string) {
   }));
 }
 
-function normaliseRepoUrl(repoUrl: string, token?: string): string {
+export function normaliseRepoUrl(repoUrl: string, token?: string): string {
   if (!token) return repoUrl;
   try {
     const url = new URL(repoUrl.endsWith('.git') ? repoUrl : repoUrl + '.git');
