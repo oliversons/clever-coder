@@ -1,4 +1,4 @@
-CREATE TABLE "hermes_messages" (
+CREATE TABLE IF NOT EXISTS "hermes_messages" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"session_id" uuid NOT NULL,
 	"role" text NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE "hermes_messages" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "hermes_sessions" (
+CREATE TABLE IF NOT EXISTS "hermes_sessions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL,
 	"project_id" uuid,
@@ -20,7 +20,7 @@ CREATE TABLE "hermes_sessions" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "hermes_settings" (
+CREATE TABLE IF NOT EXISTS "hermes_settings" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL,
 	"provider" text DEFAULT 'openrouter' NOT NULL,
@@ -43,8 +43,16 @@ CREATE TABLE "hermes_settings" (
 	CONSTRAINT "hermes_settings_user_id_unique" UNIQUE("user_id")
 );
 --> statement-breakpoint
-ALTER TABLE "users" ADD COLUMN "settings" jsonb DEFAULT '{"theme":"dark","palette":"default"}'::jsonb;--> statement-breakpoint
-ALTER TABLE "users" ADD COLUMN "token_version" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
-ALTER TABLE "hermes_messages" ADD CONSTRAINT "hermes_messages_session_id_hermes_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."hermes_sessions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "hermes_sessions" ADD CONSTRAINT "hermes_sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "hermes_settings" ADD CONSTRAINT "hermes_settings_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "settings" jsonb DEFAULT '{"theme":"dark","palette":"default"}'::jsonb;--> statement-breakpoint
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "token_version" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'hermes_messages_session_id_hermes_sessions_id_fk') THEN
+    ALTER TABLE "hermes_messages" ADD CONSTRAINT "hermes_messages_session_id_hermes_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."hermes_sessions"("id") ON DELETE cascade ON UPDATE no action;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'hermes_sessions_user_id_users_id_fk') THEN
+    ALTER TABLE "hermes_sessions" ADD CONSTRAINT "hermes_sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'hermes_settings_user_id_users_id_fk') THEN
+    ALTER TABLE "hermes_settings" ADD CONSTRAINT "hermes_settings_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  END IF;
+END $$;
