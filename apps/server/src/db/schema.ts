@@ -1,5 +1,11 @@
 import { pgTable, uuid, text, timestamp, integer, bigint, jsonb } from 'drizzle-orm/pg-core';
 
+export interface UserSettings {
+  theme?: 'dark' | 'light';
+  palette?: 'default' | 'ocean' | 'nordic' | 'emerald' | 'rose' | 'amber' | 'volcanic' | 'orange';
+  [key: string]: unknown;
+}
+
 // ── Users ────────────────────────────────────────────────────────────────────
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -9,6 +15,7 @@ export const users = pgTable('users', {
   githubId: text('github_id').unique(),
   githubTokenEnc: text('github_token_enc'), // AES-GCM encrypted
   avatarUrl: text('avatar_url'),
+  settings: jsonb('settings').$type<UserSettings>().default({ theme: 'dark', palette: 'default' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

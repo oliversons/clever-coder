@@ -1,13 +1,105 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Sun, Moon, Github, Shield, Database, User as UserIcon, Check, ExternalLink, HardDrive, RefreshCw } from 'lucide-react';
+import {
+  Sun, Moon, Github, Shield, User as UserIcon, Check, HardDrive,
+  Palette as PaletteIcon, Snowflake, Flame, Zap, Droplets, Trees, Heart, Sparkles,
+  type LucideIcon
+} from 'lucide-react';
 import { useAuthStore } from '../store';
-import { useThemeStore } from '../store/themeStore';
+import { useThemeStore, type Palette } from '../store/themeStore';
 import { api, openGithubOAuthPopup } from '../api/client';
+
+interface PaletteOption {
+  id: Palette;
+  name: string;
+  category: 'cold' | 'warm' | 'orange' | 'default';
+  description: string;
+  icon: LucideIcon;
+  colorsDark: string[];
+  colorsLight: string[];
+}
+
+const PALETTES: PaletteOption[] = [
+  {
+    id: 'default',
+    name: 'Electric Violet & Cyan',
+    category: 'default',
+    description: 'Classic cyberpunk coding palette with electric violet, cyan, and neon glow.',
+    icon: Sparkles,
+    colorsDark: ['#0d1117', '#7c3aed', '#06b6d4'],
+    colorsLight: ['#ffffff', '#6d28d9', '#0891b2'],
+  },
+  // ─── Cold Palettes ───
+  {
+    id: 'ocean',
+    name: 'Ocean Sapphire',
+    category: 'cold',
+    description: 'Deep abyss navy with royal sapphire blue and crystalline sky accents.',
+    icon: Droplets,
+    colorsDark: ['#091322', '#2563eb', '#38bdf8'],
+    colorsLight: ['#ffffff', '#1d4ed8', '#0284c7'],
+  },
+  {
+    id: 'nordic',
+    name: 'Nordic Ice',
+    category: 'cold',
+    description: 'Arctic frost slate with crisp glacial cyan and polar teal gradients.',
+    icon: Snowflake,
+    colorsDark: ['#0b161f', '#06b6d4', '#14b8a6'],
+    colorsLight: ['#ffffff', '#0891b2', '#0d9488'],
+  },
+  {
+    id: 'emerald',
+    name: 'Emerald Forest',
+    category: 'cold',
+    description: 'Deep pine greens with vivid emerald gemstones and refreshing mint highlights.',
+    icon: Trees,
+    colorsDark: ['#081a10', '#10b981', '#34d399'],
+    colorsLight: ['#ffffff', '#059669', '#0891b2'],
+  },
+  // ─── Warm Palettes ───
+  {
+    id: 'rose',
+    name: 'Crimson Sunset',
+    category: 'warm',
+    description: 'Midnight berry with intense ruby rose and warm coral pink tones.',
+    icon: Heart,
+    colorsDark: ['#1c0a13', '#f43f5e', '#fb7185'],
+    colorsLight: ['#ffffff', '#e11d48', '#f43f5e'],
+  },
+  {
+    id: 'amber',
+    name: 'Amber Gold',
+    category: 'warm',
+    description: 'Dark bronze with rich golden amber and radiant honey highlights.',
+    icon: Sun,
+    colorsDark: ['#1c1507', '#f59e0b', '#fbbf24'],
+    colorsLight: ['#ffffff', '#d97706', '#f59e0b'],
+  },
+  {
+    id: 'volcanic',
+    name: 'Volcanic Clay',
+    category: 'warm',
+    description: 'Obsidian earth with burnt terracotta, magma orange, and fiery red accents.',
+    icon: Flame,
+    colorsDark: ['#1c0c08', '#ea580c', '#f97316'],
+    colorsLight: ['#ffffff', '#c2410c', '#ea580c'],
+  },
+  // ─── Special Orange Palette ───
+  {
+    id: 'orange',
+    name: 'Solar Orange',
+    category: 'orange',
+    description: 'High-energy cyberpunk carbon with blazing solar orange and tangerine neon.',
+    icon: Zap,
+    colorsDark: ['#180f06', '#ff6b00', '#ff9e00'],
+    colorsLight: ['#ffffff', '#e65100', '#ff6b00'],
+  },
+];
 
 export default function Settings() {
   const { user, setUser, logout } = useAuthStore();
-  const { theme, setTheme } = useThemeStore();
+  const { theme, palette, setTheme, setPalette } = useThemeStore();
   const [connecting, setConnecting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -45,105 +137,113 @@ export default function Settings() {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-        {/* ─── 1. Appearance / Theme Switcher ─────────────────────────────── */}
+        {/* ─── 1. Appearance / Multi-Palette Theme Studio ───────────────── */}
         <section className="glass-card" style={{ padding: 28 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 'var(--radius-md)',
-              background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--text-accent)'
-            }}>
-              {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--text-accent)'
+              }}>
+                <PaletteIcon size={20} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: 17, fontWeight: 700 }}>Appearance & Theme Studio</h2>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Choose from 8 curated palettes in both Dark and Light modes
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 style={{ fontSize: 17, fontWeight: 700 }}>Appearance & Theme</h2>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Choose your preferred color theme</p>
+
+            {/* Mode Switcher Buttons */}
+            <div style={{
+              display: 'flex', background: 'var(--bg-elevated)', padding: 4,
+              borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', gap: 4
+            }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${theme === 'dark' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setTheme('dark')}
+                style={{ padding: '6px 14px' }}
+              >
+                <Moon size={14} />
+                Dark Mode
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${theme === 'light' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setTheme('light')}
+                style={{ padding: '6px 14px' }}
+              >
+                <Sun size={14} />
+                Light Mode
+              </button>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
-            {/* Dark Theme Card */}
-            <motion.div
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              onClick={() => setTheme('dark')}
-              style={{
-                padding: 20,
-                borderRadius: 'var(--radius-lg)',
-                background: '#0d1117',
-                border: theme === 'dark' ? '2px solid var(--accent-1)' : '1px solid rgba(255,255,255,0.1)',
-                cursor: 'pointer',
-                position: 'relative',
-                boxShadow: theme === 'dark' ? '0 0 20px rgba(124,58,237,0.25)' : 'none',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f0f4ff', fontWeight: 600 }}>
-                  <Moon size={18} style={{ color: '#a78bfa' }} />
-                  Dark Theme
-                </div>
-                {theme === 'dark' && (
-                  <span style={{
-                    width: 22, height: 22, borderRadius: '50%', background: 'var(--accent-1)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff'
-                  }}>
-                    <Check size={14} />
-                  </span>
-                )}
-              </div>
-              <p style={{ fontSize: 12, color: '#8b95b0', marginBottom: 16 }}>
-                Deep dark mode with electric purple and cyan accents. Perfect for night coding.
-              </p>
-              {/* Preview bar */}
-              <div style={{ display: 'flex', gap: 6 }}>
-                <div style={{ width: 24, height: 16, borderRadius: 4, background: '#080b14', border: '1px solid #1e2535' }} />
-                <div style={{ width: 24, height: 16, borderRadius: 4, background: '#161b27' }} />
-                <div style={{ width: 24, height: 16, borderRadius: 4, background: '#7c3aed' }} />
-                <div style={{ width: 24, height: 16, borderRadius: 4, background: '#06b6d4' }} />
-              </div>
-            </motion.div>
+          {/* ── Cold Palettes ── */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+              color: 'var(--text-muted)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6
+            }}>
+              <Snowflake size={13} style={{ color: '#38bdf8' }} /> Cold Color Palettes
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+              {PALETTES.filter(p => p.category === 'cold').map(p => (
+                <PaletteCard
+                  key={p.id}
+                  palette={p}
+                  active={palette === p.id}
+                  theme={theme}
+                  onSelect={() => setPalette(p.id)}
+                />
+              ))}
+            </div>
+          </div>
 
-            {/* Light Theme Card */}
-            <motion.div
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              onClick={() => setTheme('light')}
-              style={{
-                padding: 20,
-                borderRadius: 'var(--radius-lg)',
-                background: '#ffffff',
-                border: theme === 'light' ? '2px solid var(--accent-1)' : '1px solid #e2e8f0',
-                cursor: 'pointer',
-                position: 'relative',
-                boxShadow: theme === 'light' ? '0 0 20px rgba(109,40,217,0.2)' : '0 2px 8px rgba(0,0,0,0.05)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#0f172a', fontWeight: 600 }}>
-                  <Sun size={18} style={{ color: '#d97706' }} />
-                  Light Theme
-                </div>
-                {theme === 'light' && (
-                  <span style={{
-                    width: 22, height: 22, borderRadius: '50%', background: 'var(--accent-1)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff'
-                  }}>
-                    <Check size={14} />
-                  </span>
-                )}
-              </div>
-              <p style={{ fontSize: 12, color: '#475569', marginBottom: 16 }}>
-                Clean, high-contrast light theme with rich typography and crisp borders.
-              </p>
-              {/* Preview bar */}
-              <div style={{ display: 'flex', gap: 6 }}>
-                <div style={{ width: 24, height: 16, borderRadius: 4, background: '#f8fafc', border: '1px solid #cbd5e1' }} />
-                <div style={{ width: 24, height: 16, borderRadius: 4, background: '#f1f5f9' }} />
-                <div style={{ width: 24, height: 16, borderRadius: 4, background: '#6d28d9' }} />
-                <div style={{ width: 24, height: 16, borderRadius: 4, background: '#0891b2' }} />
-              </div>
-            </motion.div>
+          {/* ── Warm Palettes ── */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+              color: 'var(--text-muted)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6
+            }}>
+              <Flame size={13} style={{ color: '#f43f5e' }} /> Warm Color Palettes
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+              {PALETTES.filter(p => p.category === 'warm').map(p => (
+                <PaletteCard
+                  key={p.id}
+                  palette={p}
+                  active={palette === p.id}
+                  theme={theme}
+                  onSelect={() => setPalette(p.id)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* ── Special & Default ── */}
+          <div>
+            <div style={{
+              fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+              color: 'var(--text-muted)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6
+            }}>
+              <Zap size={13} style={{ color: '#ff6b00' }} /> Special & Classic Palettes
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+              {PALETTES.filter(p => p.category === 'orange' || p.category === 'default').map(p => (
+                <PaletteCard
+                  key={p.id}
+                  palette={p}
+                  active={palette === p.id}
+                  theme={theme}
+                  onSelect={() => setPalette(p.id)}
+                />
+              ))}
+            </div>
           </div>
         </section>
 
@@ -291,5 +391,80 @@ export default function Settings() {
         </section>
       </div>
     </div>
+  );
+}
+
+function PaletteCard({
+  palette,
+  active,
+  theme,
+  onSelect,
+}: {
+  palette: PaletteOption;
+  active: boolean;
+  theme: 'dark' | 'light';
+  onSelect: () => void;
+}) {
+  const Icon = palette.icon;
+  const colors = theme === 'dark' ? palette.colorsDark : palette.colorsLight;
+  const accentColor = colors[1];
+
+  return (
+    <motion.div
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onSelect}
+      style={{
+        padding: 16,
+        borderRadius: 'var(--radius-lg)',
+        background: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+        border: active ? `2px solid ${accentColor}` : '1px solid var(--border)',
+        cursor: 'pointer',
+        position: 'relative',
+        boxShadow: active ? `0 0 20px ${accentColor}33` : 'none',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 14 }}>
+          <span style={{
+            width: 28, height: 28, borderRadius: 'var(--radius-sm)',
+            background: `${accentColor}20`, color: accentColor,
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>
+            <Icon size={16} />
+          </span>
+          <span>{palette.name}</span>
+        </div>
+        {active && (
+          <span style={{
+            width: 20, height: 20, borderRadius: '50%', background: accentColor,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff'
+          }}>
+            <Check size={13} />
+          </span>
+        )}
+      </div>
+
+      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.4 }}>
+        {palette.description}
+      </p>
+
+      {/* Swatch Preview Chips */}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        {colors.map((c, i) => (
+          <div
+            key={i}
+            style={{
+              flex: i === 0 ? 2 : 1,
+              height: 18,
+              borderRadius: 4,
+              background: c,
+              border: '1px solid rgba(0,0,0,0.1)',
+            }}
+          />
+        ))}
+      </div>
+    </motion.div>
   );
 }

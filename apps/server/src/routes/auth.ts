@@ -5,6 +5,7 @@ import {
   refreshSession,
   revokeSession,
   revokeUserSessions,
+  updateUserSettings,
   upsertGithubUser,
   getUserById,
 } from '../services/auth.service.js';
@@ -113,7 +114,16 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       name: dbUser?.name ?? user.email,
       avatarUrl: dbUser?.avatarUrl ?? null,
       hasGithubToken: Boolean(dbUser?.githubTokenEnc),
+      settings: dbUser?.settings ?? { theme: 'dark', palette: 'default' },
     };
+  });
+
+  // Update Settings
+  fastify.patch('/settings', { preHandler: [authMiddleware] }, async (request) => {
+    const user = (request as typeof request & { user: { sub: string; email: string } }).user;
+    const body = request.body as Record<string, unknown>;
+    const settings = await updateUserSettings(user.sub, body);
+    return { settings };
   });
 
   // GitHub OAuth Start

@@ -156,3 +156,27 @@ export async function getUserGithubToken(userId: string): Promise<string | null>
     return null;
   }
 }
+
+export async function updateUserSettings(
+  userId: string,
+  newSettings: Partial<schema.UserSettings>,
+): Promise<schema.UserSettings> {
+  const db = getDb();
+  const user = await db.query.users.findFirst({
+    where: eq(schema.users.id, userId),
+  });
+  if (!user) throw new Error('User not found');
+
+  const currentSettings = (user.settings as schema.UserSettings) || { theme: 'dark', palette: 'default' };
+  const mergedSettings: schema.UserSettings = {
+    ...currentSettings,
+    ...newSettings,
+  };
+
+  await db
+    .update(schema.users)
+    .set({ settings: mergedSettings, updatedAt: new Date() })
+    .where(eq(schema.users.id, userId));
+
+  return mergedSettings;
+}

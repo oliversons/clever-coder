@@ -1,33 +1,73 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { api, type Palette, type ThemeMode, type UserSettings } from '../api/client';
 
-export type Theme = 'dark' | 'light';
+export type Theme = ThemeMode;
+export type { Palette, ThemeMode };
 
 interface ThemeState {
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
+  theme: ThemeMode;
+  palette: Palette;
+  setTheme: (theme: ThemeMode, syncToDb?: boolean) => void;
+  setPalette: (palette: Palette, syncToDb?: boolean) => void;
+  setThemeAndPalette: (theme: ThemeMode, palette: Palette, syncToDb?: boolean) => void;
   toggleTheme: () => void;
+  syncFromUserSettings: (settings?: UserSettings) => void;
+}
+
+export function applyThemeToDOM(theme: ThemeMode, palette: Palette) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.setAttribute('data-palette', palette);
 }
 
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
       theme: 'dark',
-      setTheme: (theme) => {
-        document.documentElement.setAttribute('data-theme', theme);
+      palette: 'default',
+      setTheme: (theme, syncToDb = true) => {
+        const { palette } = get();
+        applyThemeToDOM(theme, palette);
         set({ theme });
+        if (syncToDb) {
+          api.auth.updateSettings({ theme, palette }).catch(() => {});
+        }
+      },
+      setPalette: (palette, syncToDb = true) => {
+        const { theme } = get();
+        applyThemeToDOM(theme, palette);
+        set({ palette });
+        if (syncToDb) {
+          api.auth.updateSettings({ theme, palette }).catch(() => {});
+        }
+      },
+      setThemeAndPalette: (theme, palette, syncToDb = true) => {
+        applyThemeToDOM(theme, palette);
+        set({ theme, palette });
+        if (syncToDb) {
+          api.auth.updateSettings({ theme, palette }).catch(() => {});
+        }
       },
       toggleTheme: () => {
         const next = get().theme === 'dark' ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', next);
+        const { palette } = get();
+        applyThemeToDOM(next, palette);
         set({ theme: next });
+        api.auth.updateSettings({ theme: next, palette }).catch(() => {});
+      },
+      syncFromUserSettings: (settings) => {
+        if (!settings) return;
+        const theme = settings.theme || get().theme || 'dark';
+        const palette = settings.palette || get().palette || 'default';
+        applyThemeToDOM(theme, palette);
+        set({ theme, palette });
       },
     }),
     {
       name: 'clever-theme',
       onRehydrateStorage: () => (state) => {
-        if (state?.theme) {
-          document.documentElement.setAttribute('data-theme', state.theme);
+        if (state) {
+          applyThemeToDOM(state.theme || 'dark', state.palette || 'default');
         }
       },
     },
@@ -41,9 +81,12 @@ export function applyThemeOnBoot() {
     try {
       const parsed = JSON.parse(saved);
       const theme = parsed.state?.theme || 'dark';
-      document.documentElement.setAttribute('data-theme', theme);
+      const palette = parsed.state?.palette || 'default';
+      applyThemeToDOM(theme, palette);
     } catch {
-      document.documentElement.setAttribute('data-theme', 'dark');
+      applyThemeToDOM('dark', 'default');
     }
+  } else {
+    applyThemeToDOM('dark', 'default');
   }
 }

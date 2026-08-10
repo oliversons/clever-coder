@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { api, type Project } from '../api/client';
+import { api, type Project, type UserSettings } from '../api/client';
+import { useThemeStore } from './themeStore';
 
 export interface User {
   id: string;
@@ -8,6 +9,7 @@ export interface User {
   name?: string;
   avatarUrl?: string;
   hasGithubToken?: boolean;
+  settings?: UserSettings;
 }
 
 interface AuthState {
@@ -23,11 +25,19 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       isLoading: false,
-      setUser: (user) => set({ user }),
+      setUser: (user) => {
+        if (user?.settings) {
+          useThemeStore.getState().syncFromUserSettings(user.settings);
+        }
+        set({ user });
+      },
       fetchMe: async () => {
         set({ isLoading: true });
         try {
           const user = await api.auth.me();
+          if (user?.settings) {
+            useThemeStore.getState().syncFromUserSettings(user.settings);
+          }
           set({ user, isLoading: false });
         } catch {
           set({ user: null, isLoading: false });

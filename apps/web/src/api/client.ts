@@ -21,6 +21,24 @@ async function request<T>(
   return text ? JSON.parse(text) : ({} as T);
 }
 
+export type Palette = 'default' | 'ocean' | 'nordic' | 'emerald' | 'rose' | 'amber' | 'volcanic' | 'orange';
+export type ThemeMode = 'dark' | 'light';
+
+export interface UserSettings {
+  theme?: ThemeMode;
+  palette?: Palette;
+  [key: string]: unknown;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl?: string;
+  hasGithubToken?: boolean;
+  settings?: UserSettings;
+}
+
 export const api = {
   auth: {
     register: (email: string, password: string, name: string) =>
@@ -33,13 +51,12 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       }),
-    me: () => request<{
-      id: string;
-      email: string;
-      name: string;
-      avatarUrl?: string;
-      hasGithubToken?: boolean;
-    }>('/auth/me'),
+    me: () => request<UserProfile>('/auth/me'),
+    updateSettings: (settings: Partial<UserSettings>) =>
+      request<{ settings: UserSettings }>('/auth/settings', {
+        method: 'PATCH',
+        body: JSON.stringify(settings),
+      }),
     logout: () => request('/auth/logout', { method: 'POST' }),
     githubStartUrl: () => '/api/v1/auth/github/start',
   },
