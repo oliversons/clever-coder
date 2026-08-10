@@ -10,6 +10,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { Duplex } from 'stream';
+import { Readable } from 'node:stream';
 import net from 'net';
 import httpProxy from 'http-proxy';
 import { authMiddleware, type JwtPayload } from '../middleware/auth.middleware.js';
@@ -96,6 +97,7 @@ export const hermesWebUIRoutes: FastifyPluginAsync = async (fastify) => {
 export async function createHermesWebUIProxy(
   req: IncomingMessage,
   res: ServerResponse,
+  body?: unknown,
 ): Promise<void> {
   const port = getHermesWebUIPort();
 
@@ -119,6 +121,16 @@ export async function createHermesWebUIProxy(
   req.url = originalUrl.replace(/^\/hermes-ui/, '') || '/';
   req.headers.host = `127.0.0.1:${port}`;
   req.headers.origin = `http://127.0.0.1:${port}`;
+
+  if (body !== undefined && body !== null && (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH')) {
+    const bodyStr = typeof body === 'string' || Buffer.isBuffer(body)
+      ? body
+      : JSON.stringify(body);
+    req.headers['content-length'] = String(Buffer.byteLength(bodyStr));
+    const stream = Readable.from([bodyStr]);
+    proxy.web(req, res, { buffer: stream });
+    return;
+  }
 
   proxy.web(req, res);
 }
