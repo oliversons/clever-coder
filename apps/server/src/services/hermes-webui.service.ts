@@ -58,9 +58,15 @@ export async function syncHermesConfigFiles(userId?: string) {
       custom_base_url: baseUrl,
       base_url: baseUrl,
       api_key: apiKey,
+      default_api_key: apiKey,
+      custom_api_key: apiKey,
+      openai_api_key: apiKey,
       setup_completed: true,
       onboarding_completed: true,
       default_workspace: '/workspaces',
+      custom: { api_key: apiKey, base_url: baseUrl },
+      default: { api_key: apiKey, base_url: baseUrl },
+      openai: { api_key: apiKey, base_url: baseUrl },
     };
     fs.writeFileSync(path.join(hermesHome, 'config.json'), JSON.stringify(configJson, null, 2), 'utf8');
 
@@ -73,6 +79,9 @@ export async function syncHermesConfigFiles(userId?: string) {
       custom_base_url: baseUrl,
       base_url: baseUrl,
       api_key: apiKey,
+      default_api_key: apiKey,
+      custom_api_key: apiKey,
+      openai_api_key: apiKey,
     };
     fs.writeFileSync(path.join(hermesHome, 'webui.json'), JSON.stringify(webuiJson, null, 2), 'utf8');
 
@@ -82,17 +91,36 @@ provider: "${provider}"
 custom_base_url: "${baseUrl}"
 base_url: "${baseUrl}"
 api_key: "${apiKey}"
+default_api_key: "${apiKey}"
+custom_api_key: "${apiKey}"
+openai_api_key: "${apiKey}"
 setup_completed: true
 onboarding_completed: true
+
+custom:
+  api_key: "${apiKey}"
+  base_url: "${baseUrl}"
+
+default:
+  api_key: "${apiKey}"
+  base_url: "${baseUrl}"
+
+openai:
+  api_key: "${apiKey}"
+  base_url: "${baseUrl}"
 `;
     fs.writeFileSync(path.join(hermesHome, 'config.yaml'), yamlContent, 'utf8');
 
     // 4. ~/.hermes/.env
     const envLines = [
       `HERMES_MODEL=${model}`,
+      `HERMES_PROVIDER=${provider}`,
+      `DEFAULT_API_KEY=${apiKey}`,
+      `CUSTOM_API_KEY=${apiKey}`,
       `OPENAI_API_KEY=${apiKey}`,
       `OPENAI_BASE_URL=${baseUrl}`,
-      `HERMES_PROVIDER=${provider}`,
+      `CUSTOM_BASE_URL=${baseUrl}`,
+      `DEFAULT_BASE_URL=${baseUrl}`,
       `SETUP_COMPLETED=true`,
       `HERMES_ONBOARDING_COMPLETED=true`,
     ];
@@ -186,6 +214,25 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
   const scriptDir = path.dirname(scriptPath);
   const totalCores = getAvailableCpuCores();
 
+  let apiKey = 'cag_cb210c79b7c941f1bffc176520104ab893aaae2aec9edd5e';
+  let baseUrl = 'https://app-fcbf4053-74e6-4498-ac0e-eb160010a3c5.cleverapps.io/v1';
+  let model = 'agentrouter/claude-opus-5';
+  let provider = 'custom';
+
+  if (config.userId) {
+    try {
+      const settings = await getHermesSettings(config.userId);
+      if (settings) {
+        apiKey = getDecryptedApiKey(settings) || apiKey;
+        if (settings.baseUrl) baseUrl = settings.baseUrl;
+        if (settings.model) model = settings.model;
+        provider = settings.provider === 'custom_openai' ? 'custom' : (settings.provider || 'custom');
+      }
+    } catch {
+      // fallback
+    }
+  }
+
   const env: Record<string, string> = {
     ...process.env,
     ...buildMultiCoreEnv(totalCores),
@@ -193,6 +240,14 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
     HERMES_WEBUI_HOST: '127.0.0.1',
     HERMES_HOME: process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes'),
     HERMES_WORKSPACE: config.workspacePath || process.env.WORKSPACES_ROOT || '/workspaces',
+    DEFAULT_API_KEY: apiKey,
+    CUSTOM_API_KEY: apiKey,
+    OPENAI_API_KEY: apiKey,
+    OPENAI_BASE_URL: baseUrl,
+    CUSTOM_BASE_URL: baseUrl,
+    DEFAULT_BASE_URL: baseUrl,
+    HERMES_MODEL: model,
+    HERMES_PROVIDER: provider,
     SETUP_COMPLETED: 'true',
     HERMES_ONBOARDING_COMPLETED: 'true',
   };
