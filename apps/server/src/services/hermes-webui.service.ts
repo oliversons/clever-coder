@@ -41,11 +41,12 @@ export async function syncHermesConfigFiles(userId?: string) {
       const settings = await getHermesSettings(userId);
       if (settings) {
         const decryptedKey = getDecryptedApiKey(settings);
-        if (decryptedKey) apiKey = decryptedKey;
-        if (settings.baseUrl) baseUrl = settings.baseUrl;
-        if (settings.model) model = settings.model;
-        if (settings.provider) {
-          provider = settings.provider === 'custom_openai' ? 'custom' : settings.provider;
+        if (decryptedKey?.trim()) apiKey = decryptedKey.trim();
+        if (settings.baseUrl?.trim()) baseUrl = settings.baseUrl.trim();
+        if (settings.model?.trim()) model = settings.model.trim();
+        if (settings.provider?.trim()) {
+          const p = settings.provider.trim();
+          provider = p === 'custom_openai' ? 'custom' : p;
         }
       }
     } catch (err) {
@@ -238,11 +239,12 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
       const settings = await getHermesSettings(config.userId);
       if (settings) {
         const decryptedKey = getDecryptedApiKey(settings);
-        if (decryptedKey) apiKey = decryptedKey;
-        if (settings.baseUrl) baseUrl = settings.baseUrl;
-        if (settings.model) model = settings.model;
-        if (settings.provider) {
-          provider = settings.provider === 'custom_openai' ? 'custom' : settings.provider;
+        if (decryptedKey?.trim()) apiKey = decryptedKey.trim();
+        if (settings.baseUrl?.trim()) baseUrl = settings.baseUrl.trim();
+        if (settings.model?.trim()) model = settings.model.trim();
+        if (settings.provider?.trim()) {
+          const p = settings.provider.trim();
+          provider = p === 'custom_openai' ? 'custom' : p;
         }
       }
     } catch {
