@@ -54,7 +54,13 @@ export async function syncHermesConfigFiles(userId?: string) {
     // 1. ~/.hermes/config.json
     const configJson = {
       provider,
-      model,
+      model: {
+        provider,
+        default: model,
+        base_url: baseUrl,
+        custom_base_url: baseUrl,
+      },
+      model_name: model,
       custom_base_url: baseUrl,
       base_url: baseUrl,
       api_key: apiKey,
@@ -86,14 +92,19 @@ export async function syncHermesConfigFiles(userId?: string) {
     fs.writeFileSync(path.join(hermesHome, 'webui.json'), JSON.stringify(webuiJson, null, 2), 'utf8');
 
     // 3. ~/.hermes/config.yaml
-    const yamlContent = `model: "${model}"
+    const yamlContent = `model:
+  provider: "${provider}"
+  default: "${model}"
+  base_url: "${baseUrl}"
+  custom_base_url: "${baseUrl}"
+
 provider: "${provider}"
-custom_base_url: "${baseUrl}"
-base_url: "${baseUrl}"
 api_key: "${apiKey}"
 default_api_key: "${apiKey}"
 custom_api_key: "${apiKey}"
 openai_api_key: "${apiKey}"
+base_url: "${baseUrl}"
+custom_base_url: "${baseUrl}"
 setup_completed: true
 onboarding_completed: true
 
