@@ -91,7 +91,8 @@ export const hermesSettings = pgTable('hermes_settings', {
     .references(() => users.id, { onDelete: 'cascade' }),
 
   // LLM Provider
-  provider: text('provider').notNull().default('openrouter'), // openrouter | openai | nous_portal | ollama
+  provider: text('provider').notNull().default('openrouter'), // openrouter | openai | nous_portal | ollama | custom_openai
+  baseUrl: text('base_url'),                                  // Custom OpenAI-compatible endpoint URL (e.g. https://api.your-provider.com/v1)
   apiKeyEncrypted: text('api_key_encrypted'),                 // AES-256-GCM encrypted
   model: text('model').notNull().default('nousresearch/hermes-3-llama-3.1-405b'),
   temperature: integer('temperature').notNull().default(70),  // stored as 0-100, divide by 100
@@ -99,7 +100,7 @@ export const hermesSettings = pgTable('hermes_settings', {
 
   // Execution & Sandbox
   executionBackend: text('execution_backend').notNull().default('docker'), // local | docker | ssh
-  containerCpu: integer('container_cpu').notNull().default(2),
+  containerCpu: integer('container_cpu').notNull().default(0), // 0 = Auto-detect all host cores
   containerMemoryMb: integer('container_memory_mb').notNull().default(4096),
   timeoutSeconds: integer('timeout_seconds').notNull().default(300),
   commandApprovalMode: text('command_approval_mode').notNull().default('ask_destructive'), // always_ask | ask_destructive | auto_approve

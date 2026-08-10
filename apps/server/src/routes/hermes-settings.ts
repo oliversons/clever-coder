@@ -25,6 +25,7 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
       // Return defaults — will be created on first save
       return reply.send({
         provider: 'openrouter',
+        baseUrl: null,
         apiKeySet: false,
         apiKeyEncrypted: null,
         model: 'nousresearch/hermes-3-llama-3.1-405b',
@@ -62,6 +63,7 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
 
     const settings = await upsertHermesSettings(payload.sub, {
       provider: typeof body.provider === 'string' ? body.provider : undefined,
+      baseUrl: typeof body.baseUrl === 'string' ? body.baseUrl : null,
       apiKey: typeof body.apiKey === 'string' ? body.apiKey : undefined,
       model: typeof body.model === 'string' ? body.model : undefined,
       temperature: typeof body.temperature === 'number' ? body.temperature : undefined,
@@ -88,11 +90,12 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
       request.headers.authorization?.slice(7) ?? '',
     );
 
-    const body = request.body as { provider?: string; apiKey?: string; model?: string };
+    const body = request.body as { provider?: string; baseUrl?: string; apiKey?: string; model?: string };
     const settings = await getHermesSettings(payload.sub);
 
     // Use request body values, falling back to stored settings
     const provider = body.provider ?? settings?.provider ?? 'openrouter';
+    const baseUrl = body.baseUrl ?? settings?.baseUrl ?? null;
     const model = body.model ?? settings?.model ?? '';
     let apiKey = body.apiKey;
 
@@ -100,11 +103,11 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
       apiKey = getDecryptedApiKey(settings) ?? '';
     }
 
-    if (!apiKey) {
+    if (!apiKey && provider !== 'ollama') {
       return reply.code(400).send({ ok: false, message: 'No API key configured' });
     }
 
-    const result = await testProviderConnection(provider, apiKey, model);
+    const result = await testProviderConnection(provider, apiKey ?? '', model, baseUrl);
     return reply.send(result);
   });
 }

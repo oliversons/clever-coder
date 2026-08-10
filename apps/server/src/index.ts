@@ -1,4 +1,9 @@
+import os from 'node:os';
 import 'node:process';
+
+// Initialize libuv threadpool to 2x CPU cores (min 8) for maximum multi-core async I/O & crypto
+process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || String(Math.max(8, (os.cpus()?.length ?? 4) * 2));
+
 import Fastify from 'fastify';
 import fastifyCors from '@fastify/cors';
 import fastifyCookie from '@fastify/cookie';

@@ -32,7 +32,8 @@ const TABS: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
 
 const PROVIDERS = [
   { value: 'openrouter', label: 'OpenRouter', desc: 'Multi-model gateway' },
-  { value: 'openai', label: 'OpenAI', desc: 'GPT-4o, o1, etc.' },
+  { value: 'openai', label: 'OpenAI Official', desc: 'GPT-4o, o1, etc.' },
+  { value: 'custom_openai', label: 'Custom OpenAI API', desc: 'DeepSeek, Grok, Gemini, private LLMs' },
   { value: 'nous_portal', label: 'Nous Portal', desc: 'Hermes models (OAuth)' },
   { value: 'ollama', label: 'Local Ollama / vLLM', desc: 'Self-hosted models' },
 ];
@@ -102,6 +103,7 @@ export default function HermesSettings() {
     try {
       const result = await testConnection({
         provider: form.provider,
+        baseUrl: form.baseUrl || undefined,
         apiKey: form.apiKey || undefined,
         model: form.model,
       });
@@ -205,14 +207,45 @@ export default function HermesSettings() {
                     </div>
                   </FieldRow>
 
+                  {form.provider === 'custom_openai' && (
+                    <FieldRow label="Base URL (Must end with /v1, do not include /chat/completions)">
+                      <input
+                        type="text"
+                        value={(form.baseUrl as string) ?? ''}
+                        onChange={(e) => set('baseUrl', e.target.value)}
+                        placeholder="https://api.your-provider.com/v1"
+                        style={inputStyle}
+                      />
+                    </FieldRow>
+                  )}
+
                   <FieldRow label="Model ID">
-                    <select
-                      value={form.model as string ?? ''}
-                      onChange={(e) => set('model', e.target.value)}
-                      style={selectStyle}
-                    >
-                      {models.map((m) => <option key={m} value={m}>{m}</option>)}
-                    </select>
+                    {form.provider === 'custom_openai' || form.provider === 'ollama' ? (
+                      <input
+                        type="text"
+                        value={(form.model as string) ?? ''}
+                        onChange={(e) => set('model', e.target.value)}
+                        placeholder="e.g. deepseek-chat, custom-model-name, claude-3-5-sonnet"
+                        style={inputStyle}
+                      />
+                    ) : (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <select
+                          value={(form.model as string) ?? ''}
+                          onChange={(e) => set('model', e.target.value)}
+                          style={{ ...selectStyle, flex: 1 }}
+                        >
+                          {models.map((m) => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                        <input
+                          type="text"
+                          value={(form.model as string) ?? ''}
+                          onChange={(e) => set('model', e.target.value)}
+                          placeholder="Or enter custom model ID..."
+                          style={{ ...inputStyle, flex: 1 }}
+                        />
+                      </div>
+                    )}
                   </FieldRow>
 
                   <FieldRow label="API Key">
@@ -329,14 +362,21 @@ export default function HermesSettings() {
 
                   {form.executionBackend === 'docker' && (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-                      <FieldRow label={`CPU Cores: ${form.containerCpu ?? 2}`}>
-                        <input type="range" min="1" max="8" step="1"
-                          value={form.containerCpu as number ?? 2}
+                      <FieldRow label={`CPU Core Allocation: ${form.containerCpu === 0 ? '⚡ Auto / All Cores' : `${form.containerCpu ?? 0} Cores`}`}>
+                        <select
+                          value={(form.containerCpu as number) ?? 0}
                           onChange={(e) => set('containerCpu', Number(e.target.value))}
-                          style={{ width: '100%', accentColor: 'var(--accent-1)' }}
-                        />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
-                          <span>1</span><span>8</span>
+                          style={selectStyle}
+                        >
+                          <option value={0}>⚡ Auto / All Host Cores (Recommended)</option>
+                          <option value={1}>1 Core (Low Power)</option>
+                          <option value={2}>2 Cores</option>
+                          <option value={4}>4 Cores</option>
+                          <option value={8}>8 Cores</option>
+                          <option value={16}>16 Cores</option>
+                        </select>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                          Detected {typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4} cores. "Auto" uses all host cores.
                         </div>
                       </FieldRow>
                       <FieldRow label={`RAM: ${(form.containerMemoryMb as number ?? 4096) / 1024} GB`}>

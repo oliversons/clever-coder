@@ -20,6 +20,7 @@ import {
   streamCompletion,
   persistMessage,
   updateToolCallStatus,
+  buildMultiCoreEnv,
   type HermesWorkspaceContext,
   type ChatMessage,
   type ToolCall,
@@ -316,10 +317,12 @@ async function executeTool(
         const { promisify } = await import('util');
         const execAsync = promisify(exec);
 
+        const multiCoreEnv = buildMultiCoreEnv();
+
         const { stdout, stderr } = await execAsync(command, {
           cwd: workspacePath,
           timeout: 30000,
-          env: { ...process.env, HOME: workspacePath },
+          env: { ...process.env, ...multiCoreEnv, HOME: workspacePath },
         });
         return { output: [stdout, stderr].filter(Boolean).join('\n') };
       }

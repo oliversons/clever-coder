@@ -29,6 +29,20 @@
       "when": 1786362275402,
       "tag": "0003_elite_alex_power",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786364000000,
+      "tag": "0004_add_custom_base_url",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786365000000,
+      "tag": "0005_update_hermes_cpu_default",
+      "breakpoints": true
     }
   ]
 }

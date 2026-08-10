@@ -14,6 +14,27 @@ import { eq, and } from 'drizzle-orm';
 import { encrypt, decrypt } from '../utils/crypto.js';
 import { autoOffload, artifactKey, uploadTrajectory } from './s3.service.js';
 import { randomUUID } from 'crypto';
+import os from 'node:os';
+
+/** Detect available logical CPU cores on host/container */
+export function getAvailableCpuCores(): number {
+  const count = os.cpus()?.length ?? 0;
+  return count > 0 ? count : 2;
+}
+
+/** Build environment variables for multi-core parallelism */
+export function buildMultiCoreEnv(configuredCores?: number): Record<string, string> {
+  const targetCores = configuredCores && configuredCores > 0 ? configuredCores : getAvailableCpuCores();
+  return {
+    UV_THREADPOOL_SIZE: String(Math.max(4, targetCores * 2)),
+    OMP_NUM_THREADS: String(targetCores),
+    MKL_NUM_THREADS: String(targetCores),
+    OPENBLAS_NUM_THREADS: String(targetCores),
+    MAKEFLAGS: `-j${targetCores}`,
+    CMAKE_BUILD_PARALLEL_LEVEL: String(targetCores),
+    HERMES_MAX_WORKERS: String(targetCores),
+  };
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -107,28 +128,35 @@ interface ProviderConfig {
   authHeader: (key: string) => Record<string, string>;
 }
 
-function resolveProvider(provider: string): ProviderConfig {
+function resolveProvider(provider: string, baseUrl?: string | null): ProviderConfig {
+  if (provider === 'custom_openai' && baseUrl) {
+    const cleanUrl = baseUrl.trim().replace(/\/+$/, '');
+    return {
+      baseUrl: cleanUrl,
+      authHeader: (key: string): Record<string, string> => (key ? { Authorization: `Bearer ${key}` } : {}),
+    };
+  }
   switch (provider) {
     case 'openai':
       return {
         baseUrl: 'https://api.openai.com/v1',
-        authHeader: (key) => ({ Authorization: `Bearer ${key}` }),
+        authHeader: (key: string): Record<string, string> => ({ Authorization: `Bearer ${key}` }),
       };
     case 'nous_portal':
       return {
         baseUrl: 'https://api.nousresearch.com/v1',
-        authHeader: (key) => ({ Authorization: `Bearer ${key}` }),
+        authHeader: (key: string): Record<string, string> => ({ Authorization: `Bearer ${key}` }),
       };
     case 'ollama':
       return {
         baseUrl: 'http://localhost:11434/v1',
-        authHeader: () => ({}),
+        authHeader: (key: string): Record<string, string> => (key ? { Authorization: `Bearer ${key}` } : {}),
       };
     case 'openrouter':
     default:
       return {
         baseUrl: 'https://openrouter.ai/api/v1',
-        authHeader: (key) => ({
+        authHeader: (key: string): Record<string, string> => ({
           Authorization: `Bearer ${key}`,
           'HTTP-Referer': 'https://clever-coder.app',
           'X-Title': 'CleverCoder Hermes',
@@ -157,7 +185,7 @@ export async function* streamCompletion(
   context?: HermesWorkspaceContext,
 ): AsyncGenerator<StreamChunk> {
   const apiKey = getDecryptedApiKey(settings);
-  const provider = resolveProvider(settings.provider);
+  const provider = resolveProvider(settings.provider, settings.baseUrl);
 
   // Build system message with workspace context
   const systemMessages: ChatMessage[] = [];
@@ -384,28 +412,50 @@ export async function testProviderConnection(
   provider: string,
   apiKey: string,
   model: string,
+  baseUrl?: string | null,
 ): Promise<{ ok: boolean; message: string; latencyMs?: number }> {
-  const providerConfig = resolveProvider(provider);
+  const providerConfig = resolveProvider(provider, baseUrl);
   const start = Date.now();
 
   try {
-    const response = await fetch(`${providerConfig.baseUrl}/models`, {
-      method: 'GET',
-      headers: {
-        ...providerConfig.authHeader(apiKey),
-        'Content-Type': 'application/json',
-      },
-      signal: AbortSignal.timeout(10000),
-    });
+    let response: Response | null = null;
+    try {
+      response = await fetch(`${providerConfig.baseUrl}/models`, {
+        method: 'GET',
+        headers: {
+          ...providerConfig.authHeader(apiKey),
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(6000),
+      });
+    } catch {
+      response = null;
+    }
+
+    if (!response || !response.ok) {
+      response = await fetch(`${providerConfig.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          ...providerConfig.authHeader(apiKey),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: model || 'gpt-3.5-turbo',
+          messages: [{ role: 'user', content: 'ping' }],
+          max_tokens: 5,
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+    }
 
     const latencyMs = Date.now() - start;
 
     if (response.ok) {
-      return { ok: true, message: `Connected to ${provider} in ${latencyMs}ms`, latencyMs };
+      return { ok: true, message: `Connected to ${provider === 'custom_openai' ? 'Custom Endpoint' : provider} in ${latencyMs}ms`, latencyMs };
     } else {
       const err = await response.json().catch(() => ({ error: { message: `HTTP ${response.status}` } }));
       const msg = (err as { error?: { message?: string } })?.error?.message ?? `HTTP ${response.status}`;
-      return { ok: false, message: `Authentication failed: ${msg}` };
+      return { ok: false, message: `Authentication/Endpoint error: ${msg}` };
     }
   } catch (err) {
     return {

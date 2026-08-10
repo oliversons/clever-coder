@@ -28,7 +28,7 @@ export default function Layout() {
             <LayoutDashboard size={16} />
             Dashboard
           </NavLink>
-          <NavLink to="/settings" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <NavLink to="/settings" end className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
             <Settings size={16} />
             Settings
           </NavLink>
