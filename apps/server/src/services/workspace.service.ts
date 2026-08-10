@@ -71,8 +71,10 @@ export async function startWorkspace(projectId: string): Promise<number> {
   const bin = getCodeServerBinary();
   console.log(`[workspace] Spawning code-server (${bin}) on port ${port} for ${projectId}...`);
 
+  const env = { ...process.env, HOME: workspacePath, PORT: String(port) };
+
   const proc = spawn(bin, [
-    '--bind-addr', `127.0.0.1:${port}`,
+    `--bind-addr=127.0.0.1:${port}`,
     '--auth', 'none',
     '--disable-telemetry',
     '--disable-update-check',
@@ -81,7 +83,7 @@ export async function startWorkspace(projectId: string): Promise<number> {
     workspacePath,
   ], {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, HOME: workspacePath },
+    env,
   });
 
   const entry: WorkspaceEntry = {
