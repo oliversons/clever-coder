@@ -89,18 +89,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
 
-    const isProd = config.NODE_ENV === 'production';
-    reply
-      .clearCookie('access_token', { path: '/' })
-      .clearCookie('access_token', { path: '/', httpOnly: true, secure: isProd, sameSite: 'lax' })
-      .clearCookie('access_token', { path: '/', httpOnly: true, secure: isProd, sameSite: 'strict' })
-      .clearCookie('refresh_token', { path: '/' })
-      .clearCookie('refresh_token', { path: '/', httpOnly: true, secure: isProd, sameSite: 'lax' })
-      .clearCookie('refresh_token', { path: '/', httpOnly: true, secure: isProd, sameSite: 'strict' })
-      .clearCookie('refresh_token', { path: '/api/v1/auth' })
-      .clearCookie('refresh_token', { path: '/api/v1/auth', httpOnly: true, secure: isProd, sameSite: 'lax' })
-      .clearCookie('refresh_token', { path: '/api/v1/auth', httpOnly: true, secure: isProd, sameSite: 'strict' });
-
+    clearAuthCookies(reply);
     return { ok: true };
   });
 
@@ -257,5 +246,26 @@ function setAuthCookies(
       sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 30, // 30 days
+    });
+}
+
+function clearAuthCookies(reply: FastifyReply) {
+  const isProd = config.NODE_ENV === 'production';
+  reply
+    .setCookie('access_token', '', {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      path: '/',
+      expires: new Date(0),
+      maxAge: 0,
+    })
+    .setCookie('refresh_token', '', {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      path: '/',
+      expires: new Date(0),
+      maxAge: 0,
     });
 }

@@ -49,9 +49,24 @@ export const useAuthStore = create<AuthState>()(
         } catch (err) {
           console.warn('Logout network call failed, clearing local state:', err);
         } finally {
-          set({ user: null });
+          set({ user: null, isLoading: false });
           localStorage.removeItem('auth-store');
           sessionStorage.clear();
+
+          // Clear client accessible cookies
+          try {
+            document.cookie.split(';').forEach((c) => {
+              const eqPos = c.indexOf('=');
+              const name = eqPos > -1 ? c.substring(0, eqPos).trim() : c.trim();
+              if (name) {
+                document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+                document.cookie = `${name}=; path=/; domain=${window.location.hostname}; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+              }
+            });
+          } catch {
+            // Ignore cookie access errors
+          }
+
           window.location.replace('/login');
         }
       },
