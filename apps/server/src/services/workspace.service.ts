@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { createServer } from 'net';
 import { existsSync, mkdirSync, readdirSync } from 'fs';
 import { simpleGit } from 'simple-git';
-import { downloadWorkspaceFromCellar, uploadWorkspaceToCellar, restoreWorkspace } from '../utils/rclone.js';
+import { downloadWorkspaceFromCellar, uploadWorkspaceToCellar } from '../utils/rclone.js';
 import { getUserGithubToken } from './auth.service.js';
 import { normaliseRepoUrl } from './github.service.js';
 
@@ -53,12 +53,15 @@ function getCodeServerBinary(): string {
 
 export function hasProjectFiles(workspacePath: string): boolean {
   if (!existsSync(workspacePath)) return false;
+  // A valid workspace must have a .git folder (cloned repo)
+  // OR actual source files beyond just IDE metadata
   try {
     const items = readdirSync(workspacePath);
-    const validItems = items.filter(
-      (i) => i !== '.code-server' && i !== '.extensions' && i !== '.git',
+    const sourceItems = items.filter(
+      (i) => i !== '.code-server' && i !== '.extensions' && !i.startsWith('.'),
     );
-    return validItems.length > 0;
+    const hasGit = items.includes('.git');
+    return hasGit || sourceItems.length > 0;
   } catch {
     return false;
   }
@@ -68,45 +71,59 @@ export async function ensureWorkspaceFiles(projectId: string): Promise<void> {
   const workspacePath = join(config.WORKSPACES_ROOT, projectId);
   mkdirSync(workspacePath, { recursive: true });
 
-  if (hasProjectFiles(workspacePath)) {
-    console.log(`[workspace] Project ${projectId} already has local files.`);
+  const gitDir = join(workspacePath, '.git');
+
+  if (hasProjectFiles(workspacePath) && existsSync(gitDir)) {
+    console.log(`[workspace] Project ${projectId} already has local source files and .git.`);
     return;
   }
 
-  console.log(`[workspace] Project ${projectId} local workspace is empty. Restoring from Cellar or Git...`);
+  console.log(`[workspace] Project ${projectId} workspace missing source files or .git. Restoring...`);
 
-  // 1. Try restoring from Cellar object storage
+  // 1. Try downloading from Cellar S3 first
   try {
     const restoreRes = await downloadWorkspaceFromCellar(projectId);
-    if (restoreRes.success && hasProjectFiles(workspacePath)) {
-      console.log(`[workspace] Successfully restored ${projectId} from Cellar S3.`);
-      await restoreWorkspace(projectId, true).catch(() => {});
+    console.log(`[workspace] Cellar download result for ${projectId}: success=${restoreRes.success}`);
+    if (restoreRes.success && existsSync(gitDir)) {
+      console.log(`[workspace] Successfully restored ${projectId} from Cellar S3 (git dir found).`);
+      // Upload back to ensure Cellar is up to date
+      uploadWorkspaceToCellar(projectId).catch(() => {});
       return;
     }
+    console.warn(`[workspace] Cellar download for ${projectId} did not restore .git dir. Will re-clone.`);
   } catch (err) {
-    console.warn(`[workspace] Cellar restore for ${projectId} failed or empty:`, err);
+    console.warn(`[workspace] Cellar download for ${projectId} threw:`, err);
   }
 
-  // 2. If still empty, fetch project details from DB and re-clone from git
+  // 2. Re-clone from Git (definitive source of truth)
   try {
     const db = getDb();
     const project = await db.query.projects.findFirst({
       where: eq(schema.projects.id, projectId),
     });
 
-    if (project && project.repoUrl) {
-      console.log(`[workspace] Re-cloning repository ${project.repoUrl} into ${workspacePath}...`);
-      const token = (await getUserGithubToken(project.userId)) ?? undefined;
-      const repoUrl = normaliseRepoUrl(project.repoUrl, token);
-
-      const git = simpleGit();
-      await git.clone(repoUrl, workspacePath);
-
-      // Upload freshly cloned files to Cellar & initialize bisync
-      await uploadWorkspaceToCellar(projectId).catch(() => {});
-      await restoreWorkspace(projectId, true).catch(() => {});
-      console.log(`[workspace] Successfully re-cloned and initialized workspace ${projectId}.`);
+    if (!project || !project.repoUrl) {
+      console.error(`[workspace] No repoUrl found for project ${projectId}, cannot re-clone.`);
+      return;
     }
+
+    // Remove broken workspace dir and re-clone fresh
+    const { rmSync } = await import('fs');
+    rmSync(workspacePath, { recursive: true, force: true });
+    mkdirSync(workspacePath, { recursive: true });
+
+    console.log(`[workspace] Re-cloning ${project.repoUrl} → ${workspacePath}...`);
+    const token = (await getUserGithubToken(project.userId)) ?? undefined;
+    const repoUrl = normaliseRepoUrl(project.repoUrl, token);
+
+    const git = simpleGit();
+    await git.clone(repoUrl, workspacePath);
+
+    console.log(`[workspace] Re-clone complete for ${projectId}. Uploading to Cellar...`);
+    // Upload the fresh clone to Cellar for future restores
+    uploadWorkspaceToCellar(projectId).catch((e) =>
+      console.warn(`[workspace] Post-clone Cellar upload failed for ${projectId}:`, e),
+    );
   } catch (err) {
     console.error(`[workspace] Failed to re-clone workspace ${projectId}:`, err);
   }
