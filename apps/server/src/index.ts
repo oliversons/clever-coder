@@ -19,7 +19,7 @@ import { stopAllWorkspaces } from './services/workspace.service.js';
 
 import { authRoutes } from './routes/auth.js';
 import { projectRoutes } from './routes/projects.js';
-import { workspaceRoutes, createWorkspaceProxy } from './routes/workspace.js';
+import { workspaceRoutes, createWorkspaceProxy, proxyWorkspaceUpgrade } from './routes/workspace.js';
 import { terminalRoutes } from './routes/terminal.js';
 import { extensionRoutes } from './routes/extensions.js';
 import { archiveRoutes } from './routes/archive.js';
@@ -41,14 +41,6 @@ const fastify = Fastify({
   },
 });
 
-/**
- * Locate the compiled web frontend dist.
- * Priority order:
- *   1. WEB_DIST_PATH env var (set explicitly in Dockerfile / .env)
- *   2. <server-dist>/../../../web   (Docker: /app/apps/server/dist → /app/web)
- *   3. <server-dist>/../../web      (flat layout fallback)
- *   4. <server-dist>/../web         (dev build inside apps/server/dist)
- */
 function findWebDist(): string | null {
   if (process.env.WEB_DIST_PATH && existsSync(process.env.WEB_DIST_PATH)) {
     return process.env.WEB_DIST_PATH;
@@ -62,7 +54,7 @@ function findWebDist(): string | null {
 }
 
 async function bootstrap() {
-  // ── Run DB migrations first (idempotent — safe on every start) ────────────
+  // ── Run DB migrations first ──────────────────────────────────────────────
   try {
     await runMigrations();
   } catch (err) {
@@ -96,6 +88,44 @@ async function bootstrap() {
   await fastify.register(extensionRoutes, { prefix: '/api/v1/projects' });
   await fastify.register(archiveRoutes, { prefix: '/api/v1/projects' });
 
+  // ── Workspace Proxy Routes (HTTP iframe embedding) ──────────────────────────
+  fastify.all('/workspace/:id/*', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const cookieToken = (request.cookies as Record<string, string | undefined>)?.[
+      'access_token'
+    ];
+    const authHeader = request.headers.authorization;
+    const queryToken = (request.query as Record<string, string | undefined>)?.[
+      'token'
+    ];
+    const token =
+      cookieToken ||
+      (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined) ||
+      queryToken;
+
+    if (!token) {
+      reply.code(401).send({ error: 'Unauthorized' });
+      return;
+    }
+
+    try {
+      verifyToken(token);
+    } catch {
+      reply.code(401).send({ error: 'Unauthorized' });
+      return;
+    }
+
+    // Hijack response from Fastify so http-proxy-middleware streams directly to reply.raw
+    reply.hijack();
+    await createWorkspaceProxy(request.raw, reply.raw, id);
+  });
+
+  fastify.all('/workspace/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    reply.redirect(`/workspace/${id}/`);
+  });
+
   // ── Static frontend ────────────────────────────────────────────────────────
   const webDistPath = findWebDist();
   if (webDistPath) {
@@ -106,7 +136,7 @@ async function bootstrap() {
       decorateReply: true,
     });
 
-    // SPA fallback
+    // SPA fallback (ignore /api and /workspace paths)
     fastify.setNotFoundHandler((req, reply) => {
       if (!req.url.startsWith('/api') && !req.url.startsWith('/workspace')) {
         reply.sendFile('index.html');
@@ -139,10 +169,10 @@ async function bootstrap() {
   await fastify.listen({ port: config.PORT, host: '0.0.0.0' });
   fastify.log.info(`🚀  Server running at http://0.0.0.0:${config.PORT}`);
 
-  // ── Workspace proxy ────────────────────────────────────────────────────────
+  // ── WebSocket Upgrade Handler for Code-Server Proxy ────────────────────────
   const rawServer = fastify.server;
-  rawServer.on('request', (req: IncomingMessage, res: ServerResponse) => {
-    const match = req.url?.match(/^\/workspace\/([^/]+)\//);
+  rawServer.on('upgrade', (req: IncomingMessage, socket, head) => {
+    const match = req.url?.match(/^\/workspace\/([^/]+)/);
     if (!match) return;
     const projectId = match[1];
 
@@ -151,26 +181,26 @@ async function bootstrap() {
       .map(c => c.trim().split('='))
       .find(([k]) => k === 'access_token')?.[1];
 
-    const bearerToken = req.headers.authorization?.startsWith('Bearer ')
-      ? req.headers.authorization.slice(7)
-      : undefined;
+    const host = req.headers.host || 'localhost';
+    const urlObj = new URL(req.url ?? '/', `http://${host}`);
+    const queryToken = urlObj.searchParams.get('token') ?? undefined;
 
-    const token = cookieToken ?? bearerToken;
+    const token = cookieToken || queryToken;
     if (!token) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
       return;
     }
 
     try {
       verifyToken(token);
     } catch {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
       return;
     }
 
-    createWorkspaceProxy(req, res, projectId);
+    proxyWorkspaceUpgrade(req, socket, head, projectId);
   });
 }
 

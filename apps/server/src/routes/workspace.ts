@@ -1,4 +1,4 @@
-import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
+import { FastifyPluginAsync } from 'fastify';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import type { JwtPayload } from '../middleware/auth.middleware.js';
 import { getProject } from '../services/github.service.js';
@@ -8,7 +8,7 @@ import {
   touchWorkspace,
   getWorkspacePort,
 } from '../services/workspace.service.js';
-import { createProxyMiddleware, RequestHandler } from 'http-proxy-middleware';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 import type { IncomingMessage, ServerResponse } from 'http';
 
 type AuthRequest = { user: JwtPayload };
@@ -26,7 +26,7 @@ function getOrCreateProxy(port: number) {
     on: {
       error: (err, _req, res) => {
         const r = res as ServerResponse;
-        if (!r.headersSent) {
+        if (r && !r.headersSent && typeof r.writeHead === 'function') {
           r.writeHead(502, { 'Content-Type': 'application/json' });
           r.end(JSON.stringify({ error: 'Workspace proxy error', detail: (err as Error).message }));
         }
@@ -60,14 +60,9 @@ export const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
     await stopWorkspace(id);
     return { ok: true };
   });
-
-  // Proxy all /workspace/:id/* to code-server
-  // Note: This must be registered at the server level, not via Fastify's normal routing,
-  // because it needs to forward both HTTP and WebSocket traffic.
-  // This is handled in index.ts by registering a catch-all middleware.
 };
 
-// Export proxy factory for use in index.ts
+// Export HTTP proxy handler for Fastify route
 export async function createWorkspaceProxy(
   req: IncomingMessage,
   res: ServerResponse,
@@ -77,9 +72,9 @@ export async function createWorkspaceProxy(
   if (!port) {
     try {
       port = await startWorkspace(projectId);
-    } catch {
+    } catch (err) {
       res.writeHead(503, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Workspace unavailable' }));
+      res.end(JSON.stringify({ error: 'Workspace unavailable', detail: err instanceof Error ? err.message : String(err) }));
       return;
     }
   }
@@ -96,4 +91,32 @@ export async function createWorkspaceProxy(
       res.end('Proxy error');
     }
   });
+}
+
+// Export WebSocket upgrade proxy handler for code-server WebSockets
+export function proxyWorkspaceUpgrade(
+  req: IncomingMessage,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  socket: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  head: any,
+  projectId: string,
+): void {
+  const port = getWorkspacePort(projectId);
+  if (!port) {
+    socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+  touchWorkspace(projectId);
+
+  const proxy = getOrCreateProxy(port);
+  const originalUrl = req.url ?? '/';
+  req.url = originalUrl.replace(new RegExp(`^/workspace/${projectId}`), '') || '/';
+
+  if (typeof proxy.ws === 'function') {
+    proxy.ws(req, socket, head);
+  } else {
+    socket.destroy();
+  }
 }

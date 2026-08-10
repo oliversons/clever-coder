@@ -30,6 +30,16 @@ export async function authMiddleware(
       }
     }
 
+    // 3. Query param fallback (essential for WebSockets & iframe embeds)
+    if (!token) {
+      const queryToken = (request.query as Record<string, string | undefined>)?.[
+        'token'
+      ];
+      if (queryToken) {
+        token = queryToken;
+      }
+    }
+
     if (!token) {
       reply.code(401).send({ error: 'Unauthorized' });
       return;

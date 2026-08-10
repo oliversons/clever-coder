@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Download, Maximize2, X } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Download, X } from 'lucide-react';
 import { api } from '../api/client';
 
 export default function Workspace() {

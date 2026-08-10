@@ -52,7 +52,10 @@ export default function TerminalPanel({ projectId }: TerminalPanelProps) {
 
     // WebSocket connection
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${location.host}/api/v1/projects/${projectId}/terminal`);
+    const wsUrl = `${protocol}//${location.host}/api/v1/projects/${projectId}/terminal`;
+
+    console.log('[terminal] Connecting WebSocket to:', wsUrl);
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -70,11 +73,13 @@ export default function TerminalPanel({ projectId }: TerminalPanelProps) {
       }
     };
 
-    ws.onclose = () => {
-      term.write('\r\n\x1b[33m● Connection closed\x1b[0m\r\n');
+    ws.onclose = (ev) => {
+      console.warn('[terminal] WebSocket closed:', ev.code, ev.reason);
+      term.write(`\r\n\x1b[33m● Connection closed ${ev.reason ? `(${ev.reason})` : ''}\x1b[0m\r\n`);
     };
 
-    ws.onerror = () => {
+    ws.onerror = (err) => {
+      console.error('[terminal] WebSocket error:', err);
       term.write('\r\n\x1b[31m● WebSocket error\x1b[0m\r\n');
     };
 
