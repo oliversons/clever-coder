@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 export interface JwtPayload {
   sub: string;   // user id
   email: string;
+  v?: number;    // token version for immediate revocation
   iat?: number;
   exp?: number;
 }
@@ -64,13 +65,10 @@ export async function authMiddleware(
       return;
     }
 
-    if (payload.iat && user.updatedAt) {
-      const tokenIssuedMs = payload.iat * 1000;
-      const userUpdatedMs = user.updatedAt.getTime();
-      if (tokenIssuedMs < userUpdatedMs - 3000) {
-        reply.code(401).send({ error: 'Session revoked' });
-        return;
-      }
+    // Check token version against user's current tokenVersion
+    if (payload.v !== undefined && user.tokenVersion !== undefined && payload.v !== user.tokenVersion) {
+      reply.code(401).send({ error: 'Session revoked' });
+      return;
     }
 
     (request as FastifyRequest & { user: JwtPayload }).user = payload;

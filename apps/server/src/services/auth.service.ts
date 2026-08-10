@@ -1,6 +1,6 @@
 import { hash, verify } from 'argon2';
 import { getDb, schema } from '../db/index.js';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { randomToken, encrypt, decrypt } from '../utils/crypto.js';
 import {
   signAccessToken,
@@ -24,7 +24,9 @@ export async function registerUser(
   const existing = await db.query.users.findFirst({
     where: eq(schema.users.email, email),
   });
-  if (existing) throw new Error('Email already registered');
+  if (existing) {
+    throw new Error('Email already registered');
+  }
 
   const passwordHash = await hash(password);
   const [user] = await db
@@ -43,20 +45,27 @@ export async function loginUser(
   const user = await db.query.users.findFirst({
     where: eq(schema.users.email, email),
   });
-
   if (!user || !user.passwordHash) {
-    throw new Error('Invalid credentials');
+    throw new Error('Invalid email or password');
   }
 
   const valid = await verify(user.passwordHash, password);
-  if (!valid) throw new Error('Invalid credentials');
+  if (!valid) {
+    throw new Error('Invalid email or password');
+  }
 
   return createSession(user.id, user.email);
 }
 
 export async function refreshSession(refreshToken: string): Promise<AuthTokens> {
   const db = getDb();
-  const payload = verifyToken(refreshToken);
+  let payload;
+  try {
+    payload = verifyToken(refreshToken);
+  } catch {
+    throw new Error('Invalid refresh token');
+  }
+
   if ((payload as { type?: string }).type !== 'refresh') {
     throw new Error('Invalid token type');
   }
@@ -86,14 +95,23 @@ export async function revokeSession(refreshToken: string): Promise<void> {
 export async function revokeUserSessions(userId: string): Promise<void> {
   const db = getDb();
   await db.delete(schema.sessions).where(eq(schema.sessions.userId, userId));
-  await db.update(schema.users).set({ updatedAt: new Date() }).where(eq(schema.users.id, userId));
+  await db
+    .update(schema.users)
+    .set({
+      tokenVersion: sql`${schema.users.tokenVersion} + 1`,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.users.id, userId));
 }
 
 async function createSession(userId: string, email: string): Promise<AuthTokens> {
   const db = getDb();
-  await db.update(schema.users).set({ updatedAt: new Date() }).where(eq(schema.users.id, userId));
+  const user = await db.query.users.findFirst({
+    where: eq(schema.users.id, userId),
+  });
+  const tokenVersion = user?.tokenVersion ?? 1;
 
-  const accessToken = signAccessToken({ sub: userId, email });
+  const accessToken = signAccessToken({ sub: userId, email, v: tokenVersion });
   const refreshToken = signRefreshToken(userId);
 
   const expiresAt = addDays(new Date(), 30);

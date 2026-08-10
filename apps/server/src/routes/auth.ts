@@ -77,7 +77,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
 
-    const accessToken = (request.cookies as Record<string, string | undefined>)?.['access_token'];
+    let accessToken = (request.cookies as Record<string, string | undefined>)?.['access_token'];
+    if (!accessToken && request.headers.authorization?.startsWith('Bearer ')) {
+      accessToken = request.headers.authorization.slice(7);
+    }
+
     if (accessToken) {
       try {
         const payload = verifyToken(accessToken);

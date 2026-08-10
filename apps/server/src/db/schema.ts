@@ -16,6 +16,7 @@ export const users = pgTable('users', {
   githubTokenEnc: text('github_token_enc'), // AES-GCM encrypted
   avatarUrl: text('avatar_url'),
   settings: jsonb('settings').$type<UserSettings>().default({ theme: 'dark', palette: 'default' }),
+  tokenVersion: integer('token_version').notNull().default(1),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
