@@ -33,6 +33,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 getConfig();
 
 const fastify = Fastify({
+  trustProxy: true,
   logger: {
     level: config.NODE_ENV === 'production' ? 'info' : 'debug',
     transport: config.NODE_ENV !== 'production'

@@ -1,6 +1,8 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
+import { getDb, schema } from '../db/index.js';
+import { eq } from 'drizzle-orm';
 
 export interface JwtPayload {
   sub: string;   // user id
@@ -46,6 +48,31 @@ export async function authMiddleware(
     }
 
     const payload = jwt.verify(token, config.JWT_SECRET) as JwtPayload;
+    if (!payload?.sub) {
+      reply.code(401).send({ error: 'Unauthorized' });
+      return;
+    }
+
+    // Verify against DB to ensure user exists and token has not been revoked
+    const db = getDb();
+    const user = await db.query.users.findFirst({
+      where: eq(schema.users.id, payload.sub),
+    });
+
+    if (!user) {
+      reply.code(401).send({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (payload.iat && user.updatedAt) {
+      const tokenIssuedMs = payload.iat * 1000;
+      const userUpdatedMs = user.updatedAt.getTime();
+      if (tokenIssuedMs < userUpdatedMs - 3000) {
+        reply.code(401).send({ error: 'Session revoked' });
+        return;
+      }
+    }
+
     (request as FastifyRequest & { user: JwtPayload }).user = payload;
   } catch {
     reply.code(401).send({ error: 'Unauthorized' });

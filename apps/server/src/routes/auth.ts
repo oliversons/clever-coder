@@ -268,4 +268,20 @@ function clearAuthCookies(reply: FastifyReply) {
       expires: new Date(0),
       maxAge: 0,
     });
+
+  // Also send Set-Cookie headers for any historical paths/modes
+  const paths = ['/api/v1/auth', '/api/v1', '/api', '/'];
+  const cookiesToClear = ['access_token', 'refresh_token'];
+  const sameSites: Array<'lax' | 'strict' | 'none'> = ['lax', 'strict'];
+
+  for (const p of paths) {
+    for (const c of cookiesToClear) {
+      for (const s of sameSites) {
+        reply.header(
+          'Set-Cookie',
+          `${c}=; Path=${p}; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; HttpOnly${isProd ? '; Secure' : ''}; SameSite=${s}`
+        );
+      }
+    }
+  }
 }
