@@ -41,7 +41,8 @@ export const useAuthStore = create<AuthState>()(
         } finally {
           set({ user: null });
           localStorage.removeItem('auth-store');
-          window.location.href = '/login';
+          sessionStorage.clear();
+          window.location.replace('/login');
         }
       },
     }),

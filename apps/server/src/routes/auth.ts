@@ -4,10 +4,11 @@ import {
   loginUser,
   refreshSession,
   revokeSession,
+  revokeUserSessions,
   upsertGithubUser,
   getUserById,
 } from '../services/auth.service.js';
-import { authMiddleware } from '../middleware/auth.middleware.js';
+import { authMiddleware, verifyToken } from '../middleware/auth.middleware.js';
 import { config } from '../config.js';
 
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
@@ -71,29 +72,34 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         await revokeSession(refreshToken);
       } catch {
-        // Ignore errors if session was already expired or revoked
+        // Ignore
       }
     }
+
+    const accessToken = (request.cookies as Record<string, string | undefined>)?.['access_token'];
+    if (accessToken) {
+      try {
+        const payload = verifyToken(accessToken);
+        if (payload?.sub) {
+          await revokeUserSessions(payload.sub);
+        }
+      } catch {
+        // Ignore
+      }
+    }
+
     const isProd = config.NODE_ENV === 'production';
     reply
-      .clearCookie('access_token', {
-        path: '/',
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'strict',
-      })
-      .clearCookie('refresh_token', {
-        path: '/api/v1/auth',
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'strict',
-      })
-      .clearCookie('refresh_token', {
-        path: '/',
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'strict',
-      });
+      .clearCookie('access_token', { path: '/' })
+      .clearCookie('access_token', { path: '/', httpOnly: true, secure: isProd, sameSite: 'lax' })
+      .clearCookie('access_token', { path: '/', httpOnly: true, secure: isProd, sameSite: 'strict' })
+      .clearCookie('refresh_token', { path: '/' })
+      .clearCookie('refresh_token', { path: '/', httpOnly: true, secure: isProd, sameSite: 'lax' })
+      .clearCookie('refresh_token', { path: '/', httpOnly: true, secure: isProd, sameSite: 'strict' })
+      .clearCookie('refresh_token', { path: '/api/v1/auth' })
+      .clearCookie('refresh_token', { path: '/api/v1/auth', httpOnly: true, secure: isProd, sameSite: 'lax' })
+      .clearCookie('refresh_token', { path: '/api/v1/auth', httpOnly: true, secure: isProd, sameSite: 'strict' });
+
     return { ok: true };
   });
 
@@ -231,15 +237,15 @@ function setAuthCookies(
     .setCookie('access_token', accessToken, {
       httpOnly: true,
       secure: isProd,
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 7, // 7 days (1 week)
     })
     .setCookie('refresh_token', refreshToken, {
       httpOnly: true,
       secure: isProd,
-      sameSite: 'strict',
-      path: '/api/v1/auth',
+      sameSite: 'lax',
+      path: '/',
       maxAge: 60 * 60 * 24 * 30, // 30 days
     });
 }

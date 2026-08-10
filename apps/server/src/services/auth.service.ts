@@ -83,6 +83,11 @@ export async function revokeSession(refreshToken: string): Promise<void> {
   await db.delete(schema.sessions).where(eq(schema.sessions.id, refreshToken));
 }
 
+export async function revokeUserSessions(userId: string): Promise<void> {
+  const db = getDb();
+  await db.delete(schema.sessions).where(eq(schema.sessions.userId, userId));
+}
+
 async function createSession(userId: string, email: string): Promise<AuthTokens> {
   const db = getDb();
   const accessToken = signAccessToken({ sub: userId, email });
