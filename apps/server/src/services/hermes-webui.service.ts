@@ -78,7 +78,7 @@ async function resolveCredentials(userId?: string): Promise<ResolvedCredentials>
  * Auto-sync Hermes credentials & configuration to ~/.hermes/ (config.json, webui.json, config.yaml, .env).
  * Writes setup_completed: true so the WebUI bypasses the onboarding wizard and goes straight to chat.
  */
-export async function syncHermesConfigFiles(userId?: string): Promise<ResolvedCredentials> {
+export async function syncHermesConfigFiles(userId?: string, activeWorkspacePath?: string): Promise<ResolvedCredentials> {
   const hermesHome = process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes');
   if (!fs.existsSync(hermesHome)) {
     fs.mkdirSync(hermesHome, { recursive: true });
@@ -86,6 +86,7 @@ export async function syncHermesConfigFiles(userId?: string): Promise<ResolvedCr
 
   const creds = await resolveCredentials(userId);
   const { apiKey, baseUrl, model, provider } = creds;
+  const targetWorkspace = activeWorkspacePath || '/workspaces';
 
   try {
     // 1. ~/.hermes/config.json
@@ -107,7 +108,9 @@ export async function syncHermesConfigFiles(userId?: string): Promise<ResolvedCr
       // Mark setup as completed so the wizard is NOT shown
       setup_completed: true,
       onboarding_completed: true,
-      default_workspace: '/workspaces',
+      default_workspace: targetWorkspace,
+      workspace: targetWorkspace,
+      workspace_path: targetWorkspace,
       custom: { api_key: apiKey, base_url: baseUrl },
       default: { api_key: apiKey, base_url: baseUrl },
       openai: { api_key: apiKey, base_url: baseUrl },
@@ -126,6 +129,10 @@ export async function syncHermesConfigFiles(userId?: string): Promise<ResolvedCr
       default_api_key: apiKey,
       custom_api_key: apiKey,
       openai_api_key: apiKey,
+      default_workspace: targetWorkspace,
+      active_workspace: targetWorkspace,
+      workspace: targetWorkspace,
+      workspace_path: targetWorkspace,
     };
     fs.writeFileSync(path.join(hermesHome, 'webui.json'), JSON.stringify(webuiJson, null, 2), 'utf8');
 
@@ -344,8 +351,8 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
   const port = config.port && config.port > 0 ? config.port : 8787;
   currentPort = port;
 
-  // Always sync the latest credentials from DB → disk config files
-  const creds = await syncHermesConfigFiles(config.userId);
+  // Always sync the latest credentials & target workspace from DB → disk config files
+  const creds = await syncHermesConfigFiles(config.userId, config.workspacePath);
 
   // If already running on port, return immediately (no restart needed)
   if (await isPortOpen(port)) {
