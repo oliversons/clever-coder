@@ -24,18 +24,23 @@ export default function Layout() {
         </div>
 
         <nav className="sidebar-nav">
-          <NavLink to="/dashboard" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-            <LayoutDashboard size={16} />
-            Dashboard
-          </NavLink>
-          <NavLink to="/settings" end className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-            <Settings size={16} />
-            Settings
-          </NavLink>
-          <NavLink to="/settings/hermes" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-            <Bot size={16} />
-            Hermes AI
-          </NavLink>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+            <NavLink to="/dashboard" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <LayoutDashboard size={16} />
+              Dashboard
+            </NavLink>
+            <NavLink to="/settings/hermes" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <Bot size={16} />
+              Hermes AI
+            </NavLink>
+          </div>
+
+          <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border)' }}>
+            <NavLink to="/settings" end className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <Settings size={16} />
+              Settings
+            </NavLink>
+          </div>
         </nav>
 
         <div className="sidebar-user">
