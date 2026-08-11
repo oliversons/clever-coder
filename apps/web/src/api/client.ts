@@ -52,10 +52,17 @@ export type Palette =
   | 'volcanic'
   | 'orange';
 export type ThemeMode = 'dark' | 'light';
+export type ThemeStyle =
+  | 'material_clean'
+  | 'glassmorphism'
+  | 'neo_brutalism'
+  | 'soft_pill'
+  | 'minimal_flat';
 
 export interface UserSettings {
   theme?: ThemeMode;
   palette?: Palette;
+  themeStyle?: ThemeStyle;
   [key: string]: unknown;
 }
 

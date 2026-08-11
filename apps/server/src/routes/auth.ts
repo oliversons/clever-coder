@@ -127,7 +127,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       name: dbUser?.name ?? user.email,
       avatarUrl: dbUser?.avatarUrl ?? null,
       hasGithubToken: Boolean(dbUser?.githubTokenEnc),
-      settings: dbUser?.settings ?? { theme: 'dark', palette: 'default' },
+      settings: dbUser?.settings ?? { theme: 'dark', palette: 'default', themeStyle: 'material_clean' },
     };
   });
 

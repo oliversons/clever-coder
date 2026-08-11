@@ -4,12 +4,90 @@ import { motion } from 'framer-motion';
 import {
   Sun, Moon, Github, Shield, User as UserIcon, Check, HardDrive,
   Palette as PaletteIcon, Snowflake, Flame, Zap, Droplets, Trees, Heart, Sparkles, Bot,
-  Crown, Waves, Leaf, Compass, Award,
+  Crown, Waves, Leaf, Compass, Award, LayoutGrid, Layers, Square, CircleDot, MinusSquare, Box,
   type LucideIcon
 } from 'lucide-react';
 import { useAuthStore } from '../store';
-import { useThemeStore, type Palette } from '../store/themeStore';
+import { useThemeStore, type Palette, type ThemeStyle } from '../store/themeStore';
 import { api, openGithubOAuthPopup } from '../api/client';
+
+export interface ThemeStyleOption {
+  id: ThemeStyle;
+  name: string;
+  badge?: string;
+  tagline: string;
+  description: string;
+  icon: LucideIcon;
+  cardRadius: string;
+  btnRadius: string;
+  inputRadius: string;
+  badgeRadius: string;
+  elevation: string;
+}
+
+export const THEME_STYLES: ThemeStyleOption[] = [
+  {
+    id: 'material_clean',
+    name: 'Material Modern (Materialize)',
+    badge: 'Recommended',
+    tagline: 'Clean solid surfaces, ambient drop shadows, crisp SaaS structure',
+    description: 'Inspired by modern SaaS dashboards (Materialize). Features solid elevated surfaces, 12px smooth corners, refined 8px outlined inputs, pill badges, and zero blur distortion.',
+    icon: LayoutGrid,
+    cardRadius: '12px',
+    btnRadius: '8px',
+    inputRadius: '8px',
+    badgeRadius: 'Pill (9999px)',
+    elevation: 'Ambient Shadow (0 4px 18px)',
+  },
+  {
+    id: 'glassmorphism',
+    name: 'Cyberpunk Glass Frost',
+    tagline: 'Translucent frosted glass with vibrant neon edge glow',
+    description: 'Futuristic glass aesthetics featuring 20px backdrop blur, semi-transparent frosted card bodies, glowing neon shadow highlights, and rounded 16px corners.',
+    icon: Sparkles,
+    cardRadius: '16px',
+    btnRadius: '12px',
+    inputRadius: '12px',
+    badgeRadius: 'Pill (9999px)',
+    elevation: 'Backdrop Blur (20px) + Glow',
+  },
+  {
+    id: 'neo_brutalism',
+    name: 'Neo-Brutalist Geometric',
+    tagline: 'Bold 2px solid contrast borders and hard 4px offset shadows',
+    description: 'High-contrast tactile brutalist style with sharp 2px corners, solid structural borders, offset drop shadows without blur, and bold typography.',
+    icon: Square,
+    cardRadius: '2px',
+    btnRadius: '2px',
+    inputRadius: '2px',
+    badgeRadius: '2px Sharp',
+    elevation: 'Hard 4px Offset Drop Shadow',
+  },
+  {
+    id: 'soft_pill',
+    name: 'Soft Rounded & Organic',
+    tagline: 'Cupertino tactile curves, pill buttons, and smooth fluid contours',
+    description: 'Ultra-friendly fluid design with sweeping 24px card curves, full capsule pill buttons (9999px), inset input shadows, and soft ambient shadows.',
+    icon: CircleDot,
+    cardRadius: '24px',
+    btnRadius: 'Pill (9999px)',
+    inputRadius: 'Pill (9999px)',
+    badgeRadius: 'Pill (9999px)',
+    elevation: 'Diffuse Floating Elevation',
+  },
+  {
+    id: 'minimal_flat',
+    name: 'Swiss Minimalist Flat',
+    tagline: 'Zero drop-shadows, 1px hairline dividers, structured clarity',
+    description: 'High-density utilitarian minimalism with 0px shadows, clean 1px hairline borders, compact 4px-6px radii, and distraction-free contrast.',
+    icon: MinusSquare,
+    cardRadius: '6px',
+    btnRadius: '4px',
+    inputRadius: '4px',
+    badgeRadius: '4px Subtly Rounded',
+    elevation: 'Flat 1px Hairline Dividers',
+  },
+];
 
 interface PaletteOption {
   id: Palette;
@@ -249,7 +327,7 @@ const PALETTES: PaletteOption[] = [
 
 export default function Settings() {
   const { user, setUser, logout } = useAuthStore();
-  const { theme, palette, setTheme, setPalette } = useThemeStore();
+  const { theme, palette, themeStyle, setTheme, setPalette, setThemeStyle } = useThemeStore();
   const navigate = useNavigate();
   const [connecting, setConnecting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -292,7 +370,7 @@ export default function Settings() {
       <div className="page-header" style={{ marginBottom: 32 }}>
         <div>
           <h1 className="page-title">Platform Settings</h1>
-          <p className="page-subtitle">Configure theme, GitHub integration, and account preferences</p>
+          <p className="page-subtitle">Configure UI architecture, themes, GitHub integration, and account preferences</p>
         </div>
       </div>
 
@@ -303,6 +381,50 @@ export default function Settings() {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+        {/* ─── 0. UI Architecture & Shape System Studio ─────────────────── */}
+        <section className="glass-card" style={{ padding: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--text-accent)'
+              }}>
+                <Layers size={20} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: 17, fontWeight: 700 }}>UI Architecture &amp; Shape System</h2>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Change the geometric shape, corner radii, elevation shadows, and input form factors on the fly
+                </p>
+              </div>
+            </div>
+
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '6px 12px', background: 'var(--bg-elevated)',
+              borderRadius: 'var(--radius-full)', border: '1px solid var(--border)',
+              fontSize: 12, fontWeight: 600, color: 'var(--text-accent)'
+            }}>
+              <Box size={14} /> Active Style: {THEME_STYLES.find(s => s.id === themeStyle)?.name ?? 'Material Modern'}
+            </div>
+          </div>
+
+          {/* Theme Style Cards Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 14 }}>
+            {THEME_STYLES.map((st) => (
+              <ThemeStyleCard
+                key={st.id}
+                styleOption={st}
+                active={themeStyle === st.id}
+                theme={theme}
+                onSelect={() => setThemeStyle(st.id)}
+              />
+            ))}
+          </div>
+        </section>
+
         {/* ─── 1. Appearance / Multi-Palette Theme Studio ───────────────── */}
         <section className="glass-card" style={{ padding: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
@@ -316,7 +438,7 @@ export default function Settings() {
                 <PaletteIcon size={20} />
               </div>
               <div>
-                <h2 style={{ fontSize: 17, fontWeight: 700 }}>Appearance & Theme Studio</h2>
+                <h2 style={{ fontSize: 17, fontWeight: 700 }}>Color Palette &amp; Mode Studio</h2>
                 <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
                   Choose from 24 curated luxury, cold, warm, and designer palettes in both Dark and Light modes
                 </p>
@@ -694,6 +816,123 @@ function PaletteCard({
             }}
           />
         ))}
+      </div>
+    </motion.div>
+  );
+}
+
+function ThemeStyleCard({
+  styleOption,
+  active,
+  theme,
+  onSelect,
+}: {
+  styleOption: ThemeStyleOption;
+  active: boolean;
+  theme: 'dark' | 'light';
+  onSelect: () => void;
+}) {
+  const Icon = styleOption.icon;
+
+  return (
+    <motion.div
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onSelect}
+      style={{
+        padding: 16,
+        borderRadius: styleOption.cardRadius === '2px' ? '4px' : styleOption.cardRadius === '24px' ? '18px' : '12px',
+        background: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+        border: active ? '2px solid var(--accent-1)' : '1px solid var(--border)',
+        cursor: 'pointer',
+        position: 'relative',
+        boxShadow: active ? '0 0 24px rgba(124,58,237,0.25)' : 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        transition: 'all 0.2s ease',
+      }}
+    >
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{
+              width: 32, height: 32, borderRadius: 'var(--radius-sm)',
+              background: 'rgba(124,58,237,0.15)', color: 'var(--text-accent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+            }}>
+              <Icon size={18} />
+            </span>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 700, fontSize: 13 }}>{styleOption.name}</span>
+                {styleOption.badge && (
+                  <span style={{
+                    fontSize: 9, padding: '1px 6px', borderRadius: 9999,
+                    background: 'var(--accent-1)', color: '#fff', fontWeight: 700,
+                  }}>
+                    {styleOption.badge}
+                  </span>
+                )}
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{styleOption.tagline}</span>
+            </div>
+          </div>
+          {active && (
+            <span style={{
+              width: 20, height: 20, borderRadius: '50%', background: 'var(--accent-1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0
+            }}>
+              <Check size={13} />
+            </span>
+          )}
+        </div>
+
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.45 }}>
+          {styleOption.description}
+        </p>
+      </div>
+
+      {/* Live Interactive Shape Preview Box */}
+      <div style={{
+        padding: 10,
+        borderRadius: styleOption.cardRadius,
+        background: theme === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.7)',
+        border: styleOption.id === 'neo_brutalism' ? '2px solid var(--text-primary)' : '1px solid var(--border)',
+        boxShadow: styleOption.id === 'neo_brutalism' ? '2px 2px 0px var(--text-primary)' : 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <div style={{
+            flex: 1, padding: '4px 8px', fontSize: 11,
+            borderRadius: styleOption.inputRadius === 'Pill (9999px)' ? '9999px' : styleOption.inputRadius,
+            background: 'var(--bg-elevated)',
+            border: styleOption.id === 'neo_brutalism' ? '1.5px solid var(--text-primary)' : '1px solid var(--border)',
+            color: 'var(--text-muted)',
+          }}>
+            Sample Input
+          </div>
+          <button
+            type="button"
+            style={{
+              padding: '4px 10px', fontSize: 11, fontWeight: 600,
+              borderRadius: styleOption.btnRadius === 'Pill (9999px)' ? '9999px' : styleOption.btnRadius,
+              background: 'var(--accent-grad)',
+              color: '#fff', border: styleOption.id === 'neo_brutalism' ? '1.5px solid var(--text-primary)' : 'none',
+              cursor: 'pointer',
+            }}
+          >
+            Button
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
+          <span>Card: <strong>{styleOption.cardRadius}</strong></span>
+          <span>Btn: <strong>{styleOption.btnRadius}</strong></span>
+          <span>Badge: <strong>{styleOption.badgeRadius}</strong></span>
+        </div>
       </div>
     </motion.div>
   );

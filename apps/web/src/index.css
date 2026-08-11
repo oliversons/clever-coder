@@ -1388,6 +1388,184 @@
   --shadow-glow:   0 0 30px rgba(94, 75, 139, 0.16);
 }
 
+/* ══════════════════════════════════════════════════════════════
+   UI ARCHITECTURE & SHAPE THEME STYLES (DYNAMIC ON THE FLY)
+   Controls Card Radii, Elevation Shadows, Input Geometries,
+   Button Form Factors, Badges, Table Rows, and Layout Aesthetics
+   ══════════════════════════════════════════════════════════════ */
+
+/* Default / Base Style Tokens (Material Modern — Materialize SaaS) */
+:root {
+  --style-card-radius: 12px;
+  --style-card-bg: var(--bg-surface);
+  --style-card-border: 1px solid var(--border);
+  --style-card-shadow: 0 4px 18px 0 rgba(0, 0, 0, 0.22), 0 1px 3px 0 rgba(0, 0, 0, 0.12);
+  --style-card-hover-shadow: 0 8px 28px 0 rgba(0, 0, 0, 0.35);
+  --style-card-backdrop: none;
+
+  --style-input-radius: 8px;
+  --style-input-bg: var(--bg-elevated);
+  --style-input-border: 1px solid var(--border);
+  --style-input-shadow: none;
+  --style-input-focus-ring: 0 0 0 3px rgba(124, 58, 237, 0.18);
+
+  --style-btn-radius: 8px;
+  --style-btn-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  --style-btn-primary-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+  --style-btn-transform: translateY(-1px);
+
+  --style-badge-radius: 9999px;
+  --style-badge-border: none;
+  --style-badge-transform: none;
+  --style-nav-radius: 8px;
+  --style-table-radius: 12px;
+}
+
+:root[data-theme="light"] {
+  --style-card-shadow: 0 4px 18px 0 rgba(76, 78, 100, 0.08), 0 1px 4px 0 rgba(76, 78, 100, 0.04);
+  --style-card-hover-shadow: 0 8px 28px 0 rgba(76, 78, 100, 0.14);
+}
+
+/* 1. Material Clean (Materialize SaaS Aesthetic) */
+:root[data-style="material_clean"] {
+  --style-card-radius: 12px;
+  --style-card-bg: var(--bg-surface);
+  --style-card-border: 1px solid var(--border);
+  --style-card-shadow: 0 4px 18px 0 rgba(0, 0, 0, 0.22), 0 1px 3px 0 rgba(0, 0, 0, 0.12);
+  --style-card-hover-shadow: 0 8px 28px 0 rgba(0, 0, 0, 0.35);
+  --style-card-backdrop: none;
+
+  --style-input-radius: 8px;
+  --style-input-bg: var(--bg-elevated);
+  --style-input-border: 1px solid var(--border);
+  --style-input-shadow: none;
+  --style-input-focus-ring: 0 0 0 3px rgba(124, 58, 237, 0.18);
+
+  --style-btn-radius: 8px;
+  --style-btn-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  --style-btn-primary-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+  --style-btn-transform: translateY(-1px);
+
+  --style-badge-radius: 9999px;
+  --style-badge-border: none;
+  --style-badge-transform: none;
+  --style-nav-radius: 8px;
+  --style-table-radius: 12px;
+}
+
+:root[data-theme="light"][data-style="material_clean"] {
+  --style-card-shadow: 0 4px 18px 0 rgba(76, 78, 100, 0.08), 0 1px 4px 0 rgba(76, 78, 100, 0.04);
+  --style-card-hover-shadow: 0 8px 28px 0 rgba(76, 78, 100, 0.14);
+}
+
+/* 2. Glassmorphism (Cyberpunk Frosted Glass) */
+:root[data-style="glassmorphism"] {
+  --style-card-radius: 16px;
+  --style-card-bg: var(--glass-bg);
+  --style-card-border: 1px solid var(--glass-border);
+  --style-card-shadow: var(--shadow-md);
+  --style-card-hover-shadow: var(--shadow-md), var(--shadow-glow);
+  --style-card-backdrop: var(--glass-blur);
+
+  --style-input-radius: 12px;
+  --style-input-bg: var(--bg-elevated);
+  --style-input-border: 1px solid var(--border-accent);
+  --style-input-shadow: 0 0 15px rgba(124, 58, 237, 0.1);
+  --style-input-focus-ring: 0 0 0 3px rgba(124, 58, 237, 0.25);
+
+  --style-btn-radius: 12px;
+  --style-btn-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+  --style-btn-primary-shadow: 0 4px 24px rgba(124, 58, 237, 0.45);
+  --style-btn-transform: translateY(-1px);
+
+  --style-badge-radius: 9999px;
+  --style-badge-border: 1px solid var(--border);
+  --style-badge-transform: none;
+  --style-nav-radius: 12px;
+  --style-table-radius: 16px;
+}
+
+/* 3. Neo-Brutalism (Sharp Geometric High Contrast) */
+:root[data-style="neo_brutalism"] {
+  --style-card-radius: 2px;
+  --style-card-bg: var(--bg-surface);
+  --style-card-border: 2px solid var(--text-primary);
+  --style-card-shadow: 4px 4px 0px var(--text-primary);
+  --style-card-hover-shadow: 6px 6px 0px var(--accent-1);
+  --style-card-backdrop: none;
+
+  --style-input-radius: 2px;
+  --style-input-bg: var(--bg-base);
+  --style-input-border: 2px solid var(--text-primary);
+  --style-input-shadow: 2px 2px 0px var(--text-primary);
+  --style-input-focus-ring: 3px 3px 0px var(--accent-1);
+
+  --style-btn-radius: 2px;
+  --style-btn-shadow: 3px 3px 0px var(--text-primary);
+  --style-btn-primary-shadow: 3px 3px 0px var(--text-primary);
+  --style-btn-transform: translate(-2px, -2px);
+
+  --style-badge-radius: 2px;
+  --style-badge-border: 1.5px solid var(--text-primary);
+  --style-badge-transform: uppercase;
+  --style-nav-radius: 2px;
+  --style-table-radius: 0px;
+}
+
+/* 4. Soft Pill / Organic (Cupertino Tactile Curves) */
+:root[data-style="soft_pill"] {
+  --style-card-radius: 24px;
+  --style-card-bg: var(--bg-surface);
+  --style-card-border: 1px solid var(--border);
+  --style-card-shadow: 0 10px 32px rgba(0, 0, 0, 0.12);
+  --style-card-hover-shadow: 0 14px 40px rgba(0, 0, 0, 0.2);
+  --style-card-backdrop: none;
+
+  --style-input-radius: 9999px;
+  --style-input-bg: var(--bg-elevated);
+  --style-input-border: 1px solid var(--border);
+  --style-input-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+  --style-input-focus-ring: 0 0 0 3px rgba(124, 58, 237, 0.2);
+
+  --style-btn-radius: 9999px;
+  --style-btn-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  --style-btn-primary-shadow: 0 6px 20px rgba(124, 58, 237, 0.38);
+  --style-btn-transform: scale(1.02);
+
+  --style-badge-radius: 9999px;
+  --style-badge-border: none;
+  --style-badge-transform: none;
+  --style-nav-radius: 9999px;
+  --style-table-radius: 24px;
+}
+
+/* 5. Minimal Flat (Swiss Clean High Density) */
+:root[data-style="minimal_flat"] {
+  --style-card-radius: 6px;
+  --style-card-bg: var(--bg-surface);
+  --style-card-border: 1px solid var(--border);
+  --style-card-shadow: none;
+  --style-card-hover-shadow: none;
+  --style-card-backdrop: none;
+
+  --style-input-radius: 4px;
+  --style-input-bg: var(--bg-elevated);
+  --style-input-border: 1px solid var(--border);
+  --style-input-shadow: none;
+  --style-input-focus-ring: 0 0 0 2px var(--accent-1);
+
+  --style-btn-radius: 4px;
+  --style-btn-shadow: none;
+  --style-btn-primary-shadow: none;
+  --style-btn-transform: none;
+
+  --style-badge-radius: 4px;
+  --style-badge-border: 1px solid var(--border);
+  --style-badge-transform: none;
+  --style-nav-radius: 4px;
+  --style-table-radius: 4px;
+}
+
 html, body {
   height: 100%;
   font-family: var(--font-sans);
@@ -1460,19 +1638,19 @@ body::before {
   padding: var(--space-8);
 }
 
-/* ─── Glass Card ────────────────────────────────────────────── */
-.glass-card {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+/* ─── Glass Card & Panels ────────────────────────────────────── */
+.glass-card, .card, .panel-card {
+  background: var(--style-card-bg);
+  backdrop-filter: var(--style-card-backdrop);
+  border: var(--style-card-border);
+  border-radius: var(--style-card-radius);
+  box-shadow: var(--style-card-shadow);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), transform var(--transition-base);
 }
 
-.glass-card:hover {
-  border-color: rgba(124,58,237,0.25);
-  box-shadow: var(--shadow-md), var(--shadow-glow);
+.glass-card:hover, .card:hover, .panel-card:hover {
+  border-color: var(--border-accent);
+  box-shadow: var(--style-card-hover-shadow);
 }
 
 /* ─── Buttons ───────────────────────────────────────────────── */
@@ -1481,9 +1659,9 @@ body::before {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-md);
+  border-radius: var(--style-btn-radius);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   font-family: var(--font-sans);
   cursor: pointer;
   border: none;
@@ -1491,23 +1669,24 @@ body::before {
   transition: all var(--transition-fast);
   white-space: nowrap;
   text-decoration: none;
+  box-shadow: var(--style-btn-shadow);
 }
 
 .btn-primary {
   background: var(--accent-grad);
   color: #fff;
-  box-shadow: 0 0 20px rgba(124,58,237,0.3);
+  box-shadow: var(--style-btn-primary-shadow);
 }
 .btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 24px rgba(124,58,237,0.45);
+  transform: var(--style-btn-transform);
+  filter: brightness(1.06);
 }
 .btn-primary:active { transform: translateY(0); }
 
 .btn-secondary {
   background: var(--bg-elevated);
   color: var(--text-primary);
-  border: 1px solid var(--border);
+  border: var(--style-card-border);
 }
 .btn-secondary:hover {
   background: var(--bg-hover);
@@ -1517,6 +1696,7 @@ body::before {
 .btn-ghost {
   background: transparent;
   color: var(--text-secondary);
+  box-shadow: none;
 }
 .btn-ghost:hover {
   background: var(--bg-elevated);
@@ -1527,6 +1707,7 @@ body::before {
   background: rgba(239,68,68,0.15);
   color: var(--danger);
   border: 1px solid rgba(239,68,68,0.3);
+  box-shadow: none;
 }
 .btn-danger:hover {
   background: rgba(239,68,68,0.25);
@@ -1542,12 +1723,13 @@ body::before {
 }
 
 /* ─── Form Inputs ───────────────────────────────────────────── */
-.input {
+.input, .textarea, .select, input[type="text"], input[type="password"], input[type="email"], select, textarea {
   width: 100%;
   padding: var(--space-3) var(--space-4);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  background: var(--style-input-bg);
+  border: var(--style-input-border);
+  border-radius: var(--style-input-radius);
+  box-shadow: var(--style-input-shadow);
   color: var(--text-primary);
   font-size: 14px;
   font-family: var(--font-sans);
@@ -1555,11 +1737,13 @@ body::before {
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.input::placeholder { color: var(--text-muted); }
+.input::placeholder, .textarea::placeholder, input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
+}
 
-.input:focus {
+.input:focus, .textarea:focus, .select:focus, input:focus, select:focus, textarea:focus {
   border-color: var(--accent-1);
-  box-shadow: 0 0 0 3px rgba(124,58,237,0.15);
+  box-shadow: var(--style-input-focus-ring);
 }
 
 .input-group {
@@ -1570,7 +1754,7 @@ body::before {
 
 .input-label {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -1581,11 +1765,12 @@ body::before {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
+  padding: 3px 10px;
+  border-radius: var(--style-badge-radius);
+  border: var(--style-badge-border);
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
+  text-transform: var(--style-badge-transform);
   letter-spacing: 0.04em;
 }
 
@@ -1769,7 +1954,7 @@ body::before {
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
+  border-radius: var(--style-nav-radius);
   color: var(--text-secondary);
   text-decoration: none;
   font-size: 13px;
@@ -1791,6 +1976,30 @@ body::before {
   background: rgba(124,58,237,0.15);
   color: var(--text-accent);
   border: 1px solid var(--border-accent);
+}
+
+:root[data-style="material_clean"] .nav-item.active {
+  background: var(--accent-grad);
+  color: #ffffff !important;
+  border: none;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+  font-weight: 600;
+}
+
+:root[data-style="soft_pill"] .nav-item.active {
+  background: var(--accent-grad);
+  color: #ffffff !important;
+  border-radius: 9999px;
+  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.3);
+  font-weight: 600;
+}
+
+:root[data-style="neo_brutalism"] .nav-item.active {
+  background: var(--accent-1);
+  color: #ffffff !important;
+  border: 2px solid var(--text-primary);
+  box-shadow: 2px 2px 0px var(--text-primary);
+  font-weight: 700;
 }
 
 .sidebar-user {
