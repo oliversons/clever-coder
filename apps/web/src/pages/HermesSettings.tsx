@@ -2,13 +2,14 @@
  * HermesSettings — /settings/hermes
  *
  * Modern, full-width, responsive settings dashboard for Hermes AI Agent:
- *   Tab 1: Model & API Provider
- *   Tab 2: Execution & Sandbox
- *   Tab 3: Memory & Skills
- *   Tab 4: Tools & MCP
- *   Tab 5: S3 & Storage
- *   Tab 6: Standalone WebUI
- *   Tab 7: Job Scheduler & Gateway Daemon
+ *   Tab 1: Browser Automation & Cloudflare Kitesurf
+ *   Tab 2: Model & API Provider
+ *   Tab 3: Execution & Sandbox
+ *   Tab 4: Memory & Skills
+ *   Tab 5: Tools & MCP
+ *   Tab 6: S3 & Storage
+ *   Tab 7: Standalone WebUI
+ *   Tab 8: Job Scheduler & Gateway Daemon
  */
 
 import { useEffect, useState, useMemo } from 'react';
@@ -22,14 +23,21 @@ import {
   ExternalLink, Calendar, Activity, Sliders, Shield, HardDrive,
   Code2, ArrowUpRight, HelpCircle, Layers, FolderKanban,
   Search, Lock, CheckSquare, Settings2, Laptop, Gauge,
+  Compass, Chrome, Radio, Video, ScreenShare, ShieldAlert,
   type LucideIcon
 } from 'lucide-react';
 import { useHermesStore } from '../store/hermesStore';
-import { api, type GatewayStatus, type CronJobItem, type Project } from '../api/client';
+import {
+  api,
+  type GatewayStatus,
+  type CronJobItem,
+  type Project,
+  type HermesBrowserSettings,
+} from '../api/client';
 
 // ── Types & Constants ──────────────────────────────────────────────────────────
 
-type TabId = 'model' | 'execution' | 'memory' | 'tools' | 's3' | 'webui' | 'scheduler';
+type TabId = 'browser' | 'model' | 'execution' | 'memory' | 'tools' | 's3' | 'webui' | 'scheduler';
 
 interface TabItem {
   id: TabId;
@@ -40,6 +48,7 @@ interface TabItem {
 }
 
 const TABS: TabItem[] = [
+  { id: 'browser', label: 'Browser Automation', icon: Compass, description: 'Cloudflare Kitesurf, CDP, local & cloud', badge: 'New' },
   { id: 'model', label: 'Model & API', icon: Bot, description: 'LLM providers, endpoints & keys' },
   { id: 'execution', label: 'Execution', icon: Cpu, description: 'Sandbox, multi-core & approval' },
   { id: 'memory', label: 'Memory & Skills', icon: Brain, description: 'Cross-session memory & persona' },
@@ -47,6 +56,73 @@ const TABS: TabItem[] = [
   { id: 's3', label: 'S3 & Storage', icon: Database, description: 'Cellar S3 archiving & exports' },
   { id: 'webui', label: 'Hermes WebUI', icon: Globe, description: 'Standalone 3-panel interface' },
   { id: 'scheduler', label: 'Job Scheduler', icon: Clock, description: 'Cron daemon & automated jobs' },
+];
+
+const BROWSER_PROVIDERS = [
+  {
+    value: 'local_chromium',
+    label: 'Local Chromium (Built-in)',
+    desc: 'Headless / Headed Chromium driven by agent-browser & Playwright in container',
+    badge: 'Built-in / Zero Config',
+    icon: '🖥️',
+    color: '#10b981',
+  },
+  {
+    value: 'kitesurf_cdp',
+    label: 'Cloudflare Kitesurf',
+    desc: 'Stateless, agent-first browser on Cloudflare Workers Wasm isolates (3x-7x less CPU/RAM)',
+    badge: 'Workers Wasm / SOTA',
+    icon: '🏄‍♂️',
+    color: '#f59e0b',
+  },
+  {
+    value: 'cdp',
+    label: 'Custom Remote CDP Endpoint',
+    desc: 'Direct WebSocket/HTTP Chrome DevTools Protocol URL (Browserless, Brave, Chrome remote)',
+    badge: 'Direct CDP',
+    icon: '🔌',
+    color: '#06b6d4',
+  },
+  {
+    value: 'browserbase',
+    label: 'Browserbase Cloud',
+    desc: 'Managed cloud browsers with residential proxies, CAPTCHA bypass & stealth fingerprinting',
+    badge: 'Stealth Cloud',
+    icon: '🛡️',
+    color: '#7c3aed',
+  },
+  {
+    value: 'browser_use',
+    label: 'Browser Use 3.0 Cloud',
+    desc: 'State-of-the-art Python web automation harness & Browser Use cloud sessions',
+    badge: 'CLI 3.0 Harness',
+    icon: '🚀',
+    color: '#ec4899',
+  },
+  {
+    value: 'firecrawl',
+    label: 'Firecrawl Cloud & Self-Hosted',
+    desc: 'Cloud scraping and web interaction engine with session TTL management',
+    badge: 'Scraping Engine',
+    icon: '🕸️',
+    color: '#ea580c',
+  },
+  {
+    value: 'camofox',
+    label: 'Camofox Local Anti-Detection',
+    desc: 'Self-hosted Firefox C++ fingerprint spoofing with persistent profiles & VNC live view',
+    badge: 'Anti-Bot Firefox',
+    icon: '🦊',
+    color: '#8b5cf6',
+  },
+  {
+    value: 'nous_portal',
+    label: 'Nous Portal Gateway',
+    desc: 'Direct Nous Subscription Tool Gateway — zero external API keys needed',
+    badge: 'Nous Native',
+    icon: '🏛️',
+    color: '#3b82f6',
+  },
 ];
 
 const PROVIDERS = [
@@ -117,6 +193,14 @@ const TOOLS_LIST = [
     color: '#7c3aed',
   },
   {
+    id: 'browser',
+    label: 'Browser Automation (Kitesurf / Playwright)',
+    desc: 'Navigate web pages, inspect DOM accessibility trees, click buttons, fill forms & evaluate JS',
+    category: 'Browser',
+    icon: Compass,
+    color: '#f59e0b',
+  },
+  {
     id: 'web_search',
     label: 'Web Search & Intelligence',
     desc: 'Query DuckDuckGo for live API documentation, package updates, and answers',
@@ -125,22 +209,12 @@ const TOOLS_LIST = [
     color: '#10b981',
   },
   {
-    id: 'browser',
-    label: 'Browser Automation',
-    desc: 'Headless Chromium browser for visual QA and web scraping',
-    category: 'Automation',
-    icon: Globe,
-    color: '#f59e0b',
-    disabled: true,
-  },
-  {
     id: 'vision',
     label: 'Vision & Screenshot Analysis',
     desc: 'Analyze UI screenshots, diagrams, and image attachments',
     category: 'Vision',
     icon: Eye,
     color: '#ec4899',
-    disabled: true,
   },
 ];
 
@@ -163,7 +237,7 @@ const PERSONA_TEMPLATES = [
 
 export default function HermesSettings() {
   const { hermesSettings, loadSettings, saveSettings, testConnection } = useHermesStore();
-  const [activeTab, setActiveTab] = useState<TabId>('model');
+  const [activeTab, setActiveTab] = useState<TabId>('browser');
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [showApiKey, setShowApiKey] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -171,6 +245,50 @@ export default function HermesSettings() {
   const [isDirty, setIsDirty] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string; latencyMs?: number } | null>(null);
+
+  // ── Browser Settings State ─────────────────────────────────────────────────
+  const [browserForm, setBrowserForm] = useState<Partial<HermesBrowserSettings>>({
+    provider: 'kitesurf_cdp',
+    backend: 'auto',
+    headless: true,
+    headed: false,
+    cdpUrl: 'wss://kitesurf.cloudflare.app/devtools/browser',
+    visionEnabled: true,
+    timeoutSeconds: 300,
+    inactivityTimeout: 120,
+    recordSessions: false,
+    proxyUrl: '',
+    autoLocalForPrivateUrls: true,
+    allowPrivateUrls: false,
+    restrictEvaluate: false,
+    dialogPolicy: 'must_respond',
+    dialogTimeoutS: 30,
+    agentBrowserArgs: '--no-sandbox,--disable-dev-shm-usage',
+    kitesurfMcpEnabled: true,
+    kitesurfAccountToken: '',
+    browserbaseApiKey: '',
+    browserbaseProjectId: '',
+    browserbaseProxies: true,
+    browserbaseAdvancedStealth: false,
+    browserbaseKeepAlive: true,
+    browserbaseSessionTimeout: 1800,
+    browserUseApiKey: '',
+    firecrawlApiKey: '',
+    firecrawlApiUrl: 'https://api.firecrawl.dev',
+    firecrawlBrowserTtl: 300,
+    camofoxUrl: 'http://localhost:9377',
+    camofoxRewriteLoopbackUrls: true,
+    camofoxLoopbackHostAlias: 'host.docker.internal',
+    camofoxManagedPersistence: true,
+    camofoxUserId: '',
+    camofoxSessionKey: '',
+    camofoxAdoptExistingTab: true,
+  });
+
+  const [loadingBrowser, setLoadingBrowser] = useState(false);
+  const [testingBrowser, setTestingBrowser] = useState(false);
+  const [browserTestResult, setBrowserTestResult] = useState<{ ok: boolean; message: string; latencyMs?: number; details?: any } | null>(null);
+  const [showBrowserKeys, setShowBrowserKeys] = useState<Record<string, boolean>>({});
 
   // ── Gateway & Scheduler State ──────────────────────────────────────────────
   const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus | null>(null);
@@ -197,6 +315,20 @@ export default function HermesSettings() {
     prompt: '',
     script: '',
   });
+
+  const loadBrowserSettings = async () => {
+    setLoadingBrowser(true);
+    try {
+      const res = await api.hermes.getBrowserSettings();
+      if (res) {
+        setBrowserForm((prev) => ({ ...prev, ...res }));
+      }
+    } catch (err) {
+      console.warn('Failed to load browser settings:', err);
+    } finally {
+      setLoadingBrowser(false);
+    }
+  };
 
   const loadGatewayAndCrons = async () => {
     setLoadingGateway(true);
@@ -227,6 +359,7 @@ export default function HermesSettings() {
 
   useEffect(() => {
     loadSettings();
+    loadBrowserSettings();
     loadGatewayAndCrons();
   }, []);
 
@@ -254,14 +387,26 @@ export default function HermesSettings() {
     if (saveMsg) setSaveMsg(null);
   };
 
+  const setBrowserField = (key: keyof HermesBrowserSettings, value: unknown) => {
+    setBrowserForm((prev) => ({ ...prev, [key]: value }));
+    setIsDirty(true);
+    if (saveMsg) setSaveMsg(null);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setSaveMsg(null);
     try {
       const payload = { ...form };
       if (!payload.apiKey) delete payload.apiKey;
-      await saveSettings(payload);
-      setSaveMsg({ type: 'success', text: 'All Hermes settings saved and synced successfully' });
+
+      // Save both main Hermes settings and Browser settings concurrently
+      await Promise.all([
+        saveSettings(payload),
+        api.hermes.saveBrowserSettings(browserForm),
+      ]);
+
+      setSaveMsg({ type: 'success', text: 'All Hermes settings & Browser automation configurations saved successfully' });
       setIsDirty(false);
     } catch (err) {
       setSaveMsg({ type: 'error', text: err instanceof Error ? err.message : 'Failed to save settings' });
@@ -285,6 +430,19 @@ export default function HermesSettings() {
       setTestResult({ ok: false, message: err instanceof Error ? err.message : 'Connection test failed' });
     } finally {
       setTesting(false);
+    }
+  };
+
+  const handleTestBrowser = async () => {
+    setTestingBrowser(true);
+    setBrowserTestResult(null);
+    try {
+      const result = await api.hermes.testBrowserConnection(browserForm);
+      setBrowserTestResult(result);
+    } catch (err: any) {
+      setBrowserTestResult({ ok: false, message: err?.message || 'Browser connection test failed' });
+    } finally {
+      setTestingBrowser(false);
     }
   };
 
@@ -450,11 +608,11 @@ export default function HermesSettings() {
   }, [gatewayLogs, logFilter]);
 
   return (
-    <div style={{ width: '100%', minHeight: '100%', paddingBottom: 80 }}>
+    <div style={{ width: '100%', minHeight: '100%', paddingBottom: 90 }}>
       {/* ── Top Hero Header Bar ────────────────────────────────────────────── */}
       <div
         style={{
-          background: 'linear-gradient(135deg, rgba(124,58,237,0.12) 0%, rgba(6,182,212,0.08) 50%, rgba(13,17,23,0.6) 100%)',
+          background: 'linear-gradient(135deg, rgba(124,58,237,0.14) 0%, rgba(6,182,212,0.1) 50%, rgba(13,17,23,0.7) 100%)',
           border: '1px solid rgba(124,58,237,0.25)',
           borderRadius: 'var(--radius-xl)',
           padding: '24px 28px',
@@ -470,9 +628,9 @@ export default function HermesSettings() {
             position: 'absolute',
             top: -60,
             right: -60,
-            width: 200,
-            height: 200,
-            background: 'radial-gradient(circle, rgba(124,58,237,0.25) 0%, transparent 70%)',
+            width: 220,
+            height: 220,
+            background: 'radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%)',
             pointerEvents: 'none',
           }}
         />
@@ -481,18 +639,18 @@ export default function HermesSettings() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div
               style={{
-                width: 48,
-                height: 48,
+                width: 50,
+                height: 50,
                 borderRadius: 'var(--radius-lg)',
                 background: 'linear-gradient(135deg, #7c3aed 0%, #06b6d4 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 0 24px rgba(124,58,237,0.4)',
+                boxShadow: '0 0 24px rgba(124,58,237,0.45)',
                 color: '#fff',
               }}
             >
-              <Bot size={26} />
+              <Bot size={28} />
             </div>
 
             <div>
@@ -508,16 +666,16 @@ export default function HermesSettings() {
                     fontWeight: 700,
                     textTransform: 'uppercase',
                     letterSpacing: '0.04em',
-                    background: 'rgba(124,58,237,0.2)',
+                    background: 'rgba(124,58,237,0.25)',
                     color: 'var(--text-accent)',
-                    border: '1px solid rgba(124,58,237,0.4)',
+                    border: '1px solid rgba(124,58,237,0.45)',
                   }}
                 >
-                  v2.8 Enterprise
+                  Browser & AI Suite
                 </span>
               </div>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 0', lineHeight: 1.4 }}>
-                Configure models, sandbox limits, multi-core clustering, cross-session memory, and autonomous cron scheduling.
+                Configure browser automation (Kitesurf Wasm / CDP / Playwright), sandbox limits, multi-core clustering, and cron scheduling.
               </p>
             </div>
           </div>
@@ -536,29 +694,29 @@ export default function HermesSettings() {
                 fontSize: 12,
               }}
             >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: gatewayStatus?.active ? '#10b981' : '#f59e0b' }} />
-              <span style={{ color: 'var(--text-muted)' }}>Daemon:</span>
-              <span style={{ fontWeight: 700, color: gatewayStatus?.active ? '#10b981' : 'var(--text-secondary)' }}>
-                {gatewayStatus?.active ? 'Active & Ticking' : 'Offline'}
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: browserForm.provider === 'kitesurf_cdp' ? '#f59e0b' : '#10b981' }} />
+              <span style={{ color: 'var(--text-muted)' }}>Browser:</span>
+              <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                {browserForm.provider === 'kitesurf_cdp' ? 'Cloudflare Kitesurf' : (browserForm.provider || 'Local Chromium')}
               </span>
             </div>
 
             <button
               type="button"
-              onClick={handleTest}
-              disabled={testing}
+              onClick={handleTestBrowser}
+              disabled={testingBrowser}
               className="btn"
               style={{
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-primary)',
+                background: 'rgba(6,182,212,0.12)',
+                border: '1px solid rgba(6,182,212,0.3)',
+                color: '#06b6d4',
                 padding: '8px 14px',
                 fontSize: 12,
-                fontWeight: 600,
+                fontWeight: 700,
               }}
             >
-              {testing ? <Loader size={14} className="spin" /> : <FlaskConical size={14} style={{ color: '#06b6d4' }} />}
-              <span>Test LLM</span>
+              {testingBrowser ? <Loader size={14} className="spin" /> : <Compass size={14} />}
+              <span>Test Browser CDP</span>
             </button>
 
             <button
@@ -622,7 +780,7 @@ export default function HermesSettings() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '260px 1fr',
+          gridTemplateColumns: '270px 1fr',
           gap: 24,
           alignItems: 'start',
         }}
@@ -652,7 +810,7 @@ export default function HermesSettings() {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
 
-            let badgeContent: React.ReactNode = null;
+            let badgeContent: React.ReactNode = tab.badge || null;
             if (tab.id === 'tools') badgeContent = activeToolsCount;
             if (tab.id === 'scheduler') badgeContent = activeJobsCount > 0 ? `${activeJobsCount} active` : null;
 
@@ -750,10 +908,10 @@ export default function HermesSettings() {
             }}
           >
             <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Gauge size={12} style={{ color: '#06b6d4' }} /> Server Hardware
+              <Gauge size={12} style={{ color: '#06b6d4' }} /> Multi-Core Cluster
             </div>
-            <div>Multi-Core Clustering: <strong>12 Cores</strong></div>
-            <div>RAM Allocation: <strong>24 GiB (60% Heap)</strong></div>
+            <div>Active Compute: <strong>12 Cores / 24 GiB</strong></div>
+            <div>Virtual Display: <strong>Xvfb (:99 active)</strong></div>
           </div>
         </div>
 
@@ -766,7 +924,601 @@ export default function HermesSettings() {
             transition={{ duration: 0.2 }}
           >
             {/* ══════════════════════════════════════════════════════════════
-                TAB 1: MODEL & API PROVIDER
+                TAB 1: BROWSER AUTOMATION & CLOUDFLARE KITESURF
+               ══════════════════════════════════════════════════════════════ */}
+            {activeTab === 'browser' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* Hero Browser Intro Card */}
+                <section className="glass-card" style={{ padding: 28 }}>
+                  <SectionHeader
+                    icon={Compass}
+                    title="Browser Automation Engine & Execution Backends"
+                    subtitle="Control web pages via accessibility trees (@e1, @e2), screenshots, and Chrome DevTools Protocol"
+                  />
+
+                  {/* Provider Selection Grid */}
+                  <div style={{ marginBottom: 24 }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Select Browser Execution Provider (8 Backends Supported)
+                    </label>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+                      {BROWSER_PROVIDERS.map((p) => {
+                        const isSelected = (browserForm.provider || 'local_chromium') === p.value;
+                        return (
+                          <button
+                            key={p.value}
+                            type="button"
+                            onClick={() => setBrowserField('provider', p.value)}
+                            style={{
+                              padding: '16px 18px',
+                              textAlign: 'left',
+                              borderRadius: 'var(--radius-lg)',
+                              cursor: 'pointer',
+                              background: isSelected
+                                ? 'linear-gradient(135deg, rgba(124,58,237,0.16), rgba(6,182,212,0.08))'
+                                : 'var(--bg-elevated)',
+                              border: `1px solid ${isSelected ? 'rgba(124,58,237,0.5)' : 'var(--border)'}`,
+                              boxShadow: isSelected ? '0 4px 20px rgba(124,58,237,0.2)' : 'none',
+                              transition: 'all 0.15s ease',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'space-between',
+                              gap: 12,
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', width: '100%' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{ fontSize: 20 }}>{p.icon}</span>
+                                <div>
+                                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{p.label}</div>
+                                  <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'var(--bg-overlay)', color: p.color, fontWeight: 700 }}>
+                                    {p.badge}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div
+                                style={{
+                                  width: 18,
+                                  height: 18,
+                                  borderRadius: '50%',
+                                  border: `2px solid ${isSelected ? '#7c3aed' : 'var(--border)'}`,
+                                  background: isSelected ? '#7c3aed' : 'transparent',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#fff',
+                                }}
+                              >
+                                {isSelected && <Check size={12} />}
+                              </div>
+                            </div>
+
+                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{p.desc}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* ── Dynamic Provider Specific Configuration ──────────────── */}
+
+                  {/* 1. Cloudflare Kitesurf */}
+                  {browserForm.provider === 'kitesurf_cdp' && (
+                    <div
+                      style={{
+                        padding: 22,
+                        borderRadius: 'var(--radius-lg)',
+                        background: 'linear-gradient(135deg, rgba(245,158,11,0.08) 0%, rgba(124,58,237,0.05) 100%)',
+                        border: '1px solid rgba(245,158,11,0.3)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 14,
+                        marginBottom: 20,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: '#f59e0b' }}>
+                          <Compass size={18} />
+                          Cloudflare Kitesurf — Stateless Workers Browser Configuration
+                        </div>
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'rgba(245,158,11,0.2)', color: '#f59e0b', fontWeight: 700 }}>
+                          V8 / Wasm Isolates
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                        Kitesurf renders pages on Cloudflare Workers Wasm isolates using 3x-7x less RAM than heavy Chromium instances. Speaks raw Chrome DevTools Protocol over WebSockets.
+                      </p>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                          Kitesurf WebSocket CDP Endpoint (wss://)
+                        </label>
+                        <input
+                          type="text"
+                          value={browserForm.cdpUrl ?? 'wss://kitesurf.cloudflare.app/devtools/browser'}
+                          onChange={(e) => setBrowserField('cdpUrl', e.target.value)}
+                          placeholder="wss://kitesurf.cloudflare.app/devtools/browser"
+                          style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                            Cloudflare Account API Token (Optional / Enterprise)
+                          </label>
+                          <input
+                            type="password"
+                            value={browserForm.kitesurfAccountToken ?? ''}
+                            onChange={(e) => setBrowserField('kitesurfAccountToken', e.target.value)}
+                            placeholder="Optional account token for browser-run"
+                            style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 18 }}>
+                          <input
+                            type="checkbox"
+                            id="kitesurfMcp"
+                            checked={browserForm.kitesurfMcpEnabled !== false}
+                            onChange={(e) => setBrowserField('kitesurfMcpEnabled', e.target.checked)}
+                            style={{ accentColor: '#7c3aed', width: 16, height: 16 }}
+                          />
+                          <label htmlFor="kitesurfMcp" style={{ fontSize: 12, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                            Auto-register <code>chrome-devtools-mcp</code> server in Hermes MCP registry
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2. Custom CDP Endpoint */}
+                  {browserForm.provider === 'cdp' && (
+                    <div
+                      style={{
+                        padding: 22,
+                        borderRadius: 'var(--radius-lg)',
+                        background: 'rgba(6,182,212,0.06)',
+                        border: '1px solid rgba(6,182,212,0.3)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 12,
+                        marginBottom: 20,
+                      }}
+                    >
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#06b6d4', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Chrome size={18} />
+                        Custom Remote Chrome DevTools Protocol Target
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                          CDP Endpoint URL (ws:// or wss:// or http://)
+                        </label>
+                        <input
+                          type="text"
+                          value={browserForm.cdpUrl ?? ''}
+                          onChange={(e) => setBrowserField('cdpUrl', e.target.value)}
+                          placeholder="ws://127.0.0.1:9222 or wss://chrome.browserless.io?token=..."
+                          style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                        />
+                      </div>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+                        💡 When launching local Chrome/Brave with <code>--remote-debugging-port=9222</code>, always pass a dedicated <code>--user-data-dir=$HOME/.hermes/chrome-debug</code> so the debug port comes up properly on Chrome 136+.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 3. Browserbase Cloud */}
+                  {browserForm.provider === 'browserbase' && (
+                    <div
+                      style={{
+                        padding: 22,
+                        borderRadius: 'var(--radius-lg)',
+                        background: 'rgba(124,58,237,0.06)',
+                        border: '1px solid rgba(124,58,237,0.3)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 14,
+                        marginBottom: 20,
+                      }}
+                    >
+                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-accent)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Shield size={18} />
+                        Browserbase Managed Anti-Bot Cloud Browser Credentials
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                            Browserbase API Key (BROWSERBASE_API_KEY)
+                          </label>
+                          <input
+                            type="password"
+                            value={browserForm.browserbaseApiKey ?? ''}
+                            onChange={(e) => setBrowserField('browserbaseApiKey', e.target.value)}
+                            placeholder={browserForm.browserbaseApiKeySet ? '•••••••••••••••• (Saved)' : 'bb_...'}
+                            style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                            Project ID (BROWSERBASE_PROJECT_ID)
+                          </label>
+                          <input
+                            type="text"
+                            value={browserForm.browserbaseProjectId ?? ''}
+                            onChange={(e) => setBrowserField('browserbaseProjectId', e.target.value)}
+                            placeholder="e.g. prj_..."
+                            style={inputStyle}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                        <ModernToggleCard
+                          title="Residential Proxies"
+                          description="Auto-rotate stealth proxies for CAPTCHA bypass"
+                          checked={browserForm.browserbaseProxies !== false}
+                          onChange={(v) => setBrowserField('browserbaseProxies', v)}
+                        />
+                        <ModernToggleCard
+                          title="Keep-Alive Sessions"
+                          description="Reconnect after disconnects without loss"
+                          checked={browserForm.browserbaseKeepAlive !== false}
+                          onChange={(v) => setBrowserField('browserbaseKeepAlive', v)}
+                        />
+                        <ModernToggleCard
+                          title="Advanced Stealth"
+                          description="Custom Chromium fingerprinting (Scale plan)"
+                          checked={Boolean(browserForm.browserbaseAdvancedStealth)}
+                          onChange={(v) => setBrowserField('browserbaseAdvancedStealth', v)}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4. Browser Use 3.0 Cloud & Harness */}
+                  {browserForm.provider === 'browser_use' && (
+                    <div
+                      style={{
+                        padding: 22,
+                        borderRadius: 'var(--radius-lg)',
+                        background: 'rgba(236,72,153,0.06)',
+                        border: '1px solid rgba(236,72,153,0.3)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 14,
+                        marginBottom: 20,
+                      }}
+                    >
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#ec4899', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Zap size={18} />
+                        Browser Use CLI 3.0 Web Automation Harness
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                            Browser Use API Key (Optional for Cloud)
+                          </label>
+                          <input
+                            type="password"
+                            value={browserForm.browserUseApiKey ?? ''}
+                            onChange={(e) => setBrowserField('browserUseApiKey', e.target.value)}
+                            placeholder={browserForm.browserUseApiKeySet ? '•••••••••••••••• (Saved)' : 'bu_...'}
+                            style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                            Driver Backend Mode (browser.backend)
+                          </label>
+                          <select
+                            value={browserForm.backend || 'auto'}
+                            onChange={(e) => setBrowserField('backend', e.target.value)}
+                            style={selectStyle}
+                          >
+                            <option value="auto">Auto (Use browser-use CLI if installed)</option>
+                            <option value="browser-use">Force Browser Use CLI 3.0 Harness</option>
+                            <option value="builtin">Built-in Hermes Browser Tools (off)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 5. Firecrawl */}
+                  {browserForm.provider === 'firecrawl' && (
+                    <div
+                      style={{
+                        padding: 22,
+                        borderRadius: 'var(--radius-lg)',
+                        background: 'rgba(234,88,12,0.06)',
+                        border: '1px solid rgba(234,88,12,0.3)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 14,
+                        marginBottom: 20,
+                      }}
+                    >
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#ea580c', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Globe size={18} />
+                        Firecrawl Cloud & Self-Hosted Engine
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                            Firecrawl API Key (FIRECRAWL_API_KEY)
+                          </label>
+                          <input
+                            type="password"
+                            value={browserForm.firecrawlApiKey ?? ''}
+                            onChange={(e) => setBrowserField('firecrawlApiKey', e.target.value)}
+                            placeholder={browserForm.firecrawlApiKeySet ? '•••••••••••••••• (Saved)' : 'fc-...'}
+                            style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                            Firecrawl API Endpoint URL
+                          </label>
+                          <input
+                            type="text"
+                            value={browserForm.firecrawlApiUrl ?? 'https://api.firecrawl.dev'}
+                            onChange={(e) => setBrowserField('firecrawlApiUrl', e.target.value)}
+                            placeholder="https://api.firecrawl.dev or http://localhost:3002"
+                            style={inputStyle}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 6. Camofox */}
+                  {browserForm.provider === 'camofox' && (
+                    <div
+                      style={{
+                        padding: 22,
+                        borderRadius: 'var(--radius-lg)',
+                        background: 'rgba(139,92,246,0.06)',
+                        border: '1px solid rgba(139,92,246,0.3)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 14,
+                        marginBottom: 20,
+                      }}
+                    >
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Eye size={18} />
+                        Camofox Self-Hosted Anti-Detection Firefox (C++ Fingerprint Spoofing)
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                            Camofox Control API URL (CAMOFOX_URL)
+                          </label>
+                          <input
+                            type="text"
+                            value={browserForm.camofoxUrl ?? 'http://localhost:9377'}
+                            onChange={(e) => setBrowserField('camofoxUrl', e.target.value)}
+                            placeholder="http://localhost:9377"
+                            style={inputStyle}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                            Loopback Host Alias
+                          </label>
+                          <input
+                            type="text"
+                            value={browserForm.camofoxLoopbackHostAlias ?? 'host.docker.internal'}
+                            onChange={(e) => setBrowserField('camofoxLoopbackHostAlias', e.target.value)}
+                            placeholder="host.docker.internal"
+                            style={inputStyle}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                        <ModernToggleCard
+                          title="Managed Persistence"
+                          description="Keep cookies & logins alive across agent tasks"
+                          checked={browserForm.camofoxManagedPersistence !== false}
+                          onChange={(v) => setBrowserField('camofoxManagedPersistence', v)}
+                        />
+                        <ModernToggleCard
+                          title="Rewrite Loopback URLs"
+                          description="Rewrite 127.0.0.1 to host.docker.internal for container"
+                          checked={browserForm.camofoxRewriteLoopbackUrls !== false}
+                          onChange={(v) => setBrowserField('camofoxRewriteLoopbackUrls', v)}
+                        />
+                        <ModernToggleCard
+                          title="Adopt Existing Tabs"
+                          description="Attach to running tabs opened by external apps"
+                          checked={browserForm.camofoxAdoptExistingTab !== false}
+                          onChange={(v) => setBrowserField('camofoxAdoptExistingTab', v)}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Universal Browser Options & Policies ─────────────────── */}
+                  <div style={{ marginTop: 12 }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Sliders size={18} style={{ color: 'var(--text-accent)' }} />
+                      Universal Browser Capabilities & Policies
+                    </h3>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14, marginBottom: 20 }}>
+                      <ModernToggleCard
+                        title="Headless Mode (browser.headless)"
+                        description="Run browser in background without visible window frame. Turn off for headed mode."
+                        checked={browserForm.headless !== false}
+                        onChange={(v) => setBrowserField('headless', v)}
+                        icon={Laptop}
+                      />
+
+                      <ModernToggleCard
+                        title="Vision & Visual AI (browser.vision_enabled)"
+                        description="Allow Hermes to capture screenshots and run multimodal reasoning over page visual layout."
+                        checked={browserForm.visionEnabled !== false}
+                        onChange={(v) => setBrowserField('visionEnabled', v)}
+                        icon={Eye}
+                      />
+
+                      <ModernToggleCard
+                        title="Session Recording (WebM)"
+                        description="Record full browser sessions as WebM video files in ~/.hermes/browser_recordings/."
+                        checked={Boolean(browserForm.recordSessions)}
+                        onChange={(v) => setBrowserField('recordSessions', v)}
+                        icon={Video}
+                      />
+
+                      <ModernToggleCard
+                        title="Hybrid Routing (LAN/Local Sidecar)"
+                        description="Auto-spawn local sidecar for localhost / 127.0.0.1 / private LAN URLs even when using cloud."
+                        checked={browserForm.autoLocalForPrivateUrls !== false}
+                        onChange={(v) => setBrowserField('autoLocalForPrivateUrls', v)}
+                        icon={Server}
+                      />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+                      <div style={{ padding: 18, borderRadius: 'var(--radius-lg)', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+                          Inactivity Timeout ({browserForm.inactivityTimeout ?? 120}s)
+                        </label>
+                        <input
+                          type="range"
+                          min="30"
+                          max="600"
+                          step="15"
+                          value={browserForm.inactivityTimeout ?? 120}
+                          onChange={(e) => setBrowserField('inactivityTimeout', Number(e.target.value))}
+                          style={{ width: '100%', accentColor: '#7c3aed', cursor: 'pointer' }}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                          <span>30s</span><span>120s (Default)</span><span>600s</span>
+                        </div>
+                      </div>
+
+                      <div style={{ padding: 18, borderRadius: 'var(--radius-lg)', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+                          Native JS Dialog Policy
+                        </label>
+                        <select
+                          value={browserForm.dialogPolicy || 'must_respond'}
+                          onChange={(e) => setBrowserField('dialogPolicy', e.target.value)}
+                          style={selectStyle}
+                        >
+                          <option value="must_respond">Must Respond (Agent inspects alert/confirm/prompt)</option>
+                          <option value="auto_dismiss">Auto-Dismiss (Reject all native dialogs)</option>
+                          <option value="auto_accept">Auto-Accept (Accept all native dialogs)</option>
+                        </select>
+                      </div>
+
+                      <div style={{ padding: 18, borderRadius: 'var(--radius-lg)', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+                          Chromium CLI Flags (AGENT_BROWSER_ARGS)
+                        </label>
+                        <input
+                          type="text"
+                          value={browserForm.agentBrowserArgs ?? '--no-sandbox,--disable-dev-shm-usage'}
+                          onChange={(e) => setBrowserField('agentBrowserArgs', e.target.value)}
+                          style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                          placeholder="--no-sandbox,--disable-dev-shm-usage"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Test Browser Connection Bar ──────────────────────────── */}
+                  <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <button
+                        type="button"
+                        onClick={handleTestBrowser}
+                        disabled={testingBrowser}
+                        className="btn"
+                        style={{
+                          background: 'linear-gradient(135deg, rgba(6,182,212,0.18), rgba(124,58,237,0.12))',
+                          border: '1px solid rgba(6,182,212,0.4)',
+                          color: '#06b6d4',
+                          padding: '10px 20px',
+                          fontSize: 13,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {testingBrowser ? <Loader size={15} className="spin" /> : <Compass size={15} />}
+                        <span>Test Browser Connection</span>
+                      </button>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        Tests WebSocket CDP handshake with {browserForm.provider === 'kitesurf_cdp' ? 'Cloudflare Kitesurf' : (browserForm.provider || 'local browser')}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="btn btn-primary"
+                      style={{ padding: '10px 24px', fontSize: 13, fontWeight: 800 }}
+                    >
+                      {saving ? <><span className="spinner" /> Saving...</> : '💾 Save Browser Settings'}
+                    </button>
+                  </div>
+
+                  {/* Browser Test Results */}
+                  {browserTestResult && (
+                    <div
+                      style={{
+                        marginTop: 16,
+                        padding: '14px 18px',
+                        borderRadius: 'var(--radius-md)',
+                        background: browserTestResult.ok ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+                        border: `1px solid ${browserTestResult.ok ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                        fontSize: 13,
+                        color: browserTestResult.ok ? '#10b981' : '#ef4444',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {browserTestResult.ok ? <CheckCircle size={18} /> : <XCircle size={18} />}
+                        <span style={{ fontWeight: 700 }}>{browserTestResult.message}</span>
+                      </div>
+
+                      {browserTestResult.latencyMs && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ padding: '2px 8px', borderRadius: 4, background: 'var(--bg-overlay)', color: 'var(--text-secondary)', fontSize: 11 }}>
+                            ⚡ Latency: {browserTestResult.latencyMs} ms
+                          </span>
+                          {browserTestResult.details?.product && (
+                            <span style={{ padding: '2px 8px', borderRadius: 4, background: 'rgba(6,182,212,0.15)', color: '#06b6d4', fontSize: 11, fontWeight: 700 }}>
+                              Engine: {browserTestResult.details.product}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
+              </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════
+                TAB 2: MODEL & API PROVIDER
                ══════════════════════════════════════════════════════════════ */}
             {activeTab === 'model' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -906,7 +1658,7 @@ export default function HermesSettings() {
                             type="text"
                             value={(form.model as string) ?? ''}
                             onChange={(e) => setField('model', e.target.value)}
-                            placeholder="e.g. agentrouter/claude-opus-5, deepseek-chat, hermes-3-llama-3.1-405b"
+                            placeholder="e.g. deepseek-chat, hermes-3-llama-3.1-405b, claude-3-5-sonnet"
                             style={{ ...inputStyle, flex: 1, fontFamily: 'var(--font-mono)' }}
                           />
                         </div>
@@ -1089,7 +1841,7 @@ export default function HermesSettings() {
             )}
 
             {/* ══════════════════════════════════════════════════════════════
-                TAB 2: EXECUTION & SANDBOX
+                TAB 3: EXECUTION & SANDBOX
                ══════════════════════════════════════════════════════════════ */}
             {activeTab === 'execution' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1282,7 +2034,7 @@ export default function HermesSettings() {
             )}
 
             {/* ══════════════════════════════════════════════════════════════
-                TAB 3: MEMORY & SKILLS
+                TAB 4: MEMORY & SKILLS
                ══════════════════════════════════════════════════════════════ */}
             {activeTab === 'memory' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1369,7 +2121,7 @@ export default function HermesSettings() {
             )}
 
             {/* ══════════════════════════════════════════════════════════════
-                TAB 4: TOOLS & MCP
+                TAB 5: TOOLS & MCP
                ══════════════════════════════════════════════════════════════ */}
             {activeTab === 'tools' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1382,7 +2134,7 @@ export default function HermesSettings() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14 }}>
                     {TOOLS_LIST.map((tool) => {
-                      const enabledTools = (form.enabledTools as string[] ?? ['shell', 'code_runner', 'web_search']);
+                      const enabledTools = (form.enabledTools as string[] ?? ['shell', 'code_runner', 'web_search', 'browser', 'vision']);
                       const isEnabled = enabledTools.includes(tool.id);
                       const Icon = tool.icon;
 
@@ -1394,7 +2146,6 @@ export default function HermesSettings() {
                             borderRadius: 'var(--radius-lg)',
                             background: isEnabled ? 'linear-gradient(135deg, rgba(124,58,237,0.08), rgba(6,182,212,0.04))' : 'var(--bg-elevated)',
                             border: `1px solid ${isEnabled ? 'rgba(124,58,237,0.3)' : 'var(--border)'}`,
-                            opacity: tool.disabled ? 0.5 : 1,
                             display: 'flex',
                             alignItems: 'flex-start',
                             justifyContent: 'space-between',
@@ -1423,11 +2174,9 @@ export default function HermesSettings() {
                             <div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{tool.label}</span>
-                                {tool.disabled && (
-                                  <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'var(--bg-overlay)', color: 'var(--text-muted)' }}>
-                                    Coming Soon
-                                  </span>
-                                )}
+                                <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: isEnabled ? 'rgba(16,185,129,0.15)' : 'var(--bg-overlay)', color: isEnabled ? '#10b981' : 'var(--text-muted)', fontWeight: 700 }}>
+                                  {isEnabled ? 'Active' : 'Disabled'}
+                                </span>
                               </div>
                               <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0', lineHeight: 1.4 }}>
                                 {tool.desc}
@@ -1437,7 +2186,6 @@ export default function HermesSettings() {
 
                           <button
                             type="button"
-                            disabled={tool.disabled}
                             onClick={() => {
                               const next = isEnabled
                                 ? enabledTools.filter((t) => t !== tool.id)
@@ -1447,7 +2195,7 @@ export default function HermesSettings() {
                             style={{
                               background: 'none',
                               border: 'none',
-                              cursor: tool.disabled ? 'default' : 'pointer',
+                              cursor: 'pointer',
                               color: isEnabled ? '#7c3aed' : 'var(--text-muted)',
                               padding: 2,
                             }}
@@ -1463,7 +2211,7 @@ export default function HermesSettings() {
             )}
 
             {/* ══════════════════════════════════════════════════════════════
-                TAB 5: S3 & STORAGE
+                TAB 6: S3 & STORAGE
                ══════════════════════════════════════════════════════════════ */}
             {activeTab === 's3' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1531,7 +2279,7 @@ export default function HermesSettings() {
             )}
 
             {/* ══════════════════════════════════════════════════════════════
-                TAB 6: HERMES STANDALONE WEBUI
+                TAB 7: HERMES STANDALONE WEBUI
                ══════════════════════════════════════════════════════════════ */}
             {activeTab === 'webui' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1564,7 +2312,7 @@ export default function HermesSettings() {
                         Official Standalone WebUI Interface
                       </h3>
                       <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', margin: 0, lineHeight: 1.5 }}>
-                        Launch the complete 3-panel Hermes WebUI with interactive chat, workspace session trees, terminal, memory explorer, and job management tabs.
+                        Launch the complete 3-panel Hermes WebUI with interactive chat, workspace session trees, terminal, memory explorer, and browser automation tools.
                       </p>
                     </div>
 
@@ -1631,7 +2379,7 @@ export default function HermesSettings() {
             )}
 
             {/* ══════════════════════════════════════════════════════════════
-                TAB 7: JOB SCHEDULER & GATEWAY DAEMON
+                TAB 8: JOB SCHEDULER & GATEWAY DAEMON
                ══════════════════════════════════════════════════════════════ */}
             {activeTab === 'scheduler' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -2331,14 +3079,14 @@ export default function HermesSettings() {
           left: 260,
           right: 0,
           padding: '14px 32px',
-          background: 'rgba(13,17,23,0.85)',
+          background: 'rgba(13,17,23,0.9)',
           backdropFilter: 'blur(20px)',
           borderTop: '1px solid var(--border)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           zIndex: 40,
-          boxShadow: '0 -4px 20px rgba(0,0,0,0.3)',
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.35)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -2350,7 +3098,7 @@ export default function HermesSettings() {
           ) : (
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)' }}>
               <CheckCircle size={14} style={{ color: '#10b981' }} />
-              All settings synchronized
+              All settings & browser configs synchronized
             </span>
           )}
         </div>
@@ -2363,7 +3111,7 @@ export default function HermesSettings() {
             className="btn btn-primary"
             style={{ minWidth: 160, padding: '10px 22px', fontSize: 13, fontWeight: 800 }}
           >
-            {saving ? <><span className="spinner" /> Saving...</> : '💾 Save Settings'}
+            {saving ? <><span className="spinner" /> Saving...</> : '💾 Save All Settings'}
           </button>
         </div>
       </div>

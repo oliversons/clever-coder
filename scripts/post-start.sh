@@ -5,7 +5,7 @@
 set -euo pipefail
 
 echo "[post-start] ══════════════════════════════════════════"
-echo "[post-start]  CleverCoder Performance Bootstrap"
+echo "[post-start]  CleverCoder Performance & Browser Bootstrap"
 echo "[post-start]  CPUs: $(nproc) | RAM: $(free -m | awk '/Mem:/{print $2}') MB"
 echo "[post-start] ══════════════════════════════════════════"
 
@@ -32,16 +32,34 @@ mkdir -p /workspaces
 echo "[post-start] Running DB migrations..."
 node /app/server/db/migrate.js || echo "[post-start] Migrations may already be up to date"
 
-# ── Hermes directories ────────────────────────────────────────────────────────
+# ── Hermes core directories ───────────────────────────────────────────────────
 echo "[post-start] Ensuring Hermes directories exist..."
 mkdir -p /root/.hermes/logs /root/.hermes/cron \
          /root/.hermes/webui /root/.hermes/webui_state \
-         /root/.hermes/profiles/default/cron
+         /root/.hermes/profiles/default/cron \
+         /root/.hermes/cache/screenshots \
+         /root/.hermes/cache/web \
+         /root/.hermes/browser_recordings \
+         /root/.hermes/chrome-debug \
+         /root/.hermes/browser_auth/camofox
+
+# ── Browser Automation Dependencies & Virtual Display (Xvfb) ──────────────────
+echo "[post-start] Initializing Browser Automation Environment..."
+
+# 1. Virtual Framebuffer Display for headless/headful rendering & screenshot capture
+if command -v Xvfb &> /dev/null && ! pgrep -f Xvfb > /dev/null; then
+  echo "[post-start] Launching virtual display server (Xvfb :99)..."
+  Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp > /root/.hermes/logs/xvfb.log 2>&1 &
+  export DISPLAY=:99
+fi
+
+# 2. Pre-cache Cloudflare Kitesurf MCP & agent-browser tooling
+if command -v npx &> /dev/null; then
+  echo "[post-start] Pre-caching chrome-devtools-mcp and agent-browser..."
+  npx -y chrome-devtools-mcp@latest --help > /dev/null 2>&1 || true
+fi
 
 # ── Hermes Gateway daemon ─────────────────────────────────────────────────────
-# The Node.js cluster primary process also manages the gateway via
-# hermes-gateway.service.ts. This shell-level launch is a belt-and-suspenders
-# fallback for cases where the Node daemon hasn't loaded yet.
 echo "[post-start] Launching Hermes Gateway daemon..."
 if ! pgrep -f "hermes.*gateway" > /dev/null 2>&1; then
   nohup hermes gateway start > /root/.hermes/logs/gateway.log 2>&1 &
@@ -50,4 +68,4 @@ else
   echo "[post-start] Hermes Gateway daemon is already running"
 fi
 
-echo "[post-start] Done ✓ — server (${NCPUS} cores) starting via cluster.js"
+echo "[post-start] Done ✓ — server (${NCPUS} cores) ready with Browser Automation"

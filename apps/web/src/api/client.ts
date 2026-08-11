@@ -139,8 +139,69 @@ export const api = {
       request<{ success: boolean; message: string; output?: string }>(`/hermes/cron/jobs/${id}/run`, {
         method: 'POST',
       }),
+    // ── Browser Automation ──
+    getBrowserSettings: () =>
+      request<HermesBrowserSettings>('/hermes/browser'),
+    saveBrowserSettings: (data: Partial<HermesBrowserSettings>) =>
+      request<HermesBrowserSettings>('/hermes/browser', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    testBrowserConnection: (data: Partial<HermesBrowserSettings>) =>
+      request<{ ok: boolean; message: string; latencyMs?: number; details?: any }>('/hermes/browser/test', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
 };
+
+export interface HermesBrowserSettings {
+  id?: string;
+  provider: string;
+  backend: string;
+  headless: boolean;
+  headed: boolean;
+  cdpUrl: string;
+  visionEnabled: boolean;
+  timeoutSeconds: number;
+  inactivityTimeout: number;
+  recordSessions: boolean;
+  proxyUrl?: string;
+  autoLocalForPrivateUrls: boolean;
+  allowPrivateUrls: boolean;
+  restrictEvaluate: boolean;
+  dialogPolicy: string;
+  dialogTimeoutS: number;
+  agentBrowserArgs?: string;
+
+  kitesurfMcpEnabled: boolean;
+  kitesurfAccountToken?: string;
+  kitesurfAccountTokenSet?: boolean;
+
+  browserbaseApiKey?: string;
+  browserbaseApiKeySet?: boolean;
+  browserbaseProjectId?: string;
+  browserbaseProxies: boolean;
+  browserbaseAdvancedStealth: boolean;
+  browserbaseKeepAlive: boolean;
+  browserbaseSessionTimeout: number;
+
+  browserUseApiKey?: string;
+  browserUseApiKeySet?: boolean;
+
+  firecrawlApiKey?: string;
+  firecrawlApiKeySet?: boolean;
+  firecrawlApiUrl?: string;
+  firecrawlBrowserTtl: number;
+
+  camofoxUrl?: string;
+  camofoxRewriteLoopbackUrls: boolean;
+  camofoxLoopbackHostAlias?: string;
+  camofoxManagedPersistence: boolean;
+  camofoxUserId?: string;
+  camofoxSessionKey?: string;
+  camofoxAdoptExistingTab: boolean;
+}
 
 export interface GatewayStatus {
   active: boolean;

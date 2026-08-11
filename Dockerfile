@@ -34,13 +34,16 @@ RUN pnpm deploy --filter server --prod --legacy /deploy/server
 # ══════════════════════════════════════════════════════════════
 FROM node:22-slim AS runtime
 
-# ── System tools ───────────────────────────────────────────────
+# ── System tools & Browser Dependencies ─────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git curl wget ca-certificates \
       unzip zip jq procps dumb-init \
       python3 make g++ \
       openssh-client \
-    && rm -rf /var/lib/apt/lists/*
+      xvfb chromium \
+      libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm install -g agent-browser chrome-devtools-mcp || true
 
 # ── code-server ────────────────────────────────────────────────
 RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.96.4
@@ -53,7 +56,7 @@ RUN curl -fsSL https://rclone.org/install.sh | bash \
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3-pip python3-venv \
     && rm -rf /var/lib/apt/lists/* \
-    && (pip install --no-cache-dir hermes-agent --break-system-packages || true) \
+    && (pip install --no-cache-dir hermes-agent playwright --break-system-packages || true) \
     && git clone https://github.com/nesquena/hermes-webui.git /opt/hermes-webui \
     && cd /opt/hermes-webui \
     && (pip install --no-cache-dir -r requirements.txt --break-system-packages || true)

@@ -127,6 +127,66 @@ export const hermesSettings = pgTable('hermes_settings', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+/** Hermes Browser Automation Settings */
+export const hermesBrowserSettings = pgTable('hermes_browser_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+
+  // Provider: local_chromium | kitesurf_cdp | cdp | browserbase | browser_use | firecrawl | camofox | nous_portal
+  provider: text('provider').notNull().default('local_chromium'),
+  // Driver backend: auto | browser-use | builtin (off)
+  backend: text('backend').notNull().default('auto'),
+  headless: boolean('headless').notNull().default(true),
+  headed: boolean('headed').notNull().default(false),
+  cdpUrl: text('cdp_url').default('wss://kitesurf.cloudflare.app/devtools/browser'),
+  visionEnabled: boolean('vision_enabled').notNull().default(true),
+  timeoutSeconds: integer('timeout_seconds').notNull().default(300),
+  inactivityTimeout: integer('inactivity_timeout').notNull().default(120),
+  recordSessions: boolean('record_sessions').notNull().default(false),
+  proxyUrl: text('proxy_url'),
+  autoLocalForPrivateUrls: boolean('auto_local_for_private_urls').notNull().default(true),
+  allowPrivateUrls: boolean('allow_private_urls').notNull().default(false),
+  restrictEvaluate: boolean('restrict_evaluate').notNull().default(false),
+  dialogPolicy: text('dialog_policy').notNull().default('must_respond'), // must_respond | auto_dismiss | auto_accept
+  dialogTimeoutS: integer('dialog_timeout_s').notNull().default(30),
+  agentBrowserArgs: text('agent_browser_args').default('--no-sandbox,--disable-dev-shm-usage'),
+
+  // Cloudflare Kitesurf
+  kitesurfMcpEnabled: boolean('kitesurf_mcp_enabled').notNull().default(true),
+  kitesurfAccountToken: text('kitesurf_account_token'),
+
+  // Browserbase Cloud
+  browserbaseApiKey: text('browserbase_api_key'),
+  browserbaseProjectId: text('browserbase_project_id'),
+  browserbaseProxies: boolean('browserbase_proxies').notNull().default(true),
+  browserbaseAdvancedStealth: boolean('browserbase_advanced_stealth').notNull().default(false),
+  browserbaseKeepAlive: boolean('browserbase_keep_alive').notNull().default(true),
+  browserbaseSessionTimeout: integer('browserbase_session_timeout').notNull().default(1800),
+
+  // Browser Use Cloud
+  browserUseApiKey: text('browser_use_api_key'),
+
+  // Firecrawl Cloud & Self-Hosted
+  firecrawlApiKey: text('firecrawl_api_key'),
+  firecrawlApiUrl: text('firecrawl_api_url').default('https://api.firecrawl.dev'),
+  firecrawlBrowserTtl: integer('firecrawl_browser_ttl').notNull().default(300),
+
+  // Camofox Anti-Detection & Persistent Sessions
+  camofoxUrl: text('camofox_url').default('http://localhost:9377'),
+  camofoxRewriteLoopbackUrls: boolean('camofox_rewrite_loopback_urls').notNull().default(true),
+  camofoxLoopbackHostAlias: text('camofox_loopback_host_alias').default('host.docker.internal'),
+  camofoxManagedPersistence: boolean('camofox_managed_persistence').notNull().default(true),
+  camofoxUserId: text('camofox_user_id'),
+  camofoxSessionKey: text('camofox_session_key'),
+  camofoxAdoptExistingTab: boolean('camofox_adopt_existing_tab').notNull().default(true),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 /** Conversation sessions — global (projectId=NULL) or workspace-bound */
 export const hermesSessions = pgTable('hermes_sessions', {
   id: uuid('id').defaultRandom().primaryKey(),

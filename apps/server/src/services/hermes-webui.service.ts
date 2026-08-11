@@ -12,6 +12,7 @@ import fs, { existsSync } from 'node:fs';
 import { desc } from 'drizzle-orm';
 import { getDb, schema } from '../db/index.js';
 import { getAvailableCpuCores, buildMultiCoreEnv, getHermesSettings, getDecryptedApiKey } from './hermes.service.js';
+import { getHermesBrowserSettings, syncBrowserConfigToYamlAndEnv, DEFAULT_BROWSER_SETTINGS } from './hermes-browser.service.js';
 
 let webuiProcess: ChildProcess | null = null;
 let currentPort = 8787;
@@ -351,7 +352,15 @@ _patch_all()
 `;
     fs.writeFileSync(path.join(hermesHome, 'sitecustomize.py'), sitecustomizeContent, 'utf8');
 
-    console.log(`✅ [Hermes WebUI] Config & sitecustomize.py synced to ${hermesHome} (provider=${provider}, model=${model}, apiKey=${apiKey ? '***' : 'MISSING'})`);
+    // Also sync Hermes Browser automation settings (Kitesurf, CDP, local, cloud providers)
+    try {
+      const browserSettings = (userId ? await getHermesBrowserSettings(userId) : null) || DEFAULT_BROWSER_SETTINGS;
+      await syncBrowserConfigToYamlAndEnv(browserSettings);
+    } catch (browserErr) {
+      console.warn('[Hermes WebUI] Notice: Browser config sync non-critical warning:', browserErr);
+    }
+
+    console.log(`✅ [Hermes WebUI] Config, browser automation & sitecustomize.py synced to ${hermesHome} (provider=${provider}, model=${model}, apiKey=${apiKey ? '***' : 'MISSING'})`);
   } catch (err) {
     console.error('[Hermes WebUI] Failed to write Hermes config files:', err);
   }

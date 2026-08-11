@@ -11,6 +11,12 @@ import {
   getDecryptedApiKey,
   testProviderConnection,
 } from '../services/hermes.service.js';
+import {
+  getHermesBrowserSettings,
+  upsertHermesBrowserSettings,
+  maskBrowserSettings,
+  testBrowserConnection,
+} from '../services/hermes-browser.service.js';
 import { isHermesWebUIRunning, syncHermesConfigFiles, restartHermesWebUI } from '../services/hermes-webui.service.js';
 
 export async function hermesSettingsRoutes(fastify: FastifyInstance) {
@@ -132,6 +138,66 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
     }
 
     const result = await testProviderConnection(provider, apiKey ?? '', model, baseUrl);
+    return reply.send(result);
+  });
+
+  // ── GET /api/v1/hermes/browser ──────────────────────────────────────────────
+  fastify.get('/browser', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+
+    const settings = await getHermesBrowserSettings(payload.sub);
+    return reply.send(maskBrowserSettings(settings));
+  });
+
+  // ── PUT /api/v1/hermes/browser ──────────────────────────────────────────────
+  fastify.put('/browser', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+
+    const body = (request.body as Record<string, unknown>) ?? {};
+    delete body.id;
+    delete body.userId;
+    delete body.createdAt;
+    delete body.updatedAt;
+
+    const saved = await upsertHermesBrowserSettings(payload.sub, body);
+    return reply.send(maskBrowserSettings(saved));
+  });
+
+  // ── POST /api/v1/hermes/browser/test ────────────────────────────────────────
+  fastify.post('/browser/test', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+
+    const body = (request.body as Record<string, unknown>) ?? {};
+    const existing = await getHermesBrowserSettings(payload.sub);
+
+    const testInput = {
+      provider: typeof body.provider === 'string' ? body.provider : existing?.provider,
+      backend: typeof body.backend === 'string' ? body.backend : existing?.backend,
+      cdpUrl: typeof body.cdpUrl === 'string' ? body.cdpUrl : existing?.cdpUrl,
+      headless: typeof body.headless === 'boolean' ? body.headless : existing?.headless,
+      browserbaseApiKey: body.browserbaseApiKey && body.browserbaseApiKey !== '••••••••'
+        ? String(body.browserbaseApiKey)
+        : existing?.browserbaseApiKey,
+      browserUseApiKey: body.browserUseApiKey && body.browserUseApiKey !== '••••••••'
+        ? String(body.browserUseApiKey)
+        : existing?.browserUseApiKey,
+      firecrawlApiKey: body.firecrawlApiKey && body.firecrawlApiKey !== '••••••••'
+        ? String(body.firecrawlApiKey)
+        : existing?.firecrawlApiKey,
+      firecrawlApiUrl: typeof body.firecrawlApiUrl === 'string' ? body.firecrawlApiUrl : existing?.firecrawlApiUrl,
+      camofoxUrl: typeof body.camofoxUrl === 'string' ? body.camofoxUrl : existing?.camofoxUrl,
+    };
+
+    const result = await testBrowserConnection(testInput);
     return reply.send(result);
   });
 
