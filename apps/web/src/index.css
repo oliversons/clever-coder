@@ -1426,8 +1426,15 @@
   --style-card-hover-shadow: 0 8px 28px 0 rgba(76, 78, 100, 0.14);
 }
 
-/* 1. Material Clean (Materialize SaaS Aesthetic) */
+/* 1. Material Clean (Material Modern / Materialize SaaS) */
 :root[data-style="material_clean"] {
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
   --style-card-radius: 12px;
   --style-card-bg: var(--bg-surface);
   --style-card-border: 1px solid var(--border);
@@ -1458,8 +1465,62 @@
   --style-card-hover-shadow: 0 8px 28px 0 rgba(76, 78, 100, 0.14);
 }
 
+:root[data-style="material_clean"] .glass-card,
+:root[data-style="material_clean"] .card,
+:root[data-style="material_clean"] .panel-card {
+  border-radius: 12px !important;
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--style-card-shadow) !important;
+  backdrop-filter: none !important;
+}
+
+:root[data-style="material_clean"] .btn,
+:root[data-style="material_clean"] button:not(.btn-ghost):not(.tab-btn) {
+  border-radius: 8px !important;
+  box-shadow: var(--style-btn-shadow);
+}
+
+:root[data-style="material_clean"] .btn-primary {
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35) !important;
+}
+
+:root[data-style="material_clean"] .input,
+:root[data-style="material_clean"] input[type="text"],
+:root[data-style="material_clean"] input[type="password"],
+:root[data-style="material_clean"] input[type="email"],
+:root[data-style="material_clean"] select,
+:root[data-style="material_clean"] textarea {
+  border-radius: 8px !important;
+  border: 1px solid var(--border) !important;
+}
+
+:root[data-style="material_clean"] .badge {
+  border-radius: 9999px !important;
+}
+
+:root[data-style="material_clean"] .nav-item {
+  border-radius: 8px !important;
+}
+
+:root[data-style="material_clean"] .nav-item.active {
+  border-radius: 8px !important;
+  background: var(--accent-grad) !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35) !important;
+  font-weight: 600;
+}
+
 /* 2. Glassmorphism (Cyberpunk Frosted Glass) */
 :root[data-style="glassmorphism"] {
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 9999px;
+
   --style-card-radius: 16px;
   --style-card-bg: var(--glass-bg);
   --style-card-border: 1px solid var(--glass-border);
@@ -1485,8 +1546,49 @@
   --style-table-radius: 16px;
 }
 
+:root[data-style="glassmorphism"] .glass-card,
+:root[data-style="glassmorphism"] .card,
+:root[data-style="glassmorphism"] .panel-card {
+  border-radius: 16px !important;
+  background: var(--glass-bg) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+:root[data-style="glassmorphism"] .btn,
+:root[data-style="glassmorphism"] button:not(.btn-ghost):not(.tab-btn) {
+  border-radius: 12px !important;
+  box-shadow: 0 0 16px rgba(124, 58, 237, 0.25);
+}
+
+:root[data-style="glassmorphism"] .input,
+:root[data-style="glassmorphism"] input[type="text"],
+:root[data-style="glassmorphism"] input[type="password"],
+:root[data-style="glassmorphism"] input[type="email"],
+:root[data-style="glassmorphism"] select,
+:root[data-style="glassmorphism"] textarea {
+  border-radius: 12px !important;
+  border: 1px solid var(--border-accent) !important;
+}
+
+:root[data-style="glassmorphism"] .badge {
+  border-radius: 9999px !important;
+}
+
+:root[data-style="glassmorphism"] .nav-item {
+  border-radius: 12px !important;
+}
+
 /* 3. Neo-Brutalism (Sharp Geometric High Contrast) */
 :root[data-style="neo_brutalism"] {
+  --radius-xs: 0px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 4px;
+  --radius-full: 2px;
+
   --style-card-radius: 2px;
   --style-card-bg: var(--bg-surface);
   --style-card-border: 2px solid var(--text-primary);
@@ -1512,8 +1614,92 @@
   --style-table-radius: 0px;
 }
 
+:root[data-style="neo_brutalism"] .glass-card,
+:root[data-style="neo_brutalism"] .card,
+:root[data-style="neo_brutalism"] .panel-card,
+:root[data-style="neo_brutalism"] .alert {
+  border-radius: 2px !important;
+  border: 2px solid var(--text-primary) !important;
+  box-shadow: 4px 4px 0px var(--text-primary) !important;
+  backdrop-filter: none !important;
+}
+
+:root[data-style="neo_brutalism"] .glass-card:hover,
+:root[data-style="neo_brutalism"] .card:hover,
+:root[data-style="neo_brutalism"] .panel-card:hover {
+  box-shadow: 6px 6px 0px var(--accent-1) !important;
+  transform: translate(-2px, -2px);
+}
+
+:root[data-style="neo_brutalism"] .btn,
+:root[data-style="neo_brutalism"] button:not(.btn-ghost):not(.tab-btn) {
+  border-radius: 2px !important;
+  border: 2px solid var(--text-primary) !important;
+  box-shadow: 3px 3px 0px var(--text-primary) !important;
+  font-weight: 700 !important;
+}
+
+:root[data-style="neo_brutalism"] .btn:hover {
+  transform: translate(-2px, -2px) !important;
+  box-shadow: 5px 5px 0px var(--text-primary) !important;
+}
+
+:root[data-style="neo_brutalism"] .btn:active {
+  transform: translate(0px, 0px) !important;
+  box-shadow: 1px 1px 0px var(--text-primary) !important;
+}
+
+:root[data-style="neo_brutalism"] .input,
+:root[data-style="neo_brutalism"] input[type="text"],
+:root[data-style="neo_brutalism"] input[type="password"],
+:root[data-style="neo_brutalism"] input[type="email"],
+:root[data-style="neo_brutalism"] select,
+:root[data-style="neo_brutalism"] textarea {
+  border-radius: 2px !important;
+  border: 2px solid var(--text-primary) !important;
+  box-shadow: 2px 2px 0px var(--text-primary) !important;
+}
+
+:root[data-style="neo_brutalism"] .input:focus,
+:root[data-style="neo_brutalism"] input:focus,
+:root[data-style="neo_brutalism"] select:focus,
+:root[data-style="neo_brutalism"] textarea:focus {
+  box-shadow: 3px 3px 0px var(--accent-1) !important;
+}
+
+:root[data-style="neo_brutalism"] .badge {
+  border-radius: 2px !important;
+  border: 1.5px solid var(--text-primary) !important;
+  text-transform: uppercase !important;
+  font-weight: 700 !important;
+}
+
+:root[data-style="neo_brutalism"] .sidebar {
+  border-right: 2px solid var(--text-primary) !important;
+}
+
+:root[data-style="neo_brutalism"] .nav-item {
+  border-radius: 2px !important;
+}
+
+:root[data-style="neo_brutalism"] .nav-item.active {
+  border-radius: 2px !important;
+  border: 2px solid var(--text-primary) !important;
+  background: var(--accent-1) !important;
+  color: #ffffff !important;
+  box-shadow: 3px 3px 0px var(--text-primary) !important;
+  font-weight: 700 !important;
+}
+
 /* 4. Soft Pill / Organic (Cupertino Tactile Curves) */
 :root[data-style="soft_pill"] {
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 26px;
+  --radius-xl: 34px;
+  --radius-full: 9999px;
+
   --style-card-radius: 24px;
   --style-card-bg: var(--bg-surface);
   --style-card-border: 1px solid var(--border);
@@ -1539,8 +1725,59 @@
   --style-table-radius: 24px;
 }
 
+:root[data-style="soft_pill"] .glass-card,
+:root[data-style="soft_pill"] .card,
+:root[data-style="soft_pill"] .panel-card,
+:root[data-style="soft_pill"] .alert {
+  border-radius: 24px !important;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.12) !important;
+}
+
+:root[data-style="soft_pill"] .btn,
+:root[data-style="soft_pill"] button:not(.btn-ghost):not(.tab-btn) {
+  border-radius: 9999px !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12) !important;
+  padding-left: 18px !important;
+  padding-right: 18px !important;
+}
+
+:root[data-style="soft_pill"] .input,
+:root[data-style="soft_pill"] input[type="text"],
+:root[data-style="soft_pill"] input[type="password"],
+:root[data-style="soft_pill"] input[type="email"],
+:root[data-style="soft_pill"] select,
+:root[data-style="soft_pill"] textarea {
+  border-radius: 9999px !important;
+  padding-left: 18px !important;
+  padding-right: 18px !important;
+}
+
+:root[data-style="soft_pill"] .badge {
+  border-radius: 9999px !important;
+  padding: 3px 12px !important;
+}
+
+:root[data-style="soft_pill"] .nav-item {
+  border-radius: 9999px !important;
+}
+
+:root[data-style="soft_pill"] .nav-item.active {
+  border-radius: 9999px !important;
+  background: var(--accent-grad) !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.3) !important;
+}
+
 /* 5. Minimal Flat (Swiss Clean High Density) */
 :root[data-style="minimal_flat"] {
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-full: 4px;
+
   --style-card-radius: 6px;
   --style-card-bg: var(--bg-surface);
   --style-card-border: 1px solid var(--border);
@@ -1564,6 +1801,73 @@
   --style-badge-transform: none;
   --style-nav-radius: 4px;
   --style-table-radius: 4px;
+}
+
+:root[data-style="minimal_flat"] .glass-card,
+:root[data-style="minimal_flat"] .card,
+:root[data-style="minimal_flat"] .panel-card,
+:root[data-style="minimal_flat"] .alert {
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  border: 1px solid var(--border) !important;
+  backdrop-filter: none !important;
+}
+
+:root[data-style="minimal_flat"] .btn,
+:root[data-style="minimal_flat"] button:not(.btn-ghost):not(.tab-btn) {
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+
+:root[data-style="minimal_flat"] .btn-primary {
+  box-shadow: none !important;
+}
+
+:root[data-style="minimal_flat"] .input,
+:root[data-style="minimal_flat"] input[type="text"],
+:root[data-style="minimal_flat"] input[type="password"],
+:root[data-style="minimal_flat"] input[type="email"],
+:root[data-style="minimal_flat"] select,
+:root[data-style="minimal_flat"] textarea {
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  border: 1px solid var(--border) !important;
+}
+
+:root[data-style="minimal_flat"] .badge {
+  border-radius: 4px !important;
+}
+
+:root[data-style="minimal_flat"] .nav-item {
+  border-radius: 4px !important;
+}
+
+/* ─── Global Universal Style Rules for Icons, Avatars, Modals, and Elements ─── */
+:root[data-style="neo_brutalism"] .sidebar-logo-icon,
+:root[data-style="neo_brutalism"] .avatar,
+:root[data-style="neo_brutalism"] .icon-box,
+:root[data-style="neo_brutalism"] .modal-content,
+:root[data-style="neo_brutalism"] .drawer-content,
+:root[data-style="neo_brutalism"] div[style*="borderRadius: '50%'"],
+:root[data-style="neo_brutalism"] div[style*="borderRadius: 'var(--radius-md)'"],
+:root[data-style="neo_brutalism"] div[style*="borderRadius: 'var(--radius-sm)'"],
+:root[data-style="neo_brutalism"] div[style*="borderRadius: 'var(--radius-lg)'"],
+:root[data-style="neo_brutalism"] div[style*="borderRadius: 12"],
+:root[data-style="neo_brutalism"] div[style*="borderRadius: 10"],
+:root[data-style="neo_brutalism"] div[style*="borderRadius: 8"] {
+  border-radius: 2px !important;
+}
+
+:root[data-style="soft_pill"] .avatar,
+:root[data-style="soft_pill"] div[style*="borderRadius: 'var(--radius-sm)'"],
+:root[data-style="soft_pill"] div[style*="borderRadius: 'var(--radius-md)'"] {
+  border-radius: 18px !important;
+}
+
+:root[data-style="minimal_flat"] .avatar,
+:root[data-style="minimal_flat"] div[style*="borderRadius: 'var(--radius-sm)'"],
+:root[data-style="minimal_flat"] div[style*="borderRadius: 'var(--radius-md)'"] {
+  border-radius: 4px !important;
 }
 
 html, body {
