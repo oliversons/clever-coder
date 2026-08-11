@@ -26,7 +26,20 @@ async function request<T>(
   return text ? JSON.parse(text) : ({} as T);
 }
 
-export type Palette = 'default' | 'ocean' | 'nordic' | 'emerald' | 'rose' | 'amber' | 'volcanic' | 'orange';
+export type Palette =
+  | 'default'
+  | 'gold_elegance'
+  | 'fiery_ocean'
+  | 'crimson_twilight'
+  | 'oceanic_wave'
+  | 'forest_sage'
+  | 'ocean'
+  | 'nordic'
+  | 'emerald'
+  | 'rose'
+  | 'amber'
+  | 'volcanic'
+  | 'orange';
 export type ThemeMode = 'dark' | 'light';
 
 export interface UserSettings {

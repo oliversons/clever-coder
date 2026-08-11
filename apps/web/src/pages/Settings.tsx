@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import {
   Sun, Moon, Github, Shield, User as UserIcon, Check, HardDrive,
   Palette as PaletteIcon, Snowflake, Flame, Zap, Droplets, Trees, Heart, Sparkles, Bot,
+  Crown, Waves, Leaf, Compass, Award,
   type LucideIcon
 } from 'lucide-react';
 import { useAuthStore } from '../store';
@@ -13,7 +14,7 @@ import { api, openGithubOAuthPopup } from '../api/client';
 interface PaletteOption {
   id: Palette;
   name: string;
-  category: 'cold' | 'warm' | 'orange' | 'default';
+  category: 'featured' | 'cold' | 'warm' | 'classic';
   description: string;
   icon: LucideIcon;
   colorsDark: string[];
@@ -21,15 +22,53 @@ interface PaletteOption {
 }
 
 const PALETTES: PaletteOption[] = [
+  // ─── 1. Featured Luxury & Designer Palettes (New) ───
   {
-    id: 'default',
-    name: 'Electric Violet & Cyan',
-    category: 'default',
-    description: 'Classic cyberpunk coding palette with electric violet, cyan, and neon glow.',
-    icon: Sparkles,
-    colorsDark: ['#0d1117', '#7c3aed', '#06b6d4'],
-    colorsLight: ['#ffffff', '#6d28d9', '#0891b2'],
+    id: 'gold_elegance',
+    name: 'Black & Gold Elegance',
+    category: 'featured',
+    description: 'High-luxury deep pitch black and midnight navy with radiant amber gold and platinum highlights.',
+    icon: Crown,
+    colorsDark: ['#050811', '#fca311', '#14213d', '#e5e5e5'],
+    colorsLight: ['#f8fafc', '#d97706', '#14213d', '#ffffff'],
   },
+  {
+    id: 'fiery_ocean',
+    name: 'Fiery Ocean',
+    category: 'featured',
+    description: 'Prussian deep ocean navy with vivid scarlet crimson flame, glacier blue, and warm cream alabaster.',
+    icon: Flame,
+    colorsDark: ['#00121e', '#c1121f', '#669bbc', '#fdf0d5'],
+    colorsLight: ['#faf6ee', '#c1121f', '#003049', '#669bbc'],
+  },
+  {
+    id: 'crimson_twilight',
+    name: 'Crimson Twilight',
+    category: 'featured',
+    description: 'Deep twilight indigo navy with rich wine crimson, warm sand linen, and soft snow pearl typography.',
+    icon: Compass,
+    colorsDark: ['#0e1424', '#c53030', '#2a3b64', '#faf3f3'],
+    colorsLight: ['#faf7f5', '#9e2121', '#2a3b64', '#e7e1d9'],
+  },
+  {
+    id: 'oceanic_wave',
+    name: 'Deep Oceanic Wave',
+    category: 'featured',
+    description: 'Abyssal midnight sea with Nordic steel blue, frosted powder cyan waves, and arctic mist white text.',
+    icon: Waves,
+    colorsDark: ['#040a14', '#4a7fa7', '#1a3d63', '#f6fafd'],
+    colorsLight: ['#f6fafd', '#1a3d63', '#4a7fa7', '#b3cfe5'],
+  },
+  {
+    id: 'forest_sage',
+    name: 'Forest Sage & Obsidian',
+    category: 'featured',
+    description: 'Obsidian charcoal black and deep forest evergreen with mineral sage grey and muted moss olive accents.',
+    icon: Leaf,
+    colorsDark: ['#0a0c09', '#7e9466', '#38472a', '#fdfdfd'],
+    colorsLight: ['#f7f8f6', '#38472a', '#6d7e5a', '#111111'],
+  },
+
   // ─── Cold Palettes ───
   {
     id: 'ocean',
@@ -58,6 +97,7 @@ const PALETTES: PaletteOption[] = [
     colorsDark: ['#081a10', '#10b981', '#34d399'],
     colorsLight: ['#ffffff', '#059669', '#0891b2'],
   },
+
   // ─── Warm Palettes ───
   {
     id: 'rose',
@@ -86,11 +126,21 @@ const PALETTES: PaletteOption[] = [
     colorsDark: ['#1c0c08', '#ea580c', '#f97316'],
     colorsLight: ['#ffffff', '#c2410c', '#ea580c'],
   },
-  // ─── Special Orange Palette ───
+
+  // ─── Classic & Cyberpunk ───
+  {
+    id: 'default',
+    name: 'Electric Violet & Cyan',
+    category: 'classic',
+    description: 'Classic cyberpunk coding palette with electric violet, cyan, and neon glow.',
+    icon: Sparkles,
+    colorsDark: ['#0d1117', '#7c3aed', '#06b6d4'],
+    colorsLight: ['#ffffff', '#6d28d9', '#0891b2'],
+  },
   {
     id: 'orange',
     name: 'Solar Orange',
-    category: 'orange',
+    category: 'classic',
     description: 'High-energy cyberpunk carbon with blazing solar orange and tangerine neon.',
     icon: Zap,
     colorsDark: ['#180f06', '#ff6b00', '#ff9e00'],
@@ -169,7 +219,7 @@ export default function Settings() {
               <div>
                 <h2 style={{ fontSize: 17, fontWeight: 700 }}>Appearance & Theme Studio</h2>
                 <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                  Choose from 8 curated palettes in both Dark and Light modes
+                  Choose from 13 curated luxury, cold, and warm palettes in both Dark and Light modes
                 </p>
               </div>
             </div>
@@ -200,15 +250,36 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* ── Cold Palettes ── */}
-          <div style={{ marginBottom: 24 }}>
+          {/* ── 1. Featured Luxury Palettes ── */}
+          <div style={{ marginBottom: 26 }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+              color: 'var(--text-muted)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6
+            }}>
+              <Crown size={14} style={{ color: '#fca311' }} /> Featured Luxury & Designer Palettes
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+              {PALETTES.filter(p => p.category === 'featured').map(p => (
+                <PaletteCard
+                  key={p.id}
+                  palette={p}
+                  active={palette === p.id}
+                  theme={theme}
+                  onSelect={() => setPalette(p.id)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* ── 2. Cold Palettes ── */}
+          <div style={{ marginBottom: 26 }}>
             <div style={{
               fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
               color: 'var(--text-muted)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6
             }}>
               <Snowflake size={13} style={{ color: '#38bdf8' }} /> Cold Color Palettes
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
               {PALETTES.filter(p => p.category === 'cold').map(p => (
                 <PaletteCard
                   key={p.id}
@@ -221,15 +292,15 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* ── Warm Palettes ── */}
-          <div style={{ marginBottom: 24 }}>
+          {/* ── 3. Warm Palettes ── */}
+          <div style={{ marginBottom: 26 }}>
             <div style={{
               fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
               color: 'var(--text-muted)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6
             }}>
               <Flame size={13} style={{ color: '#f43f5e' }} /> Warm Color Palettes
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
               {PALETTES.filter(p => p.category === 'warm').map(p => (
                 <PaletteCard
                   key={p.id}
@@ -242,16 +313,16 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* ── Special & Default ── */}
+          {/* ── 4. Classic & Cyberpunk ── */}
           <div>
             <div style={{
               fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
               color: 'var(--text-muted)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6
             }}>
-              <Zap size={13} style={{ color: '#ff6b00' }} /> Special & Classic Palettes
+              <Zap size={13} style={{ color: '#ff6b00' }} /> Classic & Cyberpunk Palettes
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
-              {PALETTES.filter(p => p.category === 'orange' || p.category === 'default').map(p => (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+              {PALETTES.filter(p => p.category === 'classic').map(p => (
                 <PaletteCard
                   key={p.id}
                   palette={p}
