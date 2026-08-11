@@ -379,8 +379,8 @@ export default function Settings() {
   const initial = user?.name?.[0]?.toUpperCase() ?? user?.email?.[0]?.toUpperCase() ?? '?';
 
   return (
-    <div style={{ maxWidth: 880, margin: '0 auto' }}>
-      <div className="page-header" style={{ marginBottom: 32 }}>
+    <div style={{ width: '100%', minHeight: '100%', paddingBottom: 60 }}>
+      <div className="page-header" style={{ marginBottom: 28 }}>
         <div>
           <h1 className="page-title">Platform Settings</h1>
           <p className="page-subtitle">Configure UI architecture, themes, GitHub integration, and account preferences</p>
@@ -416,16 +416,17 @@ export default function Settings() {
 
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '6px 12px', background: 'var(--bg-elevated)',
+              padding: '6px 14px', background: 'var(--bg-elevated)',
               borderRadius: 'var(--radius-full)', border: '1px solid var(--border)',
-              fontSize: 12, fontWeight: 600, color: 'var(--text-accent)'
+              fontSize: 12, fontWeight: 600, color: 'var(--text-accent)',
+              boxShadow: 'var(--shadow-sm)'
             }}>
               <Box size={14} /> Active Style: {THEME_STYLES.find(s => s.id === themeStyle)?.name ?? 'Material Modern'}
             </div>
           </div>
 
           {/* Theme Style Cards Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
             {THEME_STYLES.map((st) => (
               <ThemeStyleCard
                 key={st.id}
@@ -492,7 +493,7 @@ export default function Settings() {
             }}>
               <Crown size={14} style={{ color: '#fca311' }} /> Featured Luxury & Designer Palettes
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
               {PALETTES.filter(p => p.category === 'featured').map(p => (
                 <PaletteCard
                   key={p.id}
@@ -513,7 +514,7 @@ export default function Settings() {
             }}>
               <Snowflake size={13} style={{ color: '#38bdf8' }} /> Cold Color Palettes
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
               {PALETTES.filter(p => p.category === 'cold').map(p => (
                 <PaletteCard
                   key={p.id}
@@ -534,7 +535,7 @@ export default function Settings() {
             }}>
               <Flame size={13} style={{ color: '#f43f5e' }} /> Warm Color Palettes
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
               {PALETTES.filter(p => p.category === 'warm').map(p => (
                 <PaletteCard
                   key={p.id}
@@ -553,9 +554,9 @@ export default function Settings() {
               fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
               color: 'var(--text-muted)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6
             }}>
-              <Zap size={13} style={{ color: '#ff6b00' }} /> Classic & Cyberpunk Palettes
+              <Zap size={13} style={{ color: '#ff6b00' }} /> Classic &amp; Cyberpunk Palettes
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
               {PALETTES.filter(p => p.category === 'classic').map(p => (
                 <PaletteCard
                   key={p.id}

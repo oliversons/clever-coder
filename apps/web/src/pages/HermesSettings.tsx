@@ -649,71 +649,62 @@ export default function HermesSettings() {
   return (
     <div style={{ width: '100%', minHeight: '100%', paddingBottom: 90 }}>
       {/* ── Top Hero Header Bar ────────────────────────────────────────────── */}
-      <div
-        style={{
-          background: 'linear-gradient(135deg, rgba(124,58,237,0.14) 0%, rgba(6,182,212,0.1) 50%, rgba(13,17,23,0.7) 100%)',
-          border: '1px solid rgba(124,58,237,0.25)',
-          borderRadius: 'var(--radius-xl)',
-          padding: '24px 28px',
-          marginBottom: 24,
-          position: 'relative',
-          overflow: 'hidden',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-          backdropFilter: 'blur(16px)',
-        }}
-      >
+      <div className="hermes-hero-banner">
         <div
           style={{
             position: 'absolute',
             top: -60,
             right: -60,
-            width: 220,
-            height: 220,
-            background: 'radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%)',
+            width: 240,
+            height: 240,
+            background: 'radial-gradient(circle, rgba(124,58,237,0.35) 0%, transparent 70%)',
             pointerEvents: 'none',
+            filter: 'blur(20px)',
           }}
         />
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, position: 'relative', zIndex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div
               style={{
-                width: 50,
-                height: 50,
+                width: 52,
+                height: 52,
                 borderRadius: 'var(--radius-lg)',
                 background: 'linear-gradient(135deg, #7c3aed 0%, #06b6d4 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 0 24px rgba(124,58,237,0.45)',
+                boxShadow: '0 4px 20px rgba(124,58,237,0.45)',
                 color: '#fff',
+                flexShrink: 0,
               }}
             >
               <Bot size={28} />
             </div>
 
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
                   Hermes AI Agent Control Center
                 </h1>
                 <span
                   style={{
-                    padding: '2px 8px',
-                    borderRadius: 999,
+                    padding: '3px 9px',
+                    borderRadius: 9999,
                     fontSize: 11,
                     fontWeight: 700,
                     textTransform: 'uppercase',
-                    letterSpacing: '0.04em',
-                    background: 'rgba(124,58,237,0.25)',
+                    letterSpacing: '0.05em',
+                    background: 'var(--bg-elevated)',
                     color: 'var(--text-accent)',
-                    border: '1px solid rgba(124,58,237,0.45)',
+                    border: '1px solid var(--border-accent)',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
                   }}
                 >
-                  Browser & AI Suite
+                  Browser &amp; AI Suite
                 </span>
               </div>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 0', lineHeight: 1.4 }}>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 0', lineHeight: 1.45, fontWeight: 500 }}>
                 Configure browser automation (Kitesurf Wasm / CDP / Playwright), sandbox limits, multi-core clustering, and cron scheduling.
               </p>
             </div>
@@ -723,17 +714,18 @@ export default function HermesSettings() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <div
               style={{
-                padding: '6px 12px',
-                borderRadius: 'var(--radius-md)',
+                padding: '6px 14px',
+                borderRadius: 'var(--radius-full)',
                 background: 'var(--bg-elevated)',
                 border: '1px solid var(--border)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
                 fontSize: 12,
+                boxShadow: 'var(--shadow-sm)',
               }}
             >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: browserForm.provider === 'kitesurf_cdp' ? '#f59e0b' : '#10b981' }} />
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: browserForm.provider === 'kitesurf_cdp' ? '#f59e0b' : '#10b981', boxShadow: '0 0 6px rgba(16,185,129,0.6)' }} />
               <span style={{ color: 'var(--text-muted)' }}>Browser:</span>
               <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                 {browserForm.provider === 'kitesurf_cdp' ? 'Cloudflare Kitesurf' : (browserForm.provider || 'Local Chromium')}
@@ -744,11 +736,8 @@ export default function HermesSettings() {
               type="button"
               onClick={handleTestBrowser}
               disabled={testingBrowser}
-              className="btn"
+              className="btn btn-secondary"
               style={{
-                background: 'rgba(6,182,212,0.12)',
-                border: '1px solid rgba(6,182,212,0.3)',
-                color: '#06b6d4',
                 padding: '8px 14px',
                 fontSize: 12,
                 fontWeight: 700,
@@ -819,30 +808,16 @@ export default function HermesSettings() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '270px 1fr',
+          gridTemplateColumns: '280px 1fr',
           gap: 24,
           alignItems: 'start',
         }}
         className="hermes-settings-grid"
       >
-        {/* ── Navigation Sidebar ─────────────────────────────────────────── */}
-        <div
-          style={{
-            background: 'var(--glass-bg)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 8,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
-            backdropFilter: 'blur(16px)',
-            position: 'sticky',
-            top: 24,
-            boxShadow: 'var(--shadow-sm)',
-          }}
-        >
-          <div style={{ padding: '8px 12px 6px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>
-            Navigation
+        {/* ── Navigation Sidebar with Light Pattern Background ───────────── */}
+        <div className="hermes-nav-sidebar">
+          <div style={{ padding: '8px 12px 4px', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
+            Hermes Navigation
           </div>
 
           {TABS.map((tab) => {
@@ -858,23 +833,7 @@ export default function HermesSettings() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '12px 14px',
-                  borderRadius: 'var(--radius-md)',
-                  background: isActive ? 'linear-gradient(135deg, rgba(124,58,237,0.18), rgba(6,182,212,0.1))' : 'transparent',
-                  border: `1px solid ${isActive ? 'rgba(124,58,237,0.35)' : 'transparent'}`,
-                  color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: isActive ? 700 : 500,
-                  transition: 'all 0.15s ease',
-                  textAlign: 'left',
-                  position: 'relative',
-                  overflow: 'hidden',
-                }}
+                className={`hermes-nav-btn${isActive ? ' active' : ''}`}
               >
                 {isActive && (
                   <motion.div
@@ -893,14 +852,16 @@ export default function HermesSettings() {
 
                 <div
                   style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 6,
+                    width: 30,
+                    height: 30,
+                    borderRadius: 'var(--radius-sm)',
                     background: isActive ? 'rgba(124,58,237,0.2)' : 'var(--bg-elevated)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: isActive ? 'var(--text-accent)' : 'var(--text-muted)',
+                    border: '1px solid var(--border)',
+                    flexShrink: 0,
                   }}
                 >
                   <Icon size={16} />
@@ -915,18 +876,18 @@ export default function HermesSettings() {
                           fontSize: 10,
                           fontWeight: 700,
                           padding: '1px 6px',
-                          borderRadius: 999,
-                          background: isActive ? 'rgba(124,58,237,0.3)' : 'var(--bg-overlay)',
-                          color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
+                          borderRadius: 9999,
+                          background: isActive ? 'var(--accent-1)' : 'var(--bg-overlay)',
+                          color: isActive ? '#ffffff' : 'var(--text-muted)',
                         }}
                       >
                         {badgeContent}
                       </span>
                     )}
                   </div>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>
+                  <div className="truncate" style={{ fontSize: 11, color: isActive ? 'var(--text-accent)' : 'var(--text-muted)', marginTop: 2 }}>
                     {tab.description}
-                  </span>
+                  </div>
                 </div>
               </button>
             );
