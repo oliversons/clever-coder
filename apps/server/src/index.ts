@@ -1,8 +1,4 @@
-import os from 'node:os';
 import 'node:process';
-
-// Initialize libuv threadpool to 2x CPU cores (min 8) for maximum multi-core async I/O & crypto
-process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || String(Math.max(8, (os.cpus()?.length ?? 4) * 2));
 
 import Fastify from 'fastify';
 import fastifyCors from '@fastify/cors';
@@ -293,9 +289,13 @@ async function bootstrap() {
   });
 
   // ── Start Hermes Gateway daemon in background for scheduled cron jobs ────
-  startGateway().catch((err: Error) => {
-    fastify.log.warn(`[hermes-gateway] Auto-start notice: ${err.message}`);
-  });
+  // Only start in primary / standalone process. When running as a cluster worker,
+  // the primary process already manages the gateway daemon to avoid duplicates.
+  if (!process.env.CLUSTER_WORKER) {
+    startGateway().catch((err: Error) => {
+      fastify.log.warn(`[hermes-gateway] Auto-start notice: ${err.message}`);
+    });
+  }
 }
 
 // ── Graceful shutdown ──────────────────────────────────────────────────────

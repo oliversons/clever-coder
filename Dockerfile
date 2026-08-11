@@ -80,8 +80,15 @@ ENV WORKSPACES_ROOT=/workspaces
 # Tell the server exactly where the web dist is
 ENV WEB_DIST_PATH=/app/web
 
+# ── Performance tuning for 12-core 24 GiB Clever Cloud 2XL instance ────────
+# UV_THREADPOOL_SIZE: async I/O threadpool (set here so it's ready before first require)
+# GOMAXPROCS: Go/Hermes runtime core count
+# These can be overridden per-deployment via Clever Cloud env vars
+ENV UV_THREADPOOL_SIZE=24
+ENV GOMAXPROCS=12
+
 EXPOSE 8080
 
 # dumb-init as PID 1: forwards SIGTERM → Node graceful shutdown → bisync flush
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/cluster.js"]
