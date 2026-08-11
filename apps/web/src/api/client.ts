@@ -171,6 +171,27 @@ export const api = {
       request<{ success: boolean; message: string; output?: string }>(`/hermes/cron/jobs/${id}/run`, {
         method: 'POST',
       }),
+    // ── Web Search & Extract ──
+    getWebSearchSettings: () =>
+      request<HermesWebSearchSettings>('/hermes/web-search'),
+    saveWebSearchSettings: (data: Partial<HermesWebSearchSettings>) =>
+      request<{ success: boolean; settings: HermesWebSearchSettings }>('/hermes/web-search', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    testWebSearch: (query: string, settings?: Partial<HermesWebSearchSettings>) =>
+      request<{
+        success: boolean;
+        backend: string;
+        latencyMs: number;
+        count?: number;
+        results?: Array<{ title: string; url: string; snippet: string; engine: string }>;
+        rawOutput?: string;
+        error?: string;
+      }>('/hermes/web-search/test', {
+        method: 'POST',
+        body: JSON.stringify({ query, settings }),
+      }),
     // ── Browser Automation ──
     getBrowserSettings: () =>
       request<HermesBrowserSettings>('/hermes/browser'),
@@ -192,6 +213,34 @@ export const api = {
       }),
   },
 };
+
+export interface HermesWebSearchResultItem {
+  title: string;
+  url: string;
+  snippet: string;
+  engine: string;
+}
+
+export interface HermesWebSearchSettings {
+  id?: string;
+  splitProviders: boolean;
+  searchBackend: string;
+  extractBackend: string;
+  extractCharLimit: number;
+
+  firecrawlApiKey?: string;
+  firecrawlApiUrl?: string;
+  searxngUrl?: string;
+  braveSearchApiKey?: string;
+  tavilyApiKey?: string;
+  exaApiKey?: string;
+  parallelApiKey?: string;
+  xaiApiKey?: string;
+  xaiModel?: string;
+  xaiTimeout?: number;
+  xaiAllowedDomains?: string;
+  xaiExcludedDomains?: string;
+}
 
 export interface HermesSyncFileStatus {
   name: string;

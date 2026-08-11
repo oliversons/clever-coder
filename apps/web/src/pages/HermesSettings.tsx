@@ -48,8 +48,10 @@ import {
   RiSettings4Line,
   RiTerminalBoxLine,
   RiInformationLine,
-  RiSparklingLine
+  RiSparklingLine,
+  RiSearchEyeLine
 } from 'react-icons/ri';
+import { WebSearchSettings } from './settings/WebSearchSettings';
 import { useHermesStore } from '../store/hermesStore';
 import {
   api,
@@ -62,7 +64,7 @@ import {
 
 // ── Types & Constants ──────────────────────────────────────────────────────────
 
-type TabId = 'browser' | 'model' | 'execution' | 'memory' | 'tools' | 's3' | 'webui' | 'scheduler';
+type TabId = 'browser' | 'search' | 'model' | 'execution' | 'memory' | 'tools' | 's3' | 'webui' | 'scheduler';
 
 interface TabItem {
   id: TabId;
@@ -74,6 +76,7 @@ interface TabItem {
 
 const TABS: TabItem[] = [
   { id: 'browser', label: 'Browser Automation', icon: RiCompass3Line, description: 'Cloudflare Kitesurf, CDP, local & cloud', badge: 'New' },
+  { id: 'search', label: 'Web Search & Extract', icon: RiSearchEyeLine, description: 'DuckDuckGo, Firecrawl, SearXNG, Tavily, Exa, xAI', badge: 'Active' },
   { id: 'model', label: 'Model & API', icon: RiRobot2Line, description: 'LLM providers, endpoints & keys' },
   { id: 'execution', label: 'Execution & Sandbox', icon: RiCpuLine, description: 'Multi-core clustering, approval & shell' },
   { id: 'memory', label: 'Memory & Skills', icon: RiBrainLine, description: 'Cross-session memory, persona & skills' },
@@ -1718,6 +1721,13 @@ export default function HermesSettings() {
                   )}
                 </section>
               </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════
+                TAB 1.5: WEB SEARCH & EXTRACT
+               ══════════════════════════════════════════════════════════════ */}
+            {activeTab === 'search' && (
+              <WebSearchSettings />
             )}
 
             {/* ══════════════════════════════════════════════════════════════

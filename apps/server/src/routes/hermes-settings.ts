@@ -19,9 +19,56 @@ import {
   getHermesSyncStatus,
   syncBrowserConfigToYamlAndEnv,
 } from '../services/hermes-browser.service.js';
+import {
+  getHermesWebSearchSettings,
+  saveHermesWebSearchSettings,
+  testWebSearchQuery,
+} from '../services/hermes-search.service.js';
 import { isHermesWebUIRunning, syncHermesConfigFiles, restartHermesWebUI } from '../services/hermes-webui.service.js';
 
 export async function hermesSettingsRoutes(fastify: FastifyInstance) {
+  // ── GET /api/v1/hermes/web-search ───────────────────────────────────────────
+  fastify.get('/web-search', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const settings = await getHermesWebSearchSettings(payload.sub);
+    return reply.send(settings);
+  });
+
+  // ── PUT /api/v1/hermes/web-search ───────────────────────────────────────────
+  fastify.put('/web-search', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const body = (request.body as Record<string, any>) || {};
+    const updated = await saveHermesWebSearchSettings(payload.sub, body);
+    return reply.send({ success: true, settings: updated });
+  });
+
+  // ── POST /api/v1/hermes/web-search (alias for saving) ────────────────────────
+  fastify.post('/web-search', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const body = (request.body as Record<string, any>) || {};
+    const updated = await saveHermesWebSearchSettings(payload.sub, body);
+    return reply.send({ success: true, settings: updated });
+  });
+
+  // ── POST /api/v1/hermes/web-search/test ─────────────────────────────────────
+  fastify.post('/web-search/test', async (request, reply) => {
+    verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const body = (request.body as { query?: string; settings?: any }) || {};
+    const result = await testWebSearchQuery(body.query || 'Hermes AI Agent', body.settings);
+    return reply.send(result);
+  });
   // ── GET /api/v1/hermes/settings ──────────────────────────────────────────────
   fastify.get('/settings', async (request, reply) => {
     const payload = verifyToken(

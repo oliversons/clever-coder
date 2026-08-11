@@ -233,3 +233,52 @@ export type NewHermesSession = typeof hermesSessions.$inferInsert;
 export type HermesMessage = typeof hermesMessages.$inferSelect;
 export type NewHermesMessage = typeof hermesMessages.$inferInsert;
 
+/**
+ * Hermes Web Search & Extract Settings Table
+ * Manages search & extraction backends (Firecrawl, SearXNG, Brave, DDGS, Tavily, Exa, Parallel, xAI)
+ */
+export const hermesWebSearchSettings = pgTable('hermes_web_search_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+
+  splitProviders: boolean('split_providers').notNull().default(false),
+  searchBackend: text('search_backend').notNull().default('duckduckgo'), // firecrawl | searxng | ddgs | duckduckgo | brave | tavily | exa | parallel | xai
+  extractBackend: text('extract_backend').notNull().default('firecrawl'), // firecrawl | tavily | exa | parallel | browser | trafilatura
+  extractCharLimit: integer('extract_char_limit').notNull().default(15000),
+
+  // Firecrawl
+  firecrawlApiKey: text('firecrawl_api_key'),
+  firecrawlApiUrl: text('firecrawl_api_url').default('https://api.firecrawl.dev'),
+
+  // SearXNG
+  searxngUrl: text('searxng_url'),
+
+  // Brave Search
+  braveSearchApiKey: text('brave_search_api_key'),
+
+  // Tavily
+  tavilyApiKey: text('tavily_api_key'),
+
+  // Exa
+  exaApiKey: text('exa_api_key'),
+
+  // Parallel
+  parallelApiKey: text('parallel_api_key'),
+
+  // xAI Grok
+  xaiApiKey: text('xai_api_key'),
+  xaiModel: text('xai_model').default('grok-build-0.1'),
+  xaiTimeout: integer('xai_timeout').default(90),
+  xaiAllowedDomains: text('xai_allowed_domains'),
+  xaiExcludedDomains: text('xai_excluded_domains'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export type HermesWebSearchSettings = typeof hermesWebSearchSettings.$inferSelect;
+export type NewHermesWebSearchSettings = typeof hermesWebSearchSettings.$inferInsert;
+

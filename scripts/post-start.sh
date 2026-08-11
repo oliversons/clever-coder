@@ -32,8 +32,8 @@ mkdir -p /workspaces
 echo "[post-start] Running DB migrations..."
 node /app/server/db/migrate.js || echo "[post-start] Migrations may already be up to date"
 
-# ── Hermes core directories ───────────────────────────────────────────────────
-echo "[post-start] Ensuring Hermes directories exist..."
+# ── Hermes core directories & Web Search env ────────────────────────────────
+echo "[post-start] Ensuring Hermes directories & env files exist..."
 mkdir -p /root/.hermes/logs /root/.hermes/cron \
          /root/.hermes/webui /root/.hermes/webui_state \
          /root/.hermes/profiles/default/cron \
@@ -42,6 +42,15 @@ mkdir -p /root/.hermes/logs /root/.hermes/cron \
          /root/.hermes/browser_recordings \
          /root/.hermes/chrome-debug \
          /root/.hermes/browser_auth/camofox
+
+touch /root/.hermes/config.yaml /root/.hermes/.env
+
+# Pre-install Python ddgs & duckduckgo_search for free zero-key fallback search
+if command -v pip3 &> /dev/null; then
+  pip3 install --no-cache-dir --quiet ddgs duckduckgo_search trafilatura beautifulsoup4 --break-system-packages 2>/dev/null || true
+elif command -v pip &> /dev/null; then
+  pip install --no-cache-dir --quiet ddgs duckduckgo_search trafilatura beautifulsoup4 --break-system-packages 2>/dev/null || true
+fi
 
 # ── Browser Automation Dependencies & Virtual Display (Xvfb) ──────────────────
 echo "[post-start] Initializing Browser Automation Environment..."
