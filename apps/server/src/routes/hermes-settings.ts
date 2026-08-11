@@ -134,4 +134,123 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
     const result = await testProviderConnection(provider, apiKey ?? '', model, baseUrl);
     return reply.send(result);
   });
+
+  // ── GET /api/v1/hermes/gateway/status ─────────────────────────────────────────
+  fastify.get('/gateway/status', async (request, reply) => {
+    verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const { getGatewayStatus } = await import('../services/hermes-gateway.service.js');
+    const status = await getGatewayStatus();
+    return reply.send(status);
+  });
+
+  // ── POST /api/v1/hermes/gateway/start ──────────────────────────────────────────
+  fastify.post('/gateway/start', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const { startGateway } = await import('../services/hermes-gateway.service.js');
+    const result = await startGateway({ userId: payload.sub });
+    return reply.send(result);
+  });
+
+  // ── POST /api/v1/hermes/gateway/stop ───────────────────────────────────────────
+  fastify.post('/gateway/stop', async (request, reply) => {
+    verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const { stopGateway } = await import('../services/hermes-gateway.service.js');
+    const result = await stopGateway();
+    return reply.send(result);
+  });
+
+  // ── POST /api/v1/hermes/gateway/restart ────────────────────────────────────────
+  fastify.post('/gateway/restart', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const { restartGateway } = await import('../services/hermes-gateway.service.js');
+    const result = await restartGateway(payload.sub);
+    return reply.send(result);
+  });
+
+  // ── GET /api/v1/hermes/gateway/logs ────────────────────────────────────────────
+  fastify.get('/gateway/logs', async (request, reply) => {
+    verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const { getGatewayRecentLogs, getGatewayStatus } = await import('../services/hermes-gateway.service.js');
+    const logs = getGatewayRecentLogs(60);
+    const status = await getGatewayStatus();
+    return reply.send({ logs, logPath: status.logPath, active: status.active });
+  });
+
+  // ── GET /api/v1/hermes/cron/jobs ───────────────────────────────────────────────
+  fastify.get('/cron/jobs', async (request, reply) => {
+    verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const { listCronJobs } = await import('../services/hermes-gateway.service.js');
+    const jobs = await listCronJobs();
+    return reply.send({ jobs });
+  });
+
+  // ── POST /api/v1/hermes/cron/jobs ──────────────────────────────────────────────
+  fastify.post('/cron/jobs', async (request, reply) => {
+    verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const body = (request.body as Record<string, unknown>) || {};
+    const { createCronJob } = await import('../services/hermes-gateway.service.js');
+    const job = await createCronJob(body);
+    return reply.send({ success: true, job });
+  });
+
+  // ── PATCH /api/v1/hermes/cron/jobs/:id ─────────────────────────────────────────
+  fastify.patch('/cron/jobs/:id', async (request, reply) => {
+    verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const { id } = request.params as { id: string };
+    const body = (request.body as { enabled?: boolean }) || {};
+    const { toggleCronJob } = await import('../services/hermes-gateway.service.js');
+    const updated = await toggleCronJob(id, body.enabled !== false);
+    if (!updated) {
+      return reply.code(404).send({ error: 'Job not found' });
+    }
+    return reply.send({ success: true, job: updated });
+  });
+
+  // ── DELETE /api/v1/hermes/cron/jobs/:id ────────────────────────────────────────
+  fastify.delete('/cron/jobs/:id', async (request, reply) => {
+    verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const { id } = request.params as { id: string };
+    const { deleteCronJob } = await import('../services/hermes-gateway.service.js');
+    const deleted = await deleteCronJob(id);
+    return reply.send({ success: deleted });
+  });
+
+  // ── POST /api/v1/hermes/cron/jobs/:id/run ──────────────────────────────────────
+  fastify.post('/cron/jobs/:id/run', async (request, reply) => {
+    verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const { id } = request.params as { id: string };
+    const { runCronJobNow } = await import('../services/hermes-gateway.service.js');
+    const result = await runCronJobNow(id);
+    return reply.send(result);
+  });
 }

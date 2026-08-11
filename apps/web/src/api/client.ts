@@ -109,8 +109,75 @@ export const api = {
       ),
     getWebUIStatus: () =>
       request<{ running: boolean; port: number }>('/hermes/webui/status'),
+    getGatewayStatus: () =>
+      request<GatewayStatus>('/hermes/gateway/status'),
+    startGateway: () =>
+      request<{ success: boolean; message: string; pid?: number }>('/hermes/gateway/start', { method: 'POST' }),
+    stopGateway: () =>
+      request<{ success: boolean; message: string }>('/hermes/gateway/stop', { method: 'POST' }),
+    restartGateway: () =>
+      request<{ success: boolean; message: string; pid?: number }>('/hermes/gateway/restart', { method: 'POST' }),
+    getGatewayLogs: () =>
+      request<{ logs: string[]; logPath: string; active: boolean }>('/hermes/gateway/logs'),
+    listCronJobs: () =>
+      request<{ jobs: CronJobItem[] }>('/hermes/cron/jobs'),
+    createCronJob: (job: Partial<CronJobItem>) =>
+      request<{ success: boolean; job: CronJobItem }>('/hermes/cron/jobs', {
+        method: 'POST',
+        body: JSON.stringify(job),
+      }),
+    toggleCronJob: (id: string, enabled: boolean) =>
+      request<{ success: boolean; job: CronJobItem }>(`/hermes/cron/jobs/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled }),
+      }),
+    deleteCronJob: (id: string) =>
+      request<{ success: boolean }>(`/hermes/cron/jobs/${id}`, {
+        method: 'DELETE',
+      }),
+    runCronJob: (id: string) =>
+      request<{ success: boolean; message: string; output?: string }>(`/hermes/cron/jobs/${id}/run`, {
+        method: 'POST',
+      }),
   },
 };
+
+export interface GatewayStatus {
+  active: boolean;
+  pid?: number;
+  status: 'running' | 'stopped' | 'error' | 'not_installed';
+  info: string;
+  uptime?: string;
+  configured: boolean;
+  lastTick?: string;
+  jobsCount: number;
+  activeJobsCount: number;
+  logPath: string;
+  recentLogs: string[];
+}
+
+export interface CronJobItem {
+  id: string;
+  name: string;
+  schedule: string | { expression: string; tz?: string };
+  schedule_display?: string;
+  prompt?: string;
+  script?: string;
+  workdir?: string;
+  enabled: boolean;
+  state?: 'active' | 'paused' | 'completed' | 'error';
+  no_agent?: boolean;
+  deliver?: string;
+  skills?: string[];
+  model?: string;
+  provider?: string;
+  next_run_at?: string;
+  last_run_at?: string;
+  last_status?: string;
+  last_error?: string;
+  created_at?: string;
+  updated_at?: string;
+}
 
 // Types
 export interface Project {

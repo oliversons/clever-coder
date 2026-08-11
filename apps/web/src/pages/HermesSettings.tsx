@@ -10,18 +10,21 @@
  */
 
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bot, Cpu, Brain, Wrench, Database, Eye, EyeOff,
   CheckCircle, XCircle, Loader, ChevronRight, Zap,
   ToggleLeft, ToggleRight, Server, Globe, FlaskConical,
+  Clock, Play, Pause, Trash2, RefreshCw, Plus, Terminal,
+  CheckCircle2, AlertTriangle, FileText, Sparkles, Copy, Check,
+  ExternalLink, Calendar, Activity,
 } from 'lucide-react';
 import { useHermesStore } from '../store/hermesStore';
-import { api } from '../api/client';
+import { api, type GatewayStatus, type CronJobItem, type Project } from '../api/client';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type TabId = 'model' | 'execution' | 'memory' | 'tools' | 's3' | 'webui';
+type TabId = 'model' | 'execution' | 'memory' | 'tools' | 's3' | 'webui' | 'scheduler';
 
 const TABS: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
   { id: 'model', label: 'Model & API', icon: <Bot size={16} /> },
@@ -30,6 +33,7 @@ const TABS: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
   { id: 'tools', label: 'Tools & MCP', icon: <Wrench size={16} /> },
   { id: 's3', label: 'S3 & Storage', icon: <Database size={16} /> },
   { id: 'webui', label: 'Hermes WebUI', icon: <Globe size={16} /> },
+  { id: 'scheduler', label: 'Job Scheduler', icon: <Clock size={16} /> },
 ];
 
 const PROVIDERS = [
@@ -71,6 +75,217 @@ export default function HermesSettings() {
   const [testing, setTesting] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string; latencyMs?: number } | null>(null);
+
+  // ── Gateway & Scheduler State ──────────────────────────────────────────────
+  const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus | null>(null);
+  const [cronJobs, setCronJobs] = useState<CronJobItem[]>([]);
+  const [projectsList, setProjectsList] = useState<Project[]>([]);
+  const [loadingGateway, setLoadingGateway] = useState(false);
+  const [restartingGateway, setRestartingGateway] = useState(false);
+  const [runningJobId, setRunningJobId] = useState<string | null>(null);
+  const [gatewayLogs, setGatewayLogs] = useState<string[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
+  const [copiedLogs, setCopiedLogs] = useState(false);
+  const [schedulerActionMsg, setSchedulerActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // ── Job Wizard State ───────────────────────────────────────────────────────
+  const [showCreateWizard, setShowCreateWizard] = useState(false);
+  const [creatingJob, setCreatingJob] = useState(false);
+  const [newJob, setNewJob] = useState({
+    name: '',
+    preset: 'daily',
+    customCron: '0 9 * * *',
+    workdir: '/workspaces',
+    mode: 'agent' as 'agent' | 'script',
+    prompt: '',
+    script: '',
+  });
+
+  const loadGatewayAndCrons = async () => {
+    setLoadingGateway(true);
+    try {
+      const [statusRes, jobsRes, projectsRes] = await Promise.all([
+        api.hermes.getGatewayStatus().catch(() => null),
+        api.hermes.listCronJobs().catch(() => ({ jobs: [] })),
+        api.projects.list().catch(() => []),
+      ]);
+      if (statusRes) setGatewayStatus(statusRes);
+      if (jobsRes?.jobs) setCronJobs(jobsRes.jobs);
+      if (projectsRes) setProjectsList(projectsRes);
+    } catch (err) {
+      console.warn('Failed to load gateway data:', err);
+    } finally {
+      setLoadingGateway(false);
+    }
+  };
+
+  const loadGatewayLogs = async () => {
+    try {
+      const res = await api.hermes.getGatewayLogs();
+      if (res?.logs) setGatewayLogs(res.logs);
+    } catch (err) {
+      console.warn('Failed to load gateway logs:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadSettings();
+    loadGatewayAndCrons();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'scheduler') {
+      loadGatewayAndCrons();
+      loadGatewayLogs();
+      const timer = setInterval(() => {
+        api.hermes.getGatewayStatus().then((s) => s && setGatewayStatus(s)).catch(() => {});
+      }, 8000);
+      return () => clearInterval(timer);
+    }
+  }, [activeTab]);
+
+  const handleRestartGateway = async () => {
+    setRestartingGateway(true);
+    setSchedulerActionMsg(null);
+    try {
+      const res = await api.hermes.restartGateway();
+      if (res.success) {
+        setSchedulerActionMsg({ type: 'success', text: res.message || 'Gateway restarted successfully' });
+      } else {
+        setSchedulerActionMsg({ type: 'error', text: res.message || 'Failed to restart gateway' });
+      }
+      await loadGatewayAndCrons();
+      await loadGatewayLogs();
+    } catch (err: any) {
+      setSchedulerActionMsg({ type: 'error', text: err.message || 'Failed to restart gateway daemon' });
+    } finally {
+      setRestartingGateway(false);
+    }
+  };
+
+  const handleToggleGateway = async () => {
+    setLoadingGateway(true);
+    setSchedulerActionMsg(null);
+    try {
+      if (gatewayStatus?.active) {
+        await api.hermes.stopGateway();
+        setSchedulerActionMsg({ type: 'success', text: 'Gateway daemon stopped' });
+      } else {
+        await api.hermes.startGateway();
+        setSchedulerActionMsg({ type: 'success', text: 'Gateway daemon started' });
+      }
+      await loadGatewayAndCrons();
+    } catch (err: any) {
+      setSchedulerActionMsg({ type: 'error', text: err.message || 'Failed to toggle gateway daemon' });
+    } finally {
+      setLoadingGateway(false);
+    }
+  };
+
+  const handleCreateJob = async () => {
+    if (!newJob.name.trim()) {
+      setSchedulerActionMsg({ type: 'error', text: 'Please enter a job name' });
+      return;
+    }
+
+    setCreatingJob(true);
+    setSchedulerActionMsg(null);
+
+    let expression = '0 9 * * *';
+    let scheduleDisplay = 'Daily at 09:00';
+
+    if (newJob.preset === '5min') {
+      expression = '*/5 * * * *';
+      scheduleDisplay = 'Every 5 minutes';
+    } else if (newJob.preset === 'hourly') {
+      expression = '0 * * * *';
+      scheduleDisplay = 'Every hour';
+    } else if (newJob.preset === 'daily') {
+      expression = '0 9 * * *';
+      scheduleDisplay = 'Daily at 09:00';
+    } else if (newJob.preset === 'weekdays') {
+      expression = '0 9 * * 1-5';
+      scheduleDisplay = 'Mon-Fri at 09:00';
+    } else if (newJob.preset === 'weekly') {
+      expression = '0 9 * * 1';
+      scheduleDisplay = 'Weekly on Monday at 09:00';
+    } else {
+      expression = newJob.customCron.trim() || '0 9 * * *';
+      scheduleDisplay = `Custom: ${expression}`;
+    }
+
+    try {
+      const res = await api.hermes.createCronJob({
+        name: newJob.name.trim(),
+        schedule: expression,
+        schedule_display: scheduleDisplay,
+        workdir: newJob.workdir,
+        no_agent: newJob.mode === 'script',
+        prompt: newJob.mode === 'agent' ? newJob.prompt : undefined,
+        script: newJob.mode === 'script' ? newJob.script : undefined,
+        enabled: true,
+      });
+
+      if (res?.success) {
+        setSchedulerActionMsg({ type: 'success', text: `Created scheduled job "${res.job.name}"` });
+        setShowCreateWizard(false);
+        setNewJob({
+          name: '',
+          preset: 'daily',
+          customCron: '0 9 * * *',
+          workdir: '/workspaces',
+          mode: 'agent',
+          prompt: '',
+          script: '',
+        });
+        await loadGatewayAndCrons();
+      }
+    } catch (err: any) {
+      setSchedulerActionMsg({ type: 'error', text: err.message || 'Failed to create scheduled job' });
+    } finally {
+      setCreatingJob(false);
+    }
+  };
+
+  const handleToggleJob = async (job: CronJobItem) => {
+    try {
+      const updated = await api.hermes.toggleCronJob(job.id, !job.enabled);
+      if (updated?.success) {
+        setCronJobs((prev) => prev.map((j) => (j.id === job.id ? updated.job : j)));
+      }
+    } catch (err: any) {
+      setSchedulerActionMsg({ type: 'error', text: err.message || 'Failed to toggle job' });
+    }
+  };
+
+  const handleDeleteJob = async (jobId: string) => {
+    if (!confirm('Are you sure you want to delete this scheduled job?')) return;
+    try {
+      await api.hermes.deleteCronJob(jobId);
+      setCronJobs((prev) => prev.filter((j) => j.id !== jobId));
+      setSchedulerActionMsg({ type: 'success', text: 'Scheduled job deleted' });
+    } catch (err: any) {
+      setSchedulerActionMsg({ type: 'error', text: err.message || 'Failed to delete job' });
+    }
+  };
+
+  const handleRunJobNow = async (jobId: string) => {
+    setRunningJobId(jobId);
+    setSchedulerActionMsg(null);
+    try {
+      const res = await api.hermes.runCronJob(jobId);
+      if (res?.success) {
+        setSchedulerActionMsg({ type: 'success', text: res.message || 'Job triggered successfully' });
+      } else {
+        setSchedulerActionMsg({ type: 'error', text: res.message || 'Failed to trigger job' });
+      }
+      await loadGatewayLogs();
+    } catch (err: any) {
+      setSchedulerActionMsg({ type: 'error', text: err.message || 'Failed to execute job' });
+    } finally {
+      setRunningJobId(null);
+    }
+  };
 
   useEffect(() => {
     loadSettings();
@@ -661,6 +876,803 @@ export default function HermesSettings() {
                   </div>
                 </div>
               </section>
+            )}
+
+            {/* ── Tab 7: Job Scheduler & Gateway Daemon ──────────────────── */}
+            {activeTab === 'scheduler' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {schedulerActionMsg && (
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: 'var(--radius-md)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      fontSize: 13,
+                      fontWeight: 500,
+                      background: schedulerActionMsg.type === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                      border: `1px solid ${schedulerActionMsg.type === 'success' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                      color: schedulerActionMsg.type === 'success' ? '#22c55e' : '#ef4444',
+                    }}
+                  >
+                    {schedulerActionMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                    <span style={{ flex: 1 }}>{schedulerActionMsg.text}</span>
+                    <button
+                      type="button"
+                      onClick={() => setSchedulerActionMsg(null)}
+                      style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', opacity: 0.7 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                {/* ── Gateway Daemon Status Hero Card ──────────────────────── */}
+                <section className="glass-card" style={{ padding: 24, position: 'relative', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: 3,
+                      background: gatewayStatus?.active
+                        ? 'linear-gradient(90deg, #22c55e, #06b6d4)'
+                        : 'linear-gradient(90deg, #ef4444, #f59e0b)',
+                    }}
+                  />
+
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <div
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 'var(--radius-md)',
+                          background: gatewayStatus?.active ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                          border: `1px solid ${gatewayStatus?.active ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: gatewayStatus?.active ? '#22c55e' : '#ef4444',
+                        }}
+                      >
+                        <Activity size={22} className={gatewayStatus?.active ? 'pulse' : ''} />
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                            Hermes Gateway Daemon
+                          </h3>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '2px 10px',
+                              borderRadius: 12,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                              background: gatewayStatus?.active ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                              color: gatewayStatus?.active ? '#22c55e' : '#ef4444',
+                              border: `1px solid ${gatewayStatus?.active ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: '50%',
+                                background: gatewayStatus?.active ? '#22c55e' : '#ef4444',
+                              }}
+                            />
+                            {gatewayStatus?.active ? 'Active & Ticking' : 'Offline / Inactive'}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+                          {gatewayStatus?.info || 'Background cron daemon ticks scheduled agent tasks every 60 seconds.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={handleRestartGateway}
+                        disabled={restartingGateway || loadingGateway}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '8px 14px',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-md)',
+                          cursor: 'pointer',
+                          color: 'var(--text-primary)',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <RefreshCw size={13} className={restartingGateway ? 'spin' : ''} />
+                        {restartingGateway ? 'Restarting...' : 'Restart Daemon'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleToggleGateway}
+                        disabled={loadingGateway || restartingGateway}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '8px 14px',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          background: gatewayStatus?.active ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)',
+                          border: `1px solid ${gatewayStatus?.active ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)'}`,
+                          color: gatewayStatus?.active ? '#ef4444' : '#22c55e',
+                          borderRadius: 'var(--radius-md)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {gatewayStatus?.active ? <Pause size={13} /> : <Play size={13} />}
+                        {gatewayStatus?.active ? 'Stop Gateway' : 'Start Gateway'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const res = await api.hermes.launchWebUI();
+                            if (res?.url) {
+                              window.open(`${res.url}#tasks`, '_blank', 'noopener,noreferrer');
+                            }
+                          } catch {
+                            // ignore
+                          }
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '8px 14px',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          background: 'linear-gradient(135deg, #7c3aed, #06b6d4)',
+                          border: 'none',
+                          color: '#fff',
+                          borderRadius: 'var(--radius-md)',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px rgba(124,58,237,0.3)',
+                        }}
+                      >
+                        <span>Tasks WebUI</span>
+                        <ExternalLink size={12} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ── Status Metrics Grid ─────────────────────────────────── */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                    <div
+                      style={{
+                        padding: 12,
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Daemon PID
+                      </div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>
+                        {gatewayStatus?.pid ? `#${gatewayStatus.pid}` : '—'}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: 12,
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Tick Interval
+                      </div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: '#06b6d4', marginTop: 4 }}>
+                        60 Seconds
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: 12,
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Active Jobs
+                      </div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-accent)', marginTop: 4 }}>
+                        {cronJobs.filter((j) => j.enabled !== false).length} / {cronJobs.length}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: 12,
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Last Heartbeat
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {gatewayStatus?.lastTick ? new Date(gatewayStatus.lastTick).toLocaleTimeString() : 'Recent'}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* ── Scheduled Jobs Section Header & Creator ──────────────── */}
+                <section className="glass-card" style={{ padding: 24 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                    <div>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Clock size={18} style={{ color: 'var(--text-accent)' }} />
+                        Scheduled Cron Tasks
+                      </h3>
+                      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+                        Create recurring jobs that run autonomously in the container on fixed intervals.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateWizard((v) => !v)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '8px 16px',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        background: showCreateWizard ? 'var(--bg-elevated)' : 'linear-gradient(135deg, #7c3aed, #06b6d4)',
+                        border: showCreateWizard ? '1px solid var(--border)' : 'none',
+                        color: showCreateWizard ? 'var(--text-secondary)' : '#fff',
+                        borderRadius: 'var(--radius-md)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                        boxShadow: showCreateWizard ? 'none' : '0 2px 10px rgba(124,58,237,0.3)',
+                      }}
+                    >
+                      {showCreateWizard ? <span>Cancel</span> : <><Plus size={14} /> <span>New Scheduled Task</span></>}
+                    </button>
+                  </div>
+
+                  {/* ── Collapsible Create Job Wizard Form ────────────────────── */}
+                  <AnimatePresence>
+                    {showCreateWizard && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        style={{
+                          marginBottom: 24,
+                          padding: 20,
+                          borderRadius: 'var(--radius-md)',
+                          background: 'rgba(124,58,237,0.04)',
+                          border: '1px solid rgba(124,58,237,0.25)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 16,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
+                          <Sparkles size={16} style={{ color: '#06b6d4' }} />
+                          Configure New Scheduled Task
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                              Task Name
+                            </label>
+                            <input
+                              type="text"
+                              value={newJob.name}
+                              onChange={(e) => setNewJob({ ...newJob, name: e.target.value })}
+                              placeholder="e.g. Daily Build & Test Check"
+                              style={inputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                              Schedule Preset
+                            </label>
+                            <select
+                              value={newJob.preset}
+                              onChange={(e) => setNewJob({ ...newJob, preset: e.target.value })}
+                              style={selectStyle}
+                            >
+                              <option value="5min">⏱️ Every 5 Minutes (*/5 * * * *)</option>
+                              <option value="hourly">🕒 Every Hour (0 * * * *)</option>
+                              <option value="daily">☀️ Daily at 09:00 (0 9 * * *)</option>
+                              <option value="weekdays">💼 Weekdays at 09:00 (0 9 * * 1-5)</option>
+                              <option value="weekly">📅 Weekly on Monday (0 9 * * 1)</option>
+                              <option value="custom">⚙️ Custom Cron Expression</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {newJob.preset === 'custom' && (
+                          <div>
+                            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                              Custom Cron Expression (Minute Hour Day Month Weekday)
+                            </label>
+                            <input
+                              type="text"
+                              value={newJob.customCron}
+                              onChange={(e) => setNewJob({ ...newJob, customCron: e.target.value })}
+                              placeholder="0 9 * * *"
+                              style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                            />
+                          </div>
+                        )}
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                              Target Workspace / Project
+                            </label>
+                            <select
+                              value={newJob.workdir}
+                              onChange={(e) => setNewJob({ ...newJob, workdir: e.target.value })}
+                              style={selectStyle}
+                            >
+                              <option value="/workspaces">📁 /workspaces (Default Root)</option>
+                              {projectsList.map((p) => (
+                                <option key={p.id} value={`/workspaces/${p.id}`}>
+                                  📂 {p.name} (/workspaces/{p.id})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                              Execution Mode
+                            </label>
+                            <div style={{ display: 'flex', gap: 10 }}>
+                              <button
+                                type="button"
+                                onClick={() => setNewJob({ ...newJob, mode: 'agent' })}
+                                style={{
+                                  flex: 1,
+                                  padding: '8px 12px',
+                                  borderRadius: 'var(--radius-md)',
+                                  cursor: 'pointer',
+                                  fontSize: 12,
+                                  fontWeight: newJob.mode === 'agent' ? 700 : 400,
+                                  background: newJob.mode === 'agent' ? 'rgba(124,58,237,0.15)' : 'var(--bg-elevated)',
+                                  border: `1px solid ${newJob.mode === 'agent' ? 'rgba(124,58,237,0.4)' : 'var(--border)'}`,
+                                  color: newJob.mode === 'agent' ? 'var(--text-accent)' : 'var(--text-secondary)',
+                                }}
+                              >
+                                🤖 AI Agent Prompt
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setNewJob({ ...newJob, mode: 'script' })}
+                                style={{
+                                  flex: 1,
+                                  padding: '8px 12px',
+                                  borderRadius: 'var(--radius-md)',
+                                  cursor: 'pointer',
+                                  fontSize: 12,
+                                  fontWeight: newJob.mode === 'script' ? 700 : 400,
+                                  background: newJob.mode === 'script' ? 'rgba(124,58,237,0.15)' : 'var(--bg-elevated)',
+                                  border: `1px solid ${newJob.mode === 'script' ? 'rgba(124,58,237,0.4)' : 'var(--border)'}`,
+                                  color: newJob.mode === 'script' ? 'var(--text-accent)' : 'var(--text-secondary)',
+                                }}
+                              >
+                                📜 Shell Script
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {newJob.mode === 'agent' ? (
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                                Agent Instructions / Prompt
+                              </label>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setNewJob({
+                                      ...newJob,
+                                      name: newJob.name || 'Automated Test Verification',
+                                      prompt: 'Check repository status, run `pnpm test` or `npm test`, analyze any test failures, and fix broken tests.',
+                                    })
+                                  }
+                                  style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: 'var(--bg-elevated)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-muted)' }}
+                                >
+                                  + Test Template
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setNewJob({
+                                      ...newJob,
+                                      name: newJob.name || 'Git Sync & Health Check',
+                                      prompt: 'Check git status, pull latest changes if remote is updated, verify server builds cleanly without errors.',
+                                    })
+                                  }
+                                  style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: 'var(--bg-elevated)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-muted)' }}
+                                >
+                                  + Sync Template
+                                </button>
+                              </div>
+                            </div>
+                            <textarea
+                              value={newJob.prompt}
+                              onChange={(e) => setNewJob({ ...newJob, prompt: e.target.value })}
+                              placeholder="Describe exactly what Hermes should do on each scheduled execution..."
+                              rows={4}
+                              style={{ ...inputStyle, resize: 'vertical' }}
+                            />
+                          </div>
+                        ) : (
+                          <div>
+                            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                              Shell Script Command
+                            </label>
+                            <textarea
+                              value={newJob.script}
+                              onChange={(e) => setNewJob({ ...newJob, script: e.target.value })}
+                              placeholder="git status && npm run test"
+                              rows={3}
+                              style={{ ...inputStyle, fontFamily: 'var(--font-mono)', resize: 'vertical' }}
+                            />
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowCreateWizard(false)}
+                            style={{
+                              padding: '8px 16px',
+                              fontSize: 13,
+                              background: 'transparent',
+                              border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius-md)',
+                              color: 'var(--text-secondary)',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCreateJob}
+                            disabled={creatingJob}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '8px 18px',
+                              fontSize: 13,
+                              fontWeight: 700,
+                              background: 'linear-gradient(135deg, #7c3aed, #06b6d4)',
+                              border: 'none',
+                              color: '#fff',
+                              borderRadius: 'var(--radius-md)',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {creatingJob ? <Loader size={14} className="spin" /> : <Check size={14} />}
+                            <span>Schedule Task</span>
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* ── Scheduled Jobs Table / List ──────────────────────────── */}
+                  {cronJobs.length === 0 ? (
+                    <div
+                      style={{
+                        padding: '36px 20px',
+                        textAlign: 'center',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--bg-elevated)',
+                        border: '1px dashed var(--border)',
+                        color: 'var(--text-muted)',
+                      }}
+                    >
+                      <Clock size={32} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+                        No Scheduled Tasks Configured Yet
+                      </div>
+                      <p style={{ fontSize: 12, margin: '0 0 16px' }}>
+                        Click "New Scheduled Task" above to configure your first automated background job.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowCreateWizard(true)}
+                        style={{
+                          padding: '6px 14px',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          background: 'rgba(124,58,237,0.12)',
+                          border: '1px solid rgba(124,58,237,0.3)',
+                          color: 'var(--text-accent)',
+                          borderRadius: 'var(--radius-md)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        + Create Your First Task
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {cronJobs.map((job) => {
+                        const isRunningThis = runningJobId === job.id;
+                        const isAgentMode = !job.no_agent;
+                        const scheduleLabel =
+                          job.schedule_display || (typeof job.schedule === 'string' ? job.schedule : job.schedule?.expression) || '—';
+
+                        return (
+                          <div
+                            key={job.id}
+                            style={{
+                              padding: '14px 16px',
+                              borderRadius: 'var(--radius-md)',
+                              background: 'var(--bg-elevated)',
+                              border: `1px solid ${job.enabled ? 'var(--border)' : 'rgba(255,255,255,0.04)'}`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 16,
+                              opacity: job.enabled ? 1 : 0.6,
+                              transition: 'all 0.15s',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                              <span style={{ fontSize: 20 }}>{isAgentMode ? '🤖' : '📜'}</span>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                                    {job.name}
+                                  </span>
+                                  <span
+                                    style={{
+                                      padding: '2px 8px',
+                                      borderRadius: 10,
+                                      fontSize: 10,
+                                      fontWeight: 600,
+                                      background: job.enabled ? 'rgba(34,197,94,0.12)' : 'rgba(156,163,175,0.12)',
+                                      color: job.enabled ? '#22c55e' : 'var(--text-muted)',
+                                    }}
+                                  >
+                                    {job.enabled ? 'Active' : 'Paused'}
+                                  </span>
+                                  <span
+                                    style={{
+                                      padding: '2px 8px',
+                                      borderRadius: 10,
+                                      fontSize: 10,
+                                      fontWeight: 600,
+                                      background: 'rgba(6,182,212,0.1)',
+                                      color: '#06b6d4',
+                                      fontFamily: 'var(--font-mono)',
+                                    }}
+                                  >
+                                    {scheduleLabel}
+                                  </span>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                                  <span>Dir: <code style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>{job.workdir || '/workspaces'}</code></span>
+                                  {job.last_run_at && (
+                                    <span>Last run: {new Date(job.last_run_at).toLocaleString()}</span>
+                                  )}
+                                  {job.prompt && (
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
+                                      "{job.prompt}"
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                              <button
+                                type="button"
+                                onClick={() => handleRunJobNow(job.id)}
+                                disabled={isRunningThis}
+                                title="Run now"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  padding: '6px 12px',
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  background: 'rgba(6,182,212,0.12)',
+                                  border: '1px solid rgba(6,182,212,0.3)',
+                                  color: '#06b6d4',
+                                  borderRadius: 'var(--radius-sm)',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {isRunningThis ? <Loader size={12} className="spin" /> : <Play size={12} />}
+                                <span>Run Now</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleToggleJob(job)}
+                                title={job.enabled ? 'Pause job' : 'Resume job'}
+                                style={{
+                                  background: 'none',
+                                  border: '1px solid var(--border)',
+                                  borderRadius: 'var(--radius-sm)',
+                                  padding: '6px 8px',
+                                  cursor: 'pointer',
+                                  color: 'var(--text-secondary)',
+                                }}
+                              >
+                                {job.enabled ? <Pause size={13} /> : <Play size={13} />}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteJob(job.id)}
+                                title="Delete job"
+                                style={{
+                                  background: 'none',
+                                  border: '1px solid rgba(239,68,68,0.2)',
+                                  borderRadius: 'var(--radius-sm)',
+                                  padding: '6px 8px',
+                                  cursor: 'pointer',
+                                  color: '#ef4444',
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+
+                {/* ── Gateway Daemon Logs Terminal Card ────────────────────── */}
+                <section className="glass-card" style={{ padding: 24 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Terminal size={16} style={{ color: 'var(--text-accent)' }} />
+                      <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                        Gateway Daemon Logs
+                      </h3>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                        (~/.hermes/logs/gateway.log)
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await loadGatewayLogs();
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '4px 10px',
+                          fontSize: 11,
+                          background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-sm)',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <RefreshCw size={11} />
+                        <span>Refresh Logs</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(gatewayLogs.join('\n'));
+                          setCopiedLogs(true);
+                          setTimeout(() => setCopiedLogs(false), 2000);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '4px 10px',
+                          fontSize: 11,
+                          background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-sm)',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {copiedLogs ? <Check size={11} /> : <Copy size={11} />}
+                        <span>{copiedLogs ? 'Copied' : 'Copy'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowLogs((v) => !v)}
+                        style={{
+                          padding: '4px 10px',
+                          fontSize: 11,
+                          background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-sm)',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {showLogs ? 'Collapse' : 'Expand'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      maxHeight: showLogs ? 400 : 160,
+                      overflowY: 'auto',
+                      background: '#0d1117',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '12px 16px',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 11,
+                      color: '#c9d1d9',
+                      lineHeight: 1.6,
+                      border: '1px solid var(--border)',
+                      transition: 'max-height 0.2s',
+                    }}
+                  >
+                    {gatewayLogs.length === 0 ? (
+                      <div style={{ color: '#8b949e', fontStyle: 'italic' }}>
+                        No daemon output yet. Gateway logs will stream here as cron ticks execute.
+                      </div>
+                    ) : (
+                      gatewayLogs.map((log, i) => (
+                        <div key={i} style={{ wordBreak: 'break-all' }}>
+                          <span style={{ color: '#58a6ff', opacity: 0.7 }}>[{i + 1}]</span> {log}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+              </div>
             )}
           </motion.div>
 

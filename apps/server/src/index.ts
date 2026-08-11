@@ -33,6 +33,7 @@ import { hermesRoutes } from './routes/hermes.js';
 import { hermesSettingsRoutes } from './routes/hermes-settings.js';
 import { hermesWebUIRoutes, createHermesWebUIProxy, proxyHermesWebUIUpgrade } from './routes/hermes-webui.js';
 import { stopHermesWebUI } from './services/hermes-webui.service.js';
+import { startGateway, stopGateway } from './services/hermes-gateway.service.js';
 import { verifyToken } from './middleware/auth.middleware.js';
 import { runMigrations } from './db/migrate.js';
 
@@ -290,12 +291,18 @@ async function bootstrap() {
       }
     }
   });
+
+  // ── Start Hermes Gateway daemon in background for scheduled cron jobs ────
+  startGateway().catch((err: Error) => {
+    fastify.log.warn(`[hermes-gateway] Auto-start notice: ${err.message}`);
+  });
 }
 
 // ── Graceful shutdown ──────────────────────────────────────────────────────
 async function shutdown(signal: string) {
   fastify.log.info(`[${signal}] Initiating graceful shutdown...`);
   stopHermesWebUI();
+  await stopGateway().catch(() => {});
   await fastify.close();
   await flushAllSyncs();
   await stopAllWorkspaces();
