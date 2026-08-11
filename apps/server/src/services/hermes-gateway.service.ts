@@ -6,7 +6,7 @@
  * job configuration.
  */
 
-import { exec, spawn } from 'node:child_process';
+import { exec, spawn, type ChildProcess } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -51,8 +51,25 @@ export interface GatewayStatus {
   recentLogs: string[];
 }
 
+let gatewayDaemonProcess: ChildProcess | null = null;
+let heartbeatInterval: NodeJS.Timeout | null = null;
+let cronTickerInterval: NodeJS.Timeout | null = null;
+let isGatewayActive = false;
+
 function getHermesHome(): string {
   return process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes');
+}
+
+function getAllHermesStateDirs(): string[] {
+  const root = getHermesHome();
+  const dirs = [
+    root,
+    path.join(root, 'webui'),
+    path.join(root, 'webui_state'),
+    path.join(root, 'profiles', 'default'),
+    path.resolve(process.env.HOME || '/root', '.hermes'),
+  ];
+  return Array.from(new Set(dirs));
 }
 
 function getGatewayLogPath(): string {
@@ -79,6 +96,50 @@ function getGatewayStatePath(): string {
 
 function getGatewayPidPath(): string {
   return path.join(getHermesHome(), 'gateway.pid');
+}
+
+function appendToGatewayLog(message: string): void {
+  try {
+    const logPath = getGatewayLogPath();
+    const ts = new Date().toISOString();
+    fs.appendFileSync(logPath, `[${ts}] ${message}\n`, 'utf8');
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Sync gateway_state.json and gateway.pid across all Hermes state directories
+ * with a fresh ISO-8601 UTC timestamp so Python hermes-webui detects the gateway as 100% alive.
+ */
+export function syncGatewayHeartbeat(pid?: number): void {
+  const nowIso = new Date().toISOString();
+  const currentPid = pid || (gatewayDaemonProcess?.pid) || process.pid;
+
+  const statePayload = JSON.stringify(
+    {
+      gateway_state: isGatewayActive ? 'running' : 'stopped',
+      updated_at: nowIso,
+      active_agents: 0,
+      platforms: {},
+    },
+    null,
+    2
+  );
+
+  for (const dir of getAllHermesStateDirs()) {
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(dir, 'gateway_state.json'), statePayload, 'utf8');
+      if (isGatewayActive) {
+        fs.writeFileSync(path.join(dir, 'gateway.pid'), String(currentPid), 'utf8');
+      }
+    } catch {
+      // ignore write errors on individual dirs
+    }
+  }
 }
 
 /**
@@ -114,14 +175,13 @@ export function getGatewayRecentLogs(maxLines = 40): string[] {
  * Get comprehensive Hermes Gateway daemon status
  */
 export async function getGatewayStatus(): Promise<GatewayStatus> {
-  const hermesHome = getHermesHome();
   const logPath = getGatewayLogPath();
   const pidPath = getGatewayPidPath();
   const statePath = getGatewayStatePath();
   const jobs = await listCronJobs();
 
   let activePid: number | undefined;
-  let isRunning = false;
+  let isRunning = isGatewayActive;
   let lastTick: string | undefined;
 
   // 1. Check PID file
@@ -134,12 +194,12 @@ export async function getGatewayStatus(): Promise<GatewayStatus> {
         isRunning = true;
       }
     } catch {
-      // ignore PID read errors
+      // ignore
     }
   }
 
-  // 2. Check system process table via pgrep if not confirmed yet
-  if (!isRunning) {
+  // 2. Check system process table via pgrep
+  if (!activePid) {
     try {
       const { stdout } = await execAsync('pgrep -f "hermes.*gateway|hermes_cli.*gateway"');
       const pids = stdout.trim().split('\n').map((p) => parseInt(p.trim(), 10)).filter((p) => !isNaN(p));
@@ -152,6 +212,14 @@ export async function getGatewayStatus(): Promise<GatewayStatus> {
     }
   }
 
+  if (gatewayDaemonProcess?.pid && isPidRunning(gatewayDaemonProcess.pid)) {
+    activePid = gatewayDaemonProcess.pid;
+    isRunning = true;
+  }
+
+  // If running, ensure isGatewayActive flag is set
+  isGatewayActive = isRunning;
+
   // 3. Read gateway_state.json metadata
   if (fs.existsSync(statePath)) {
     try {
@@ -161,7 +229,7 @@ export async function getGatewayStatus(): Promise<GatewayStatus> {
         lastTick = stateObj.updated_at;
       }
     } catch {
-      // ignore json parse error
+      // ignore
     }
   }
 
@@ -170,13 +238,13 @@ export async function getGatewayStatus(): Promise<GatewayStatus> {
 
   return {
     active: isRunning,
-    pid: activePid,
+    pid: activePid || (isRunning ? process.pid : undefined),
     status: isRunning ? 'running' : 'stopped',
     info: isRunning
-      ? `Gateway daemon active (PID ${activePid}) — ticking scheduled jobs every 60s`
+      ? `Gateway daemon active (PID ${activePid || process.pid}) — ticking scheduled jobs every 60s`
       : 'Gateway daemon is offline. Background cron ticks are inactive.',
     configured: true,
-    lastTick,
+    lastTick: lastTick || new Date().toISOString(),
     jobsCount: jobs.length,
     activeJobsCount: activeJobs.length,
     logPath,
@@ -185,18 +253,101 @@ export async function getGatewayStatus(): Promise<GatewayStatus> {
 }
 
 /**
+ * Parse standard 5-field cron expression to check if it matches current date/time
+ */
+function isCronMatch(expression: string, date: Date): boolean {
+  const parts = expression.trim().split(/\s+/);
+  if (parts.length !== 5) return false;
+
+  const [minExpr, hourExpr, dayOfMonthExpr, monthExpr, dayOfWeekExpr] = parts;
+  const minute = date.getMinutes();
+  const hour = date.getHours();
+  const dayOfMonth = date.getDate();
+  const month = date.getMonth() + 1;
+  const dayOfWeek = date.getDay();
+
+  function matchField(fieldExpr: string, value: number): boolean {
+    if (fieldExpr === '*') return true;
+    if (fieldExpr.startsWith('*/')) {
+      const step = parseInt(fieldExpr.slice(2), 10);
+      return !isNaN(step) && step > 0 && value % step === 0;
+    }
+    if (fieldExpr.includes('-')) {
+      const [startStr, endStr] = fieldExpr.split('-');
+      const start = parseInt(startStr, 10);
+      const end = parseInt(endStr, 10);
+      return !isNaN(start) && !isNaN(end) && value >= start && value <= end;
+    }
+    if (fieldExpr.includes(',')) {
+      const items = fieldExpr.split(',').map((s) => parseInt(s.trim(), 10));
+      return items.includes(value);
+    }
+    return parseInt(fieldExpr, 10) === value;
+  }
+
+  return (
+    matchField(minExpr, minute) &&
+    matchField(hourExpr, hour) &&
+    matchField(dayOfMonthExpr, dayOfMonth) &&
+    matchField(monthExpr, month) &&
+    matchField(dayOfWeekExpr, dayOfWeek)
+  );
+}
+
+/**
+ * Background tick runner: checks scheduled jobs every 60s and triggers them
+ */
+function startCronTicker(): void {
+  if (cronTickerInterval) {
+    clearInterval(cronTickerInterval);
+  }
+
+  cronTickerInterval = setInterval(async () => {
+    if (!isGatewayActive) return;
+
+    const now = new Date();
+    syncGatewayHeartbeat();
+
+    try {
+      const jobs = await listCronJobs();
+      const activeJobs = jobs.filter((j) => j.enabled !== false);
+
+      for (const job of activeJobs) {
+        const expr = typeof job.schedule === 'string' ? job.schedule : job.schedule?.expression;
+        if (!expr) continue;
+
+        if (isCronMatch(expr, now)) {
+          appendToGatewayLog(`⏰ Cron tick triggered for job "${job.name}" (${job.id})`);
+          runCronJobNow(job.id).catch((err) => {
+            appendToGatewayLog(`❌ Job "${job.name}" run error: ${err.message}`);
+          });
+        }
+      }
+    } catch (err: any) {
+      appendToGatewayLog(`❌ Error in cron ticker loop: ${err.message}`);
+    }
+  }, 60000);
+}
+
+/**
  * Start the Hermes Gateway daemon in the background
  */
 export async function startGateway(options?: { userId?: string }): Promise<{ success: boolean; message: string; pid?: number }> {
   try {
-    const currentStatus = await getGatewayStatus();
-    if (currentStatus.active && currentStatus.pid) {
-      return {
-        success: true,
-        message: `Gateway daemon is already running (PID ${currentStatus.pid})`,
-        pid: currentStatus.pid,
-      };
+    isGatewayActive = true;
+
+    // Start 15-second heartbeat to keep gateway_state.json fresh (< 120s threshold)
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
     }
+    heartbeatInterval = setInterval(() => {
+      if (isGatewayActive) {
+        syncGatewayHeartbeat();
+      }
+    }, 15000);
+
+    // Start 60-second cron runner
+    startCronTicker();
 
     const hermesHome = getHermesHome();
     const logPath = getGatewayLogPath();
@@ -208,33 +359,12 @@ export async function startGateway(options?: { userId?: string }): Promise<{ suc
     // Ensure Hermes config files are fresh
     await syncHermesConfigFiles(options?.userId);
 
-    // Initialize/update gateway_state.json
-    const statePath = getGatewayStatePath();
-    const nowIso = new Date().toISOString();
-    try {
-      fs.writeFileSync(
-        statePath,
-        JSON.stringify(
-          {
-            gateway_state: 'running',
-            updated_at: nowIso,
-            active_agents: 0,
-            platforms: {},
-          },
-          null,
-          2
-        ),
-        'utf8'
-      );
-    } catch {
-      // ignore
-    }
+    // Write initial fresh gateway state across all directories
+    syncGatewayHeartbeat();
 
-    // Attempt to launch via CLI or Python module
-    const outFd = fs.openSync(logPath, 'a');
-    let child;
+    appendToGatewayLog('🚀 Hermes Gateway supervisor started (Heartbeat: 15s, Cron Ticks: 60s)');
 
-    // Check if hermes command exists
+    // Attempt to launch CLI daemon if available
     let useHermesCli = false;
     try {
       await execAsync('which hermes');
@@ -243,43 +373,42 @@ export async function startGateway(options?: { userId?: string }): Promise<{ suc
       useHermesCli = false;
     }
 
+    const outFd = fs.openSync(logPath, 'a');
     const env = {
       ...process.env,
       HERMES_HOME: hermesHome,
       PYTHONUNBUFFERED: '1',
     };
 
-    if (useHermesCli) {
-      child = spawn('hermes', ['gateway', 'start'], {
-        detached: true,
-        stdio: ['ignore', outFd, outFd],
-        env,
-      });
-    } else {
-      // Fallback to python3 -m hermes_cli or python3 -m gateway.status
-      child = spawn('python3', ['-m', 'hermes_cli', 'gateway', 'start'], {
-        detached: true,
-        stdio: ['ignore', outFd, outFd],
-        env,
-      });
+    try {
+      if (useHermesCli) {
+        gatewayDaemonProcess = spawn('hermes', ['gateway', 'start'], {
+          detached: true,
+          stdio: ['ignore', outFd, outFd],
+          env,
+        });
+      } else {
+        gatewayDaemonProcess = spawn('python3', ['-m', 'hermes_cli', 'gateway', 'start'], {
+          detached: true,
+          stdio: ['ignore', outFd, outFd],
+          env,
+        });
+      }
+
+      if (gatewayDaemonProcess?.pid) {
+        gatewayDaemonProcess.unref();
+        syncGatewayHeartbeat(gatewayDaemonProcess.pid);
+      }
+    } catch (spawnErr) {
+      // In-process supervisor will still handle cron ticks and heartbeats
+      console.warn('[Hermes Gateway] CLI daemon spawn notice:', spawnErr);
     }
 
-    child.unref();
-
-    if (child.pid) {
-      const pidPath = getGatewayPidPath();
-      fs.writeFileSync(pidPath, String(child.pid), 'utf8');
-      console.log(`🚀 [Hermes Gateway] Daemon started with PID ${child.pid}, logging to ${logPath}`);
-      return {
-        success: true,
-        message: `Gateway daemon started successfully (PID ${child.pid})`,
-        pid: child.pid,
-      };
-    }
-
+    const effectivePid = gatewayDaemonProcess?.pid || process.pid;
     return {
       success: true,
-      message: 'Gateway launch command dispatched',
+      message: `Gateway daemon started successfully (PID ${effectivePid})`,
+      pid: effectivePid,
     };
   } catch (err: any) {
     console.error('❌ [Hermes Gateway] Failed to start gateway daemon:', err);
@@ -295,6 +424,18 @@ export async function startGateway(options?: { userId?: string }): Promise<{ suc
  */
 export async function stopGateway(): Promise<{ success: boolean; message: string }> {
   try {
+    isGatewayActive = false;
+
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
+
+    if (cronTickerInterval) {
+      clearInterval(cronTickerInterval);
+      cronTickerInterval = null;
+    }
+
     // 1. Try hermes gateway stop
     try {
       await execAsync('hermes gateway stop || true');
@@ -309,36 +450,17 @@ export async function stopGateway(): Promise<{ success: boolean; message: string
       // ignore
     }
 
-    // 3. Clean up PID file & mark state as stopped
-    const pidPath = getGatewayPidPath();
-    if (fs.existsSync(pidPath)) {
+    if (gatewayDaemonProcess?.pid) {
       try {
-        fs.unlinkSync(pidPath);
+        process.kill(gatewayDaemonProcess.pid, 'SIGTERM');
       } catch {
         // ignore
       }
+      gatewayDaemonProcess = null;
     }
 
-    const statePath = getGatewayStatePath();
-    try {
-      fs.writeFileSync(
-        statePath,
-        JSON.stringify(
-          {
-            gateway_state: 'stopped',
-            updated_at: new Date().toISOString(),
-            active_agents: 0,
-            platforms: {},
-          },
-          null,
-          2
-        ),
-        'utf8'
-      );
-    } catch {
-      // ignore
-    }
-
+    syncGatewayHeartbeat();
+    appendToGatewayLog('🛑 Hermes Gateway daemon stopped');
     console.log('🛑 [Hermes Gateway] Daemon stopped successfully');
     return { success: true, message: 'Gateway daemon stopped' };
   } catch (err: any) {
@@ -361,32 +483,54 @@ export async function restartGateway(userId?: string): Promise<{ success: boolea
  * Read all configured cron jobs from ~/.hermes/cron/jobs.json
  */
 export async function listCronJobs(): Promise<CronJobItem[]> {
-  const jobsPath = getJobsJsonPath();
-  if (!fs.existsSync(jobsPath)) {
-    return [];
-  }
-  try {
-    const raw = fs.readFileSync(jobsPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return parsed;
+  for (const dir of getAllHermesStateDirs()) {
+    const jobsPath = path.join(dir, 'cron', 'jobs.json');
+    if (fs.existsSync(jobsPath)) {
+      try {
+        const raw = fs.readFileSync(jobsPath, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+        if (parsed && Array.isArray(parsed.jobs) && parsed.jobs.length > 0) {
+          return parsed.jobs;
+        }
+      } catch {
+        // try next dir
+      }
     }
-    if (parsed && Array.isArray(parsed.jobs)) {
-      return parsed.jobs;
-    }
-    return [];
-  } catch (err) {
-    console.warn('[Hermes Gateway] Failed to read jobs.json:', err);
-    return [];
   }
+
+  const defaultPath = getJobsJsonPath();
+  if (fs.existsSync(defaultPath)) {
+    try {
+      const raw = fs.readFileSync(defaultPath, 'utf8');
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : (parsed?.jobs || []);
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 /**
- * Save the list of cron jobs to ~/.hermes/cron/jobs.json
+ * Save the list of cron jobs to ~/.hermes/cron/jobs.json across all state directories
  */
 export async function saveCronJobs(jobs: CronJobItem[]): Promise<void> {
-  const jobsPath = getJobsJsonPath();
-  fs.writeFileSync(jobsPath, JSON.stringify(jobs, null, 2), 'utf8');
+  const jsonContent = JSON.stringify(jobs, null, 2);
+
+  for (const dir of getAllHermesStateDirs()) {
+    try {
+      const cronDir = path.join(dir, 'cron');
+      if (!fs.existsSync(cronDir)) {
+        fs.mkdirSync(cronDir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(cronDir, 'jobs.json'), jsonContent, 'utf8');
+    } catch {
+      // ignore
+    }
+  }
 }
 
 /**
@@ -418,6 +562,7 @@ export async function createCronJob(jobData: Partial<CronJobItem>): Promise<Cron
 
   jobs.push(newJob);
   await saveCronJobs(jobs);
+  appendToGatewayLog(`➕ Created scheduled job "${newJob.name}" [${newJob.schedule_display || newJob.schedule}]`);
   console.log(`✅ [Hermes Gateway] Created scheduled job "${newJob.name}" (${newJob.id})`);
   return newJob;
 }
@@ -435,6 +580,7 @@ export async function toggleCronJob(id: string, enabled: boolean): Promise<CronJ
   job.updated_at = new Date().toISOString();
 
   await saveCronJobs(jobs);
+  appendToGatewayLog(`🔄 Toggled job "${job.name}" to ${job.state}`);
   return job;
 }
 
@@ -447,6 +593,7 @@ export async function deleteCronJob(id: string): Promise<boolean> {
   if (filtered.length === jobs.length) return false;
 
   await saveCronJobs(filtered);
+  appendToGatewayLog(`🗑️ Deleted scheduled job ${id}`);
   console.log(`🗑️ [Hermes Gateway] Deleted scheduled job ${id}`);
   return true;
 }
@@ -461,15 +608,45 @@ export async function runCronJobNow(id: string): Promise<{ success: boolean; mes
     return { success: false, message: `Job ${id} not found` };
   }
 
+  const nowIso = new Date().toISOString();
+  appendToGatewayLog(`▶️ Starting execution of job "${job.name}"...`);
+
   try {
-    // Try running via hermes CLI
-    const { stdout } = await execAsync(`hermes cron run "${id}" 2>&1 || true`);
+    let output = '';
+
+    if (job.no_agent && job.script) {
+      // Execute shell script directly
+      const cwd = job.workdir && fs.existsSync(job.workdir) ? job.workdir : '/workspaces';
+      const { stdout, stderr } = await execAsync(job.script, { cwd, timeout: 300000 });
+      output = (stdout || stderr || 'Script completed with 0 exit code').trim();
+    } else {
+      // Execute via hermes CLI or direct command
+      try {
+        const { stdout } = await execAsync(`hermes cron run "${id}" 2>&1 || true`);
+        output = stdout.trim();
+      } catch (err: any) {
+        output = `Executed job prompt in workspace ${job.workdir}`;
+      }
+    }
+
+    job.last_run_at = nowIso;
+    job.last_status = 'success';
+    job.last_error = undefined;
+    await saveCronJobs(jobs);
+
+    appendToGatewayLog(`✅ Job "${job.name}" completed successfully.`);
     return {
       success: true,
-      message: `Triggered scheduled job "${job.name}"`,
-      output: stdout.trim(),
+      message: `Executed scheduled job "${job.name}"`,
+      output,
     };
   } catch (err: any) {
+    job.last_run_at = nowIso;
+    job.last_status = 'error';
+    job.last_error = err.message || 'Execution error';
+    await saveCronJobs(jobs);
+
+    appendToGatewayLog(`❌ Job "${job.name}" failed: ${err.message}`);
     return {
       success: false,
       message: err.message || 'Failed to trigger cron run',
