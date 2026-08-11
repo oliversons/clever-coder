@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import httpProxy from 'http-proxy';
 import { authMiddleware, verifyToken, type JwtPayload } from '../middleware/auth.middleware.js';
 import { startHermesWebUI, restartHermesWebUI, getHermesWebUIPort, isHermesWebUIRunning, isPortOpen } from '../services/hermes-webui.service.js';
+import { listCronJobs } from '../services/hermes-gateway.service.js';
 import { ensureWorkspaceFiles } from '../services/workspace.service.js';
 import { startWatcher } from '../services/sync.service.js';
 import { getDb, schema } from '../db/index.js';
@@ -301,6 +302,23 @@ export async function createHermesWebUIProxy(
       },
     }));
     return;
+  }
+
+  // ── Intercept Scheduled Jobs List to guarantee synchronization with CleverCoder ──
+  if ((req.url === '/api/crons' || req.url?.startsWith('/api/crons?')) && req.method === 'GET') {
+    try {
+      const jobs = await listCronJobs();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        jobs,
+        all_profiles: false,
+        active_profile: 'default',
+        other_profile_count: 0,
+      }));
+      return;
+    } catch {
+      // fallback to proxy
+    }
   }
 
   // ── CSRF bypass: strip all browser security headers ──────────────────────
