@@ -1337,3 +1337,23 @@ code, .mono {
 .hermes-message-content .hermes-h2 { font-size: 15px; font-weight: 700; margin: 8px 0 4px; }
 .hermes-message-content .hermes-h3 { font-size: 13px; font-weight: 700; margin: 6px 0 3px; }
 
+/* ─── Hermes Settings Responsive Layout ─────────────────────── */
+@media (max-width: 1024px) {
+  .hermes-settings-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .hermes-settings-grid > div:first-child {
+    position: static !important;
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    gap: 8px !important;
+    padding: 8px !important;
+    white-space: nowrap !important;
+  }
+  .hermes-settings-grid > div:first-child > button {
+    flex-shrink: 0 !important;
+  }
+}
+
+
