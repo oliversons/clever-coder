@@ -364,6 +364,20 @@ export async function upsertHermesBrowserSettings(userId: string, input: HermesB
 
   // Synchronize to ~/.hermes/ configuration
   await syncBrowserConfigToYamlAndEnv(saved);
+
+  // If Camofox is active, ensure daemon is running
+  if (saved.provider === 'camofox') {
+    ensureCamofoxDaemonRunning().catch(() => {});
+  }
+
+  // Gracefully restart running WebUI so it picks up the updated browser environment
+  try {
+    const { restartHermesWebUI } = await import('./hermes-webui.service.js');
+    await restartHermesWebUI({ userId });
+  } catch (webuiErr) {
+    console.warn('[Hermes Browser] WebUI restart notice:', webuiErr);
+  }
+
   return saved;
 }
 
@@ -399,11 +413,13 @@ export async function syncBrowserConfigToYamlAndEnv(settings: any) {
 
   // ── Determine Provider & CDP Endpoint ──────────────────────────────────────
   let effectiveProvider = settings.provider || 'local_chromium';
-  let effectiveCdpUrl = settings.cdpUrl || '';
+  let effectiveCdpUrl = '';
 
   if (effectiveProvider === 'kitesurf_cdp') {
     effectiveProvider = 'cdp';
     effectiveCdpUrl = settings.cdpUrl || 'wss://kitesurf.cloudflare.app/devtools/browser';
+  } else if (effectiveProvider === 'cdp') {
+    effectiveCdpUrl = settings.cdpUrl || '';
   }
 
   // ── 1. Compose or Update ~/.hermes/config.yaml ──────────────────────────────
@@ -540,7 +556,7 @@ browser:
   fs.writeFileSync(envPath, finalEnv, 'utf8');
   fs.writeFileSync(path.join(defaultProfileHome, '.env'), finalEnv, 'utf8');
 
-  // ── 3. Register Cloudflare Kitesurf MCP in ~/.hermes/mcp.json ───────────────
+  // ── 3. Manage Cloudflare Kitesurf MCP in ~/.hermes/mcp.json ───────────────
   const mcpPath = path.join(hermesHome, 'mcp.json');
   let mcpConfig: any = { mcpServers: {} };
   if (fs.existsSync(mcpPath)) {
@@ -550,7 +566,9 @@ browser:
   }
   mcpConfig.mcpServers = mcpConfig.mcpServers || {};
 
-  if (settings.kitesurfMcpEnabled || settings.provider === 'kitesurf_cdp') {
+  const isKitesurfActive = settings.provider === 'kitesurf_cdp' || (Boolean(settings.kitesurfMcpEnabled) && settings.provider === 'cdp');
+
+  if (isKitesurfActive) {
     mcpConfig.mcpServers.kitesurf = {
       command: 'npx',
       args: [
@@ -560,6 +578,11 @@ browser:
       ],
       enabled: true,
     };
+  } else {
+    // When using Camofox, Local Chromium, Browserbase, etc., remove kitesurf MCP server so agent uses the native browser provider!
+    if (mcpConfig.mcpServers.kitesurf) {
+      delete mcpConfig.mcpServers.kitesurf;
+    }
   }
   const finalMcp = JSON.stringify(mcpConfig, null, 2);
   fs.writeFileSync(mcpPath, finalMcp, 'utf8');
