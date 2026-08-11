@@ -104,7 +104,7 @@ async function bootstrap() {
     timeWindow: '1 minute',
     // Don't rate-limit proxy passthrough routes — they tunnel to local processes
     // and can generate many requests per page load (assets, WS, API calls)
-    skip: (request) => {
+    allowList: (request) => {
       const url = request.url ?? '';
       return url.startsWith('/hermes-ui') || url.startsWith('/workspace/');
     },
