@@ -171,6 +171,44 @@ export const api = {
       request<{ success: boolean; message: string; output?: string }>(`/hermes/cron/jobs/${id}/run`, {
         method: 'POST',
       }),
+    // ── Vision & Image Generation ──
+    getVisionImageSettings: () =>
+      request<HermesVisionImageSettings>('/hermes/vision-image'),
+    saveVisionImageSettings: (data: Partial<HermesVisionImageSettings>) =>
+      request<{ success: boolean; settings: HermesVisionImageSettings }>('/hermes/vision-image', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    discoverSatModels: (baseUrl?: string, apiKey?: string) => {
+      const params = new URLSearchParams();
+      if (baseUrl) params.set('baseUrl', baseUrl);
+      if (apiKey) params.set('apiKey', apiKey);
+      const qs = params.toString();
+      return request<SatModelDiscoveryResult>(`/hermes/sat-models${qs ? `?${qs}` : ''}`);
+    },
+    testVision: (prompt: string, image: string, settings?: Partial<HermesVisionImageSettings>) =>
+      request<{
+        success: boolean;
+        model: string;
+        latencyMs: number;
+        analysis?: string;
+        error?: string;
+      }>('/hermes/vision/test', {
+        method: 'POST',
+        body: JSON.stringify({ prompt, image, settings }),
+      }),
+    testImageGen: (prompt: string, settings?: Partial<HermesVisionImageSettings>) =>
+      request<{
+        success: boolean;
+        model: string;
+        latencyMs: number;
+        imageUrl?: string;
+        prompt?: string;
+        error?: string;
+      }>('/hermes/image-gen/test', {
+        method: 'POST',
+        body: JSON.stringify({ prompt, settings }),
+      }),
     // ── Web Search & Extract ──
     getWebSearchSettings: () =>
       request<HermesWebSearchSettings>('/hermes/web-search'),
@@ -213,6 +251,47 @@ export const api = {
       }),
   },
 };
+
+export interface SatDiscoveredModel {
+  id: string;
+  name: string;
+  description?: string;
+  contextLength?: number;
+  isVision: boolean;
+  isImageGen: boolean;
+  raw?: any;
+}
+
+export interface SatModelDiscoveryResult {
+  success: boolean;
+  count: number;
+  baseUrl: string;
+  models: SatDiscoveredModel[];
+  visionModels: SatDiscoveredModel[];
+  imageGenModels: SatDiscoveredModel[];
+  error?: string;
+}
+
+export interface HermesVisionImageSettings {
+  id?: string;
+  satApiKey?: string;
+  satBaseUrl: string;
+
+  visionProvider: string;
+  defaultVisionModel: string;
+  visionBaseUrl?: string;
+  visionApiKey?: string;
+
+  imageGenProvider: string;
+  defaultImageGenModel: string;
+  imageGenBaseUrl?: string;
+  imageGenApiKey?: string;
+  falApiKey?: string;
+  openaiImageApiKey?: string;
+  maxParallelRequests: number;
+  autoUpscale: boolean;
+  useGateway: boolean;
+}
 
 export interface HermesWebSearchResultItem {
   title: string;

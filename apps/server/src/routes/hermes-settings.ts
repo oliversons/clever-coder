@@ -24,9 +24,88 @@ import {
   saveHermesWebSearchSettings,
   testWebSearchQuery,
 } from '../services/hermes-search.service.js';
+import {
+  getHermesVisionImageSettings,
+  saveHermesVisionImageSettings,
+  discoverSatModels,
+  testVisionAnalysis,
+  testImageGeneration,
+} from '../services/hermes-vision-image.service.js';
 import { isHermesWebUIRunning, syncHermesConfigFiles, restartHermesWebUI } from '../services/hermes-webui.service.js';
 
 export async function hermesSettingsRoutes(fastify: FastifyInstance) {
+  // ── GET /api/v1/hermes/vision-image ─────────────────────────────────────────
+  fastify.get('/vision-image', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const settings = await getHermesVisionImageSettings(payload.sub);
+    return reply.send(settings);
+  });
+
+  // ── PUT /api/v1/hermes/vision-image ─────────────────────────────────────────
+  fastify.put('/vision-image', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const body = (request.body as Record<string, any>) || {};
+    const updated = await saveHermesVisionImageSettings(payload.sub, body);
+    return reply.send({ success: true, settings: updated });
+  });
+
+  // ── POST /api/v1/hermes/vision-image (alias for saving) ──────────────────────
+  fastify.post('/vision-image', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const body = (request.body as Record<string, any>) || {};
+    const updated = await saveHermesVisionImageSettings(payload.sub, body);
+    return reply.send({ success: true, settings: updated });
+  });
+
+  // ── GET /api/v1/hermes/sat-models ───────────────────────────────────────────
+  fastify.get('/sat-models', async (request, reply) => {
+    verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const query = (request.query as { baseUrl?: string; apiKey?: string }) || {};
+    const result = await discoverSatModels(query.baseUrl, query.apiKey);
+    return reply.send(result);
+  });
+
+  // ── POST /api/v1/hermes/vision/test ────────────────────────────────────────
+  fastify.post('/vision/test', async (request, reply) => {
+    verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const body = (request.body as { prompt?: string; image?: string; settings?: any }) || {};
+    const result = await testVisionAnalysis(
+      body.prompt || 'Describe this image',
+      body.image || '',
+      body.settings
+    );
+    return reply.send(result);
+  });
+
+  // ── POST /api/v1/hermes/image-gen/test ──────────────────────────────────────
+  fastify.post('/image-gen/test', async (request, reply) => {
+    verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const body = (request.body as { prompt?: string; settings?: any }) || {};
+    const result = await testImageGeneration(
+      body.prompt || 'A futuristic AI developer workstation with neon lights',
+      body.settings
+    );
+    return reply.send(result);
+  });
+
   // ── GET /api/v1/hermes/web-search ───────────────────────────────────────────
   fastify.get('/web-search', async (request, reply) => {
     const payload = verifyToken(

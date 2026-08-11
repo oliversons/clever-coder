@@ -49,9 +49,11 @@ import {
   RiTerminalBoxLine,
   RiInformationLine,
   RiSparklingLine,
-  RiSearchEyeLine
+  RiSearchEyeLine,
+  RiImageEditLine
 } from 'react-icons/ri';
 import { WebSearchSettings } from './settings/WebSearchSettings';
+import { VisionImageSettings } from './settings/VisionImageSettings';
 import { useHermesStore } from '../store/hermesStore';
 import {
   api,
@@ -64,7 +66,7 @@ import {
 
 // ── Types & Constants ──────────────────────────────────────────────────────────
 
-type TabId = 'browser' | 'search' | 'model' | 'execution' | 'memory' | 'tools' | 's3' | 'webui' | 'scheduler';
+type TabId = 'browser' | 'search' | 'vision_image' | 'model' | 'execution' | 'memory' | 'tools' | 's3' | 'webui' | 'scheduler';
 
 interface TabItem {
   id: TabId;
@@ -77,6 +79,7 @@ interface TabItem {
 const TABS: TabItem[] = [
   { id: 'browser', label: 'Browser Automation', icon: RiCompass3Line, description: 'Cloudflare Kitesurf, CDP, local & cloud', badge: 'New' },
   { id: 'search', label: 'Web Search & Extract', icon: RiSearchEyeLine, description: 'DuckDuckGo, Firecrawl, SearXNG, Tavily, Exa, xAI', badge: 'Active' },
+  { id: 'vision_image', label: 'Vision & Image Gen', icon: RiImageEditLine, description: 'SAT AI, FAL.ai FLUX 2, DALL-E, auxiliary vision', badge: 'Active' },
   { id: 'model', label: 'Model & API', icon: RiRobot2Line, description: 'LLM providers, endpoints & keys' },
   { id: 'execution', label: 'Execution & Sandbox', icon: RiCpuLine, description: 'Multi-core clustering, approval & shell' },
   { id: 'memory', label: 'Memory & Skills', icon: RiBrainLine, description: 'Cross-session memory, persona & skills' },
@@ -1728,6 +1731,13 @@ export default function HermesSettings() {
                ══════════════════════════════════════════════════════════════ */}
             {activeTab === 'search' && (
               <WebSearchSettings />
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════
+                TAB 1.7: VISION & IMAGE GENERATION
+               ══════════════════════════════════════════════════════════════ */}
+            {activeTab === 'vision_image' && (
+              <VisionImageSettings />
             )}
 
             {/* ══════════════════════════════════════════════════════════════

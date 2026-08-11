@@ -282,3 +282,43 @@ export const hermesWebSearchSettings = pgTable('hermes_web_search_settings', {
 export type HermesWebSearchSettings = typeof hermesWebSearchSettings.$inferSelect;
 export type NewHermesWebSearchSettings = typeof hermesWebSearchSettings.$inferInsert;
 
+/**
+ * Hermes Vision & Image Generation Settings Table
+ * Manages SAT AI API credentials, auxiliary multimodal vision routing,
+ * and text-to-image/image-to-image generation models (FAL.ai, OpenAI, SAT, Nous Gateway).
+ */
+export const hermesVisionImageSettings = pgTable('hermes_vision_image_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+
+  // SAT AI API Credentials
+  satApiKey: text('sat_api_key'),
+  satBaseUrl: text('sat_base_url').notNull().default('https://api.sat.ai/v1'),
+
+  // Auxiliary Multimodal Vision Settings
+  visionProvider: text('vision_provider').notNull().default('sat'), // sat | openai | openrouter | fal | custom
+  defaultVisionModel: text('default_vision_model').notNull().default('sat-vision-v1'),
+  visionBaseUrl: text('vision_base_url'),
+  visionApiKey: text('vision_api_key'),
+
+  // Image Generation Settings (image_generate)
+  imageGenProvider: text('image_gen_provider').notNull().default('sat'), // sat | fal | openai | nous_subscription | custom
+  defaultImageGenModel: text('default_image_gen_model').notNull().default('sat-flux-1-schnell'),
+  imageGenBaseUrl: text('image_gen_base_url'),
+  imageGenApiKey: text('image_gen_api_key'),
+  falApiKey: text('fal_api_key'),
+  openaiImageApiKey: text('openai_image_api_key'),
+  maxParallelRequests: integer('max_parallel_requests').notNull().default(4),
+  autoUpscale: boolean('auto_upscale').notNull().default(true),
+  useGateway: boolean('use_gateway').notNull().default(false),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export type HermesVisionImageSettings = typeof hermesVisionImageSettings.$inferSelect;
+export type NewHermesVisionImageSettings = typeof hermesVisionImageSettings.$inferInsert;
+

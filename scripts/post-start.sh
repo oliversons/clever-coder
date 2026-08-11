@@ -32,11 +32,12 @@ mkdir -p /workspaces
 echo "[post-start] Running DB migrations..."
 node /app/server/db/migrate.js || echo "[post-start] Migrations may already be up to date"
 
-# ── Hermes core directories & Web Search env ────────────────────────────────
+# ── Hermes core directories & Web Search / Vision env ─────────────────────────
 echo "[post-start] Ensuring Hermes directories & env files exist..."
 mkdir -p /root/.hermes/logs /root/.hermes/cron \
          /root/.hermes/webui /root/.hermes/webui_state \
          /root/.hermes/profiles/default/cron \
+         /root/.hermes/images \
          /root/.hermes/cache/screenshots \
          /root/.hermes/cache/web \
          /root/.hermes/browser_recordings \
@@ -45,11 +46,11 @@ mkdir -p /root/.hermes/logs /root/.hermes/cron \
 
 touch /root/.hermes/config.yaml /root/.hermes/.env
 
-# Pre-install Python ddgs & duckduckgo_search for free zero-key fallback search
+# Pre-install Python dependencies (Pillow, ddgs, duckduckgo_search, trafilatura, bs4)
 if command -v pip3 &> /dev/null; then
-  pip3 install --no-cache-dir --quiet ddgs duckduckgo_search trafilatura beautifulsoup4 --break-system-packages 2>/dev/null || true
+  pip3 install --no-cache-dir --quiet Pillow ddgs duckduckgo_search trafilatura beautifulsoup4 --break-system-packages 2>/dev/null || true
 elif command -v pip &> /dev/null; then
-  pip install --no-cache-dir --quiet ddgs duckduckgo_search trafilatura beautifulsoup4 --break-system-packages 2>/dev/null || true
+  pip install --no-cache-dir --quiet Pillow ddgs duckduckgo_search trafilatura beautifulsoup4 --break-system-packages 2>/dev/null || true
 fi
 
 # ── Browser Automation Dependencies & Virtual Display (Xvfb) ──────────────────
