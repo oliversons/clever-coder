@@ -59,6 +59,20 @@ if command -v npx &> /dev/null; then
   npx -y chrome-devtools-mcp@latest --help > /dev/null 2>&1 || true
 fi
 
+# 3. Camofox Anti-Detection Browser Daemon (:9377)
+echo "[post-start] Starting Camofox Anti-Detection daemon (:9377)..."
+if ! pgrep -f "camofox" > /dev/null 2>&1; then
+  if command -v camofox-browser &> /dev/null; then
+    nohup camofox-browser --port 9377 > /root/.hermes/logs/camofox.log 2>&1 &
+    echo "[post-start] Camofox server launched on port 9377 (PID $!)"
+  elif command -v npx &> /dev/null; then
+    nohup npx -y @askjo/camofox-browser --port 9377 > /root/.hermes/logs/camofox.log 2>&1 &
+    echo "[post-start] Camofox server launched via npx on port 9377 (PID $!)"
+  fi
+else
+  echo "[post-start] Camofox daemon is already running"
+fi
+
 # ── Hermes Gateway daemon ─────────────────────────────────────────────────────
 echo "[post-start] Launching Hermes Gateway daemon..."
 if ! pgrep -f "hermes.*gateway" > /dev/null 2>&1; then

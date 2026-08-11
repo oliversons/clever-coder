@@ -64,11 +64,14 @@ if (cluster.isPrimary) {
     console.log(`[cluster] Worker ${worker.process.pid} online (${Object.keys(cluster.workers ?? {}).length}/${workerCount} active)`);
   });
 
-  // Start gateway on primary only
+  // Start gateway & browser daemons on primary only
   import('./services/hermes-gateway.service.js')
     .then(({ startGateway }) => startGateway())
     .catch((err) => console.warn('[cluster] Gateway auto-start notice:', err?.message));
 
+  import('./services/hermes-browser.service.js')
+    .then(({ ensureCamofoxDaemonRunning }) => ensureCamofoxDaemonRunning())
+    .catch((err) => console.warn('[cluster] Camofox auto-start notice:', err?.message));
 } else {
   // Worker process — run the full server application
   // Don't start gateway in workers (primary handles it)

@@ -10,7 +10,7 @@ import path from 'node:path';
 import http from 'node:http';
 import https from 'node:https';
 import { WebSocket } from 'ws';
-import { exec } from 'node:child_process';
+import { exec, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { eq, sql } from 'drizzle-orm';
 import { getDb, schema } from '../db/index.js';
@@ -109,6 +109,71 @@ export const DEFAULT_BROWSER_SETTINGS = {
 };
 
 let _tableEnsured = false;
+let _camofoxStarting = false;
+
+/**
+ * Ensures the Camofox anti-detection server is running on port 9377.
+ * Launches camofox-browser daemon automatically if not yet active.
+ */
+export async function ensureCamofoxDaemonRunning(): Promise<boolean> {
+  const hermesHome = process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes');
+  const logsDir = path.join(hermesHome, 'logs');
+  if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
+
+  // 1. Check if already responding on 9377
+  try {
+    const res = await fetch('http://127.0.0.1:9377/health', { signal: AbortSignal.timeout(1200) });
+    if (res.ok || res.status < 500) return true;
+  } catch {
+    try {
+      const res2 = await fetch('http://127.0.0.1:9377/', { signal: AbortSignal.timeout(1000) });
+      if (res2.ok || res2.status < 500) return true;
+    } catch {}
+  }
+
+  if (_camofoxStarting) return false;
+  _camofoxStarting = true;
+
+  try {
+    console.log('[Hermes Browser] Auto-starting Camofox Anti-Detection Daemon (:9377)...');
+    const logFd = fs.openSync(path.join(logsDir, 'camofox.log'), 'a');
+
+    const child = spawn(
+      'sh',
+      ['-c', 'command -v camofox-browser >/dev/null 2>&1 && camofox-browser --port 9377 || npx -y @askjo/camofox-browser --port 9377 || echo "Camofox starting"'],
+      {
+        detached: true,
+        stdio: ['ignore', logFd, logFd],
+        env: {
+          ...process.env,
+          PORT: '9377',
+          CAMOFOX_PORT: '9377',
+          DISPLAY: process.env.DISPLAY || ':99',
+        },
+      }
+    );
+    child.unref();
+
+    // Poll for up to 6 seconds for port to open
+    for (let i = 0; i < 15; i++) {
+      await new Promise((r) => setTimeout(r, 400));
+      try {
+        const res = await fetch('http://127.0.0.1:9377/health', { signal: AbortSignal.timeout(1000) });
+        if (res.ok || res.status < 500) {
+          console.log('[Hermes Browser] ✅ Camofox Daemon successfully online on port 9377');
+          _camofoxStarting = false;
+          return true;
+        }
+      } catch {}
+    }
+  } catch (err: any) {
+    console.warn('[Hermes Browser] Notice: Camofox launch attempt:', err?.message);
+  } finally {
+    _camofoxStarting = false;
+  }
+
+  return false;
+}
 
 /**
  * Ensures that the hermes_browser_settings table exists in PostgreSQL.
@@ -613,17 +678,44 @@ export async function testBrowserConnection(settings: Partial<HermesBrowserSetti
   // ── 5. Camofox Local Server Test ──────────────────────────────────────────
   if (provider === 'camofox') {
     const camofoxUrl = settings.camofoxUrl || 'http://localhost:9377';
+    // Auto-launch daemon if testing localhost
+    if (camofoxUrl.includes('localhost') || camofoxUrl.includes('127.0.0.1')) {
+      await ensureCamofoxDaemonRunning();
+    }
+
     try {
-      const res = await fetch(`${camofoxUrl.replace(/\/$/, '')}/health`, { signal: AbortSignal.timeout(4000) });
+      const res = await fetch(`${camofoxUrl.replace(/\/$/, '')}/health`, { signal: AbortSignal.timeout(5000) });
       const latencyMs = Date.now() - startTime;
-      if (res.ok) {
-        return { ok: true, message: `Camofox server online at ${camofoxUrl}`, latencyMs };
+      if (res.ok || res.status < 500) {
+        return {
+          ok: true,
+          message: `Camofox anti-detection server online at ${camofoxUrl}`,
+          latencyMs,
+          details: {
+            server: camofoxUrl,
+            engine: 'Firefox C++ Fingerprint Spoofing',
+            status: 'Online',
+          },
+        };
       }
       return { ok: false, message: `Camofox server returned HTTP ${res.status}`, latencyMs };
     } catch (err: any) {
+      // Check fallback root endpoint
+      try {
+        const rootRes = await fetch(`${camofoxUrl.replace(/\/$/, '')}/`, { signal: AbortSignal.timeout(3000) });
+        if (rootRes.ok || rootRes.status < 500) {
+          return {
+            ok: true,
+            message: `Camofox server responding at ${camofoxUrl}`,
+            latencyMs: Date.now() - startTime,
+            details: { server: camofoxUrl, status: 'Active' },
+          };
+        }
+      } catch {}
+
       return {
         ok: false,
-        message: `Could not connect to Camofox server at ${camofoxUrl} (${err.message}). Is container running?`,
+        message: `Could not connect to Camofox server at ${camofoxUrl} (${err.message}). Starting daemon in background...`,
         latencyMs: Date.now() - startTime,
       };
     }
