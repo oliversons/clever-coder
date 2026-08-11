@@ -17,7 +17,9 @@ import {
   RiInformationLine,
   RiShieldCheckLine,
   RiSettings4Line,
-  RiDownload2Line
+  RiDownload2Line,
+  RiEdit2Line,
+  RiSearchLine
 } from 'react-icons/ri';
 import {
   api,
@@ -46,24 +48,32 @@ const SAMPLE_IMAGES = [
   { name: 'Analytics Chart', url: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format&fit=crop&q=80' },
 ];
 
+const ENDPOINT_PRESETS = [
+  { name: 'Clever Cloud Custom API', url: 'https://app-fcbf4053-74e6-4498-ac0e-eb160010a3c5.cleverapps.io/v1' },
+  { name: 'SAT AI API (/v1)', url: 'https://api.sat.ai/v1' },
+  { name: 'OpenRouter (/v1)', url: 'https://openrouter.ai/api/v1' },
+  { name: 'Local Ollama / vLLM', url: 'http://127.0.0.1:11434/v1' },
+  { name: 'OpenAI Official (/v1)', url: 'https://api.openai.com/v1' },
+];
+
 export const VisionImageSettings: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // SAT Models
-  const [satDiscovery, setSatDiscovery] = useState<SatModelDiscoveryResult | null>(null);
+  // Model Discovery Results
+  const [discoveredCatalog, setDiscoveredCatalog] = useState<SatModelDiscoveryResult | null>(null);
 
   // Form State
   const [form, setForm] = useState<HermesVisionImageSettings>({
     satApiKey: '',
-    satBaseUrl: 'https://api.sat.ai/v1',
-    visionProvider: 'sat',
-    defaultVisionModel: 'sat-vision-v1',
+    satBaseUrl: 'https://app-fcbf4053-74e6-4498-ac0e-eb160010a3c5.cleverapps.io/v1',
+    visionProvider: 'custom',
+    defaultVisionModel: '@cf/zai-org/glm-4.2',
     visionBaseUrl: '',
     visionApiKey: '',
-    imageGenProvider: 'sat',
+    imageGenProvider: 'custom',
     defaultImageGenModel: 'sat-flux-1-schnell',
     imageGenBaseUrl: '',
     imageGenApiKey: '',
@@ -75,7 +85,7 @@ export const VisionImageSettings: React.FC = () => {
   });
 
   // Vision Test Console State
-  const [visionTestPrompt, setVisionTestPrompt] = useState('Describe this image in detail and list all key components.');
+  const [visionTestPrompt, setVisionTestPrompt] = useState('Describe this image in detail and list all key visual elements.');
   const [visionTestImage, setVisionTestImage] = useState(SAMPLE_IMAGES[0].url);
   const [testingVision, setTestingVision] = useState(false);
   const [visionTestResult, setVisionTestResult] = useState<{
@@ -110,7 +120,7 @@ export const VisionImageSettings: React.FC = () => {
         setForm((prev) => ({
           ...prev,
           ...data,
-          satBaseUrl: data.satBaseUrl || 'https://api.sat.ai/v1',
+          satBaseUrl: data.satBaseUrl || 'https://app-fcbf4053-74e6-4498-ac0e-eb160010a3c5.cleverapps.io/v1',
         }));
       }
     } catch (err: any) {
@@ -120,35 +130,36 @@ export const VisionImageSettings: React.FC = () => {
     }
   };
 
-  const handleDiscoverSatModels = async () => {
+  const handleDiscoverModels = async () => {
     setDiscovering(true);
     setMessage(null);
     try {
-      const res = await api.hermes.discoverSatModels(form.satBaseUrl, form.satApiKey);
-      setSatDiscovery(res);
+      const targetBaseUrl = form.satBaseUrl || 'https://api.sat.ai/v1';
+      const res = await api.hermes.discoverSatModels(targetBaseUrl, form.satApiKey);
+      setDiscoveredCatalog(res);
       if (res.success) {
         setMessage({
           type: 'success',
-          text: `Successfully discovered ${res.count} models from SAT AI API (${res.visionModels.length} Vision, ${res.imageGenModels.length} Image Generation)!`,
+          text: `Successfully discovered ${res.count} models from endpoint (${res.visionModels.length} Vision models, ${res.imageGenModels.length} Image Generation models)!`,
         });
 
-        // If vision or image models found and currently unset, suggest defaults
-        if (res.visionModels.length > 0 && form.defaultVisionModel === 'sat-vision-v1') {
+        // If vision or image models found, suggest defaults if currently generic
+        if (res.visionModels.length > 0 && (!form.defaultVisionModel || form.defaultVisionModel === 'sat-vision-v1')) {
           setForm((prev) => ({ ...prev, defaultVisionModel: res.visionModels[0].id }));
         }
-        if (res.imageGenModels.length > 0 && form.defaultImageGenModel === 'sat-flux-1-schnell') {
+        if (res.imageGenModels.length > 0 && (!form.defaultImageGenModel || form.defaultImageGenModel === 'sat-flux-1-schnell')) {
           setForm((prev) => ({ ...prev, defaultImageGenModel: res.imageGenModels[0].id }));
         }
       } else {
         setMessage({
           type: 'error',
-          text: res.error || 'Failed to discover models from SAT AI API',
+          text: res.error || 'Failed to discover models from API endpoint',
         });
       }
     } catch (err: any) {
       setMessage({
         type: 'error',
-        text: err?.message || 'Could not connect to SAT AI API endpoint',
+        text: err?.message || 'Could not connect to API endpoint',
       });
     } finally {
       setDiscovering(false);
@@ -248,8 +259,8 @@ export const VisionImageSettings: React.FC = () => {
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Vision &amp; Image Generation</h2>
-              <span className="badge badge-primary">Multimodal Studio</span>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Vision &amp; Image Generation Studio</h2>
+              <span className="badge badge-primary">Multimodal Suite</span>
             </div>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
               Configure auxiliary multimodal vision analysis (<code>auxiliary.vision</code>) and AI image generation (<code>image_generate</code>)
@@ -270,8 +281,8 @@ export const VisionImageSettings: React.FC = () => {
               gap: 6,
             }}
           >
-            <span style={{ color: 'var(--text-secondary)' }}>Vision Model:</span>
-            <strong style={{ color: 'var(--text-accent)' }}>{form.defaultVisionModel}</strong>
+            <span style={{ color: 'var(--text-secondary)' }}>Vision:</span>
+            <strong style={{ color: 'var(--text-accent)' }}>{form.defaultVisionModel || 'sat-vision-v1'}</strong>
           </div>
 
           <div
@@ -286,8 +297,8 @@ export const VisionImageSettings: React.FC = () => {
               gap: 6,
             }}
           >
-            <span style={{ color: 'var(--text-secondary)' }}>Image Model:</span>
-            <strong style={{ color: 'var(--text-accent)' }}>{form.defaultImageGenModel}</strong>
+            <span style={{ color: 'var(--text-secondary)' }}>Image Gen:</span>
+            <strong style={{ color: 'var(--text-accent)' }}>{form.defaultImageGenModel || 'sat-flux-1-schnell'}</strong>
           </div>
 
           <div
@@ -315,15 +326,15 @@ export const VisionImageSettings: React.FC = () => {
         </div>
       )}
 
-      {/* ── 1. SAT AI API Endpoint Connection & Discovery ──────────────── */}
+      {/* ── 1. Custom OpenAI-Compatible / SAT AI Endpoint & Dynamic Discovery ── */}
       <section className="glass-card" style={{ padding: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <RiRobot2Line size={22} style={{ color: 'var(--primary)' }} />
             <div>
-              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>SAT AI API Endpoint &amp; Model Discovery</h3>
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Custom OpenAI-Compatible / SAT AI Model Endpoint</h3>
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
-                Connect to SAT AI&apos;s OpenAI-compatible vision and image generation model endpoints
+                Connect any custom endpoint (Clever Cloud, SAT AI, vLLM, Ollama, OpenRouter) to discover vision &amp; image generation models
               </p>
             </div>
           </div>
@@ -331,47 +342,69 @@ export const VisionImageSettings: React.FC = () => {
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={handleDiscoverSatModels}
+            onClick={handleDiscoverModels}
             disabled={discovering}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
           >
             {discovering ? <RiRefreshLine className="spin" size={16} /> : <RiRefreshLine size={16} />}
-            {discovering ? 'Querying SAT AI Models...' : 'Discover Models from SAT AI API'}
+            {discovering ? 'Querying Endpoint Models...' : 'Discover Models from Endpoint'}
           </button>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
           <div>
             <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
-              SAT Base URL (<code>SAT_BASE_URL</code>)
+              Custom API Base URL (<code>SAT_BASE_URL</code> / <code>BASE_URL</code>)
             </label>
             <input
               type="text"
               className="form-input"
-              placeholder="https://api.sat.ai/v1"
+              placeholder="https://app-fcbf4053-74e6-4498-ac0e-eb160010a3c5.cleverapps.io/v1"
               value={form.satBaseUrl}
               onChange={(e) => setForm({ ...form, satBaseUrl: e.target.value })}
             />
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>OpenAI-compatible base API endpoint</span>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Presets:</span>
+              {ENDPOINT_PRESETS.map((p) => (
+                <button
+                  key={p.name}
+                  type="button"
+                  onClick={() => setForm({ ...form, satBaseUrl: p.url })}
+                  style={{
+                    padding: '2px 8px',
+                    fontSize: 10,
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
             <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
-              SAT API Key (<code>SAT_API_KEY</code>)
+              API Key &amp; Credentials (<code>SAT_API_KEY</code> / <code>API_KEY</code>)
             </label>
             <input
               type="password"
               className="form-input"
-              placeholder="sat_sk_..."
+              placeholder="Bearer token (e.g. sk-... / sat_...)"
               value={form.satApiKey || ''}
               onChange={(e) => setForm({ ...form, satApiKey: e.target.value })}
             />
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Bearer token for model discovery &amp; inference</span>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              Authorization key used for model discovery, multimodal inference, and image generation
+            </span>
           </div>
         </div>
 
         {/* Discovery Results Overview */}
-        {satDiscovery && satDiscovery.success && (
+        {discoveredCatalog && discoveredCatalog.success && (
           <div
             style={{
               marginTop: 16,
@@ -385,7 +418,7 @@ export const VisionImageSettings: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <RiCheckLine size={18} style={{ color: 'var(--success, #10b981)' }} />
                 <strong style={{ fontSize: 13 }}>
-                  Discovered {satDiscovery.count} Available Models on {satDiscovery.baseUrl}
+                  Discovered {discoveredCatalog.count} Available Models on {discoveredCatalog.baseUrl}
                 </strong>
               </div>
               <span className="badge badge-primary" style={{ fontSize: 11 }}>
@@ -394,7 +427,7 @@ export const VisionImageSettings: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {satDiscovery.models.map((m) => (
+              {discoveredCatalog.models.map((m) => (
                 <div
                   key={m.id}
                   style={{
@@ -426,7 +459,7 @@ export const VisionImageSettings: React.FC = () => {
             <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Auxiliary Multimodal Vision (<code>auxiliary.vision</code>)</h3>
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-            Routes clipboard image paste (<code>/paste</code>, <code>Cmd+V</code>/<code>Ctrl+V</code>) and screenshot analysis when the primary LLM is text-only or custom vision routing is enabled
+            Handles screenshot reasoning, image attachments, and <code>/paste</code> clipboard reasoning
           </p>
         </div>
 
@@ -438,26 +471,28 @@ export const VisionImageSettings: React.FC = () => {
               value={form.visionProvider}
               onChange={(e) => setForm({ ...form, visionProvider: e.target.value })}
             >
-              <option value="sat">SAT AI API (Custom OpenAI-Compatible)</option>
+              <option value="custom">Custom OpenAI-Compatible API (Default Endpoint)</option>
+              <option value="sat">SAT AI API (/v1/chat/completions)</option>
               <option value="openai">OpenAI (GPT-4o / GPT-4-Vision)</option>
               <option value="openrouter">OpenRouter Multi-Provider</option>
-              <option value="custom">Custom Endpoint</option>
             </select>
           </div>
 
           <div>
-            <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Default Vision Model</label>
-            {satDiscovery && satDiscovery.models.length > 0 ? (
+            <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+              Default Vision Model (Searchable Dropdown)
+            </label>
+            {discoveredCatalog && discoveredCatalog.models.length > 0 ? (
               <div style={{ display: 'flex', gap: 8 }}>
                 <select
                   className="form-input"
                   value={form.defaultVisionModel}
                   onChange={(e) => setForm({ ...form, defaultVisionModel: e.target.value })}
-                  style={{ flexGrow: 1 }}
+                  style={{ flexGrow: 1, fontFamily: 'var(--font-mono)' }}
                 >
-                  {satDiscovery.models.map((m) => (
+                  {discoveredCatalog.models.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.id} {m.isVision ? '👁️ (Vision)' : ''}
+                      {m.id} {m.isVision ? '👁️ [Vision Capable]' : ''}
                     </option>
                   ))}
                 </select>
@@ -466,43 +501,57 @@ export const VisionImageSettings: React.FC = () => {
                   className="btn btn-secondary"
                   style={{ padding: '0 10px', fontSize: 11 }}
                   onClick={() => {
-                    const custom = prompt('Enter custom vision model name:', form.defaultVisionModel);
+                    const custom = prompt('Enter custom vision model identifier:', form.defaultVisionModel);
                     if (custom) setForm({ ...form, defaultVisionModel: custom });
                   }}
                 >
-                  Custom
+                  <RiEdit2Line size={13} style={{ marginRight: 4 }} /> Custom
                 </button>
               </div>
             ) : (
-              <input
-                type="text"
-                className="form-input"
-                placeholder="sat-vision-v1 or gpt-4o"
-                value={form.defaultVisionModel}
-                onChange={(e) => setForm({ ...form, defaultVisionModel: e.target.value })}
-              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. @cf/zai-org/glm-4.2, sat-vision-v1, gpt-4o, qwen-vl-max"
+                  value={form.defaultVisionModel}
+                  onChange={(e) => setForm({ ...form, defaultVisionModel: e.target.value })}
+                  style={{ flexGrow: 1, fontFamily: 'var(--font-mono)' }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ padding: '0 10px', fontSize: 11 }}
+                  onClick={handleDiscoverModels}
+                >
+                  Load Models
+                </button>
+              </div>
             )}
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              Click &quot;Discover Models&quot; to load all models available on your custom API endpoint
+            </span>
           </div>
         </div>
 
-        {form.visionProvider === 'custom' && (
+        {form.visionProvider === 'custom' && form.visionBaseUrl && (
           <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
             <div>
-              <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Custom Vision Base URL</label>
+              <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Override Vision Base URL (Optional)</label>
               <input
                 type="text"
                 className="form-input"
-                placeholder="https://your-custom-llm.com/v1"
+                placeholder="Leave blank to use main endpoint"
                 value={form.visionBaseUrl || ''}
                 onChange={(e) => setForm({ ...form, visionBaseUrl: e.target.value })}
               />
             </div>
             <div>
-              <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Custom Vision API Key</label>
+              <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Override Vision API Key (Optional)</label>
               <input
                 type="password"
                 className="form-input"
-                placeholder="Bearer token"
+                placeholder="Leave blank to use main key"
                 value={form.visionApiKey || ''}
                 onChange={(e) => setForm({ ...form, visionApiKey: e.target.value })}
               />
@@ -519,7 +568,7 @@ export const VisionImageSettings: React.FC = () => {
             <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Image Generation Backend (<code>image_generate</code>)</h3>
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-            Powers text-to-image synthesis and image-to-image editing tool calls during conversation loops
+            Powers text-to-image synthesis and image editing tool execution during conversation loops
           </p>
         </div>
 
@@ -531,27 +580,29 @@ export const VisionImageSettings: React.FC = () => {
               value={form.imageGenProvider}
               onChange={(e) => setForm({ ...form, imageGenProvider: e.target.value })}
             >
-              <option value="sat">SAT AI API (Custom /v1/images/generations)</option>
+              <option value="custom">Custom OpenAI-Compatible API (/v1/images/generations)</option>
+              <option value="sat">SAT AI API (Custom FLUX / SD)</option>
               <option value="fal">FAL.ai (FLUX 2, Ideogram, Recraft, Krea)</option>
               <option value="openai">OpenAI (DALL-E 3 / GPT-Image)</option>
               <option value="nous_subscription">Nous Subscription Gateway</option>
-              <option value="custom">Custom Endpoint</option>
             </select>
           </div>
 
           <div>
-            <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Default Image Model</label>
-            {form.imageGenProvider === 'sat' && satDiscovery && satDiscovery.models.length > 0 ? (
+            <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+              Default Image Model (Select from API)
+            </label>
+            {(form.imageGenProvider === 'custom' || form.imageGenProvider === 'sat') && discoveredCatalog && discoveredCatalog.models.length > 0 ? (
               <div style={{ display: 'flex', gap: 8 }}>
                 <select
                   className="form-input"
                   value={form.defaultImageGenModel}
                   onChange={(e) => setForm({ ...form, defaultImageGenModel: e.target.value })}
-                  style={{ flexGrow: 1 }}
+                  style={{ flexGrow: 1, fontFamily: 'var(--font-mono)' }}
                 >
-                  {satDiscovery.models.map((m) => (
+                  {discoveredCatalog.models.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.id} {m.isImageGen ? '🎨 (Image Gen)' : ''}
+                      {m.id} {m.isImageGen ? '🎨 [Image Gen Capable]' : ''}
                     </option>
                   ))}
                 </select>
@@ -560,11 +611,11 @@ export const VisionImageSettings: React.FC = () => {
                   className="btn btn-secondary"
                   style={{ padding: '0 10px', fontSize: 11 }}
                   onClick={() => {
-                    const custom = prompt('Enter custom image model name:', form.defaultImageGenModel);
+                    const custom = prompt('Enter custom image generation model identifier:', form.defaultImageGenModel);
                     if (custom) setForm({ ...form, defaultImageGenModel: custom });
                   }}
                 >
-                  Custom
+                  <RiEdit2Line size={13} style={{ marginRight: 4 }} /> Custom
                 </button>
               </div>
             ) : form.imageGenProvider === 'fal' ? (
@@ -580,14 +631,28 @@ export const VisionImageSettings: React.FC = () => {
                 ))}
               </select>
             ) : (
-              <input
-                type="text"
-                className="form-input"
-                placeholder="sat-flux-1-schnell or dall-e-3"
-                value={form.defaultImageGenModel}
-                onChange={(e) => setForm({ ...form, defaultImageGenModel: e.target.value })}
-              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. sat-flux-1-schnell, dall-e-3, flux-pro"
+                  value={form.defaultImageGenModel}
+                  onChange={(e) => setForm({ ...form, defaultImageGenModel: e.target.value })}
+                  style={{ flexGrow: 1, fontFamily: 'var(--font-mono)' }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ padding: '0 10px', fontSize: 11 }}
+                  onClick={handleDiscoverModels}
+                >
+                  Load Models
+                </button>
+              </div>
             )}
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              Discovered from your active API endpoint or chosen provider
+            </span>
           </div>
         </div>
 
@@ -695,7 +760,7 @@ export const VisionImageSettings: React.FC = () => {
             <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Live Vision Analysis Diagnostic Console</h3>
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-            Test image reasoning and description against the configured model (<code>{form.defaultVisionModel}</code>)
+            Test multimodal image reasoning against configured model (<code>{form.defaultVisionModel}</code>) on <code>{form.satBaseUrl}</code>
           </p>
         </div>
 
@@ -801,18 +866,32 @@ export const VisionImageSettings: React.FC = () => {
               )}
             </div>
 
-            {visionTestResult.error ? (
-              <div style={{ fontSize: 12, color: '#ef4444', fontFamily: 'monospace' }}>{visionTestResult.error}</div>
-            ) : (
-              <p style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap' }}>
+            {visionTestResult.analysis && (
+              <div
+                style={{
+                  fontSize: 13,
+                  color: 'var(--text-primary)',
+                  lineHeight: 1.6,
+                  whiteSpace: 'pre-wrap',
+                  background: 'var(--bg-card)',
+                  padding: 12,
+                  borderRadius: 'var(--radius-sm)',
+                }}
+              >
                 {visionTestResult.analysis}
+              </div>
+            )}
+
+            {visionTestResult.error && (
+              <p style={{ fontSize: 12, color: '#ef4444', margin: 0 }}>
+                {visionTestResult.error}
               </p>
             )}
           </div>
         )}
       </section>
 
-      {/* ── 5. Interactive Image Generation Studio Console ────────────── */}
+      {/* ── 5. Interactive Image Generation Studio & Preview ──────────── */}
       <section className="glass-card" style={{ padding: 24 }}>
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -820,67 +899,66 @@ export const VisionImageSettings: React.FC = () => {
             <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Live Image Generation Studio</h3>
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-            Generate a test image using model <code>{form.defaultImageGenModel}</code> on <code>{form.imageGenProvider.toUpperCase()}</code>
+            Generate high-resolution test graphics using <code>{form.defaultImageGenModel}</code> on <code>{form.satBaseUrl}</code>
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-          <input
-            type="text"
+        <div style={{ marginBottom: 14 }}>
+          <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Image Generation Prompt</label>
+          <textarea
             className="form-input"
+            rows={3}
+            placeholder="A futuristic AI developer workstation with neon lights..."
             value={imageGenPrompt}
             onChange={(e) => setImageGenPrompt(e.target.value)}
-            placeholder="Type prompt to generate image..."
-            style={{ flexGrow: 1, minWidth: 280 }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleRunImageGenTest();
-            }}
+            style={{ width: '100%', resize: 'vertical' }}
           />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Style Presets:</span>
+            {[
+              { label: 'Cyberpunk Workspace', text: 'A futuristic cybernetic workstation with holographic monitors, dark glass reflection, neon cyan and violet lighting, 8k render' },
+              { label: 'Japanese Landscape', text: 'Serene traditional Japanese garden with blooming cherry blossoms, wooden pagoda, foggy mountain backdrop, golden hour' },
+              { label: 'Minimalist Vector', text: 'Clean modern minimalist vector illustration of an AI neural network core, flat pastel colors, white background' },
+              { label: 'Studio Portrait', text: 'Cinematic dramatic studio portrait of a futuristic robotic co-pilot, 85mm lens, shallow depth of field, sharp detail' },
+            ].map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => setImageGenPrompt(preset.text)}
+                style={{
+                  padding: '2px 8px',
+                  fontSize: 10,
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                }}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
 
           <button
             type="button"
-            className="btn btn-secondary"
+            className="btn btn-primary"
             onClick={handleRunImageGenTest}
             disabled={testingImageGen || !imageGenPrompt.trim()}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
           >
-            {testingImageGen ? <RiRefreshLine className="spin" size={16} /> : <RiImageEditLine size={16} />}
-            {testingImageGen ? 'Generating Image...' : 'Generate Test Image'}
+            {testingImageGen ? <RiRefreshLine className="spin" size={16} /> : <RiSparklingLine size={16} />}
+            {testingImageGen ? 'Generating Image...' : 'Generate Image'}
           </button>
         </div>
 
-        {/* Quick Style Presets */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Style Presets:</span>
-          {[
-            'Cyberpunk glowing developer workstation with holographic displays',
-            'Serene Japanese mountain landscape with cherry blossoms at sunrise',
-            'Minimalist modern vector logo of a wise geometric owl',
-            'Studio portrait of a futuristic robotic assistant with soft lighting',
-          ].map((preset) => (
-            <button
-              key={preset}
-              type="button"
-              onClick={() => setImageGenPrompt(preset)}
-              style={{
-                padding: '4px 10px',
-                fontSize: 11,
-                borderRadius: 'var(--radius-full)',
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer',
-              }}
-            >
-              {preset.slice(0, 36)}...
-            </button>
-          ))}
-        </div>
-
-        {/* Image Generation Result */}
         {imageGenResult && (
           <div
             style={{
+              marginTop: 16,
               padding: 16,
               borderRadius: 'var(--radius-md)',
               background: imageGenResult.success ? 'var(--bg-elevated)' : 'rgba(239, 68, 68, 0.08)',
@@ -895,7 +973,7 @@ export const VisionImageSettings: React.FC = () => {
                   <RiAlertLine size={18} style={{ color: '#ef4444' }} />
                 )}
                 <strong style={{ fontSize: 13 }}>
-                  {imageGenResult.success ? `Image Generated Successfully (${imageGenResult.model})` : 'Image Generation Failed'}
+                  {imageGenResult.success ? `Image Rendered (${imageGenResult.model})` : 'Image Generation Failed'}
                 </strong>
               </div>
               {imageGenResult.latencyMs !== undefined && (
@@ -905,79 +983,72 @@ export const VisionImageSettings: React.FC = () => {
               )}
             </div>
 
-            {imageGenResult.error ? (
-              <div style={{ fontSize: 12, color: '#ef4444', fontFamily: 'monospace' }}>{imageGenResult.error}</div>
-            ) : imageGenResult.imageUrl ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+            {imageGenResult.imageUrl && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                 <img
                   src={imageGenResult.imageUrl}
-                  alt={imageGenResult.prompt}
+                  alt={imageGenResult.prompt || 'Generated art'}
                   style={{
                     maxWidth: '100%',
                     maxHeight: 480,
                     borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--border)',
-                    boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
+                    boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+                    objectFit: 'contain',
                   }}
                 />
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <a
-                    href={imageGenResult.imageUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn-secondary"
-                    style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
-                  >
-                    <RiExternalLinkLine size={14} /> Open Full Size
-                  </a>
-                </div>
+                <a
+                  href={imageGenResult.imageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-secondary"
+                  style={{ fontSize: 11, padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <RiExternalLinkLine size={14} /> Open Full Resolution
+                </a>
               </div>
-            ) : null}
+            )}
+
+            {imageGenResult.error && (
+              <p style={{ fontSize: 12, color: '#ef4444', margin: 0 }}>
+                {imageGenResult.error}
+              </p>
+            )}
           </div>
         )}
       </section>
 
-      {/* ── Save Action Toolbar ───────────────────────────────────────── */}
+      {/* ── Sticky Save Footer Bar ─────────────────────────────────────── */}
       <div
         className="glass-card"
         style={{
-          padding: '16px 24px',
+          position: 'sticky',
+          bottom: 20,
+          padding: '14px 24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 12,
-          position: 'sticky',
-          bottom: 20,
-          zIndex: 10,
-          boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+          zIndex: 50,
+          boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
         }}
       >
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-          Settings are atomically written to <code>~/.hermes/config.yaml</code> under <code>auxiliary.vision</code> and <code>image_gen</code>.
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <RiShieldCheckLine size={18} style={{ color: 'var(--success, #10b981)' }} />
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+            Syncs to <code>auxiliary.vision</code> &amp; <code>image_gen</code> in <code>~/.hermes/config.yaml</code>
+          </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={fetchSettings}
-            disabled={saving || loading}
-          >
-            Reset
-          </button>
-
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleSave}
-            disabled={saving}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            {saving ? <RiRefreshLine className="spin" size={16} /> : <RiCheckLine size={16} />}
-            {saving ? 'Saving...' : 'Save Vision & Image Configuration'}
-          </button>
-        </div>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={handleSave}
+          disabled={saving}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 24px', fontSize: 14 }}
+        >
+          {saving ? <RiRefreshLine className="spin" size={16} /> : <RiCheckLine size={16} />}
+          {saving ? 'Saving & Syncing...' : 'Save Vision & Image Settings'}
+        </button>
       </div>
     </div>
   );

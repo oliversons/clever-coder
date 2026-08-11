@@ -350,7 +350,7 @@ image_gen:
 }
 
 /**
- * Discover and categorize models dynamically from SAT AI API / OpenAI-compatible endpoint.
+ * Discover and categorize models dynamically from any OpenAI-compatible / SAT AI endpoint.
  */
 export async function discoverSatModels(baseUrl?: string, apiKey?: string) {
   const targetUrl = (baseUrl || process.env.SAT_BASE_URL || 'https://api.sat.ai/v1').replace(/\/$/, '');
@@ -404,7 +404,7 @@ export async function discoverSatModels(baseUrl?: string, apiKey?: string) {
       return {
         id,
         name: m.name || id,
-        description: m.description || (isVision ? 'Vision reasoning model' : isImageGen ? 'Text-to-image generator' : 'General LLM model'),
+        description: m.description || (isVision ? 'Vision multimodal reasoning' : isImageGen ? 'Text-to-image generator' : 'Language / Reasoning Model'),
         contextLength: m.context_length || m.max_tokens || undefined,
         isVision,
         isImageGen,
@@ -424,7 +424,7 @@ export async function discoverSatModels(baseUrl?: string, apiKey?: string) {
     return {
       success: false,
       baseUrl: targetUrl,
-      error: err?.message || 'Failed to connect to SAT AI API endpoint',
+      error: err?.message || 'Failed to connect to model endpoint',
       models: [],
       visionModels: [],
       imageGenModels: [],
@@ -443,9 +443,21 @@ export async function testVisionAnalysis(
   const startTime = Date.now();
   const settings = customSettings || await getHermesVisionImageSettings();
 
-  const baseUrl = (settings.satBaseUrl || 'https://api.sat.ai/v1').replace(/\/$/, '');
-  const apiKey = settings.satApiKey || process.env.SAT_API_KEY || '';
+  const provider = settings.visionProvider || 'sat';
+  let baseUrl = (settings.visionBaseUrl || settings.satBaseUrl || 'https://api.sat.ai/v1').replace(/\/$/, '');
+  let apiKey = settings.visionApiKey || settings.satApiKey || process.env.SAT_API_KEY || '';
   const model = settings.defaultVisionModel || 'sat-vision-v1';
+
+  if (provider === 'openai') {
+    baseUrl = 'https://api.openai.com/v1';
+    apiKey = settings.openaiImageApiKey || process.env.OPENAI_API_KEY || '';
+  } else if (provider === 'openrouter') {
+    baseUrl = 'https://openrouter.ai/api/v1';
+    apiKey = settings.visionApiKey || process.env.OPENROUTER_API_KEY || '';
+  } else if (provider === 'custom' && settings.visionBaseUrl) {
+    baseUrl = settings.visionBaseUrl.replace(/\/$/, '');
+    apiKey = settings.visionApiKey || '';
+  }
 
   try {
     const payload = {
@@ -476,12 +488,12 @@ export async function testVisionAnalysis(
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(25000),
     });
 
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`Vision API error ${res.status}: ${errText}`);
+      throw new Error(`Vision API HTTP ${res.status}: ${errText}`);
     }
 
     const data: any = await res.json();
@@ -506,7 +518,7 @@ export async function testVisionAnalysis(
 }
 
 /**
- * Execute live Image Generation test against SAT AI API / OpenAI-compatible endpoint.
+ * Execute live Image Generation test against Custom API / SAT AI / OpenAI / FAL endpoint.
  */
 export async function testImageGeneration(
   prompt: string,
@@ -515,14 +527,23 @@ export async function testImageGeneration(
   const startTime = Date.now();
   const settings = customSettings || await getHermesVisionImageSettings();
 
-  const baseUrl = (settings.satBaseUrl || 'https://api.sat.ai/v1').replace(/\/$/, '');
-  const apiKey = settings.satApiKey || process.env.SAT_API_KEY || '';
+  const provider = settings.imageGenProvider || 'sat';
+  let baseUrl = (settings.imageGenBaseUrl || settings.satBaseUrl || 'https://api.sat.ai/v1').replace(/\/$/, '');
+  let apiKey = settings.imageGenApiKey || settings.satApiKey || process.env.SAT_API_KEY || '';
   const model = settings.defaultImageGenModel || 'sat-flux-1-schnell';
+
+  if (provider === 'openai') {
+    baseUrl = 'https://api.openai.com/v1';
+    apiKey = settings.openaiImageApiKey || process.env.OPENAI_API_KEY || '';
+  } else if (provider === 'custom' && settings.imageGenBaseUrl) {
+    baseUrl = settings.imageGenBaseUrl.replace(/\/$/, '');
+    apiKey = settings.imageGenApiKey || '';
+  }
 
   try {
     const payload = {
       model,
-      prompt: prompt || 'A futuristic AI developer workstation with neon lights and code on multiple holographic monitors, cinematic lighting, 8k resolution',
+      prompt: prompt || 'A futuristic AI developer workstation with neon lights, holographic code displays, dark aesthetic, 8k resolution',
       n: 1,
       size: '1024x1024',
       response_format: 'url',
@@ -535,12 +556,12 @@ export async function testImageGeneration(
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(35000),
     });
 
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`Image Gen API error ${res.status}: ${errText}`);
+      throw new Error(`Image Gen API HTTP ${res.status}: ${errText}`);
     }
 
     const data: any = await res.json();
