@@ -522,3 +522,213 @@ export async function updateToolCallStatus(
     .set({ toolCalls })
     .where(eq(schema.hermesMessages.id, messageId));
 }
+
+// ── Available Models Fetcher & Caching ────────────────────────────────────────
+
+export interface AvailableModelItem {
+  id: string;
+  name: string;
+  description?: string;
+  contextLength?: number;
+  provider?: string;
+  category?: 'reasoning' | 'vision' | 'code' | 'general';
+  isReasoning?: boolean;
+  isVision?: boolean;
+  isCode?: boolean;
+  pricing?: { prompt?: string; completion?: string };
+  raw?: any;
+}
+
+const _modelCache = new Map<string, { timestamp: number; models: AvailableModelItem[] }>();
+const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
+export async function fetchAvailableModels(
+  provider: string,
+  baseUrl?: string | null,
+  apiKey?: string | null,
+  search?: string
+): Promise<{ success: boolean; count: number; models: AvailableModelItem[]; error?: string }> {
+  const cacheKey = `${provider}::${baseUrl || ''}::${apiKey ? 'keyed' : 'anon'}`;
+  const now = Date.now();
+  const cached = _modelCache.get(cacheKey);
+
+  let rawModels: AvailableModelItem[] = [];
+
+  if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+    rawModels = cached.models;
+  } else {
+    try {
+      if (provider === 'custom_openai' && baseUrl) {
+        const cleanUrl = baseUrl.trim().replace(/\/+$/, '');
+        const res = await fetch(`${cleanUrl}/models`, {
+          headers: {
+            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+            Accept: 'application/json',
+          },
+          signal: AbortSignal.timeout(8000),
+        });
+
+        if (!res.ok) {
+          throw new Error(`Endpoint HTTP ${res.status}: ${res.statusText}`);
+        }
+
+        const data: any = await res.json();
+        const list: any[] = Array.isArray(data) ? data : data.data || [];
+
+        rawModels = list.map((m: any) => {
+          const id = typeof m === 'string' ? m : m.id || m.name || 'unknown';
+          const idLower = id.toLowerCase();
+
+          const isReasoning =
+            idLower.includes('reasoner') ||
+            idLower.includes('r1') ||
+            idLower.includes('o1') ||
+            idLower.includes('o3') ||
+            idLower.includes('thinking') ||
+            idLower.includes('inkling');
+
+          const isVision =
+            idLower.includes('vision') ||
+            idLower.includes('vl') ||
+            idLower.includes('4o') ||
+            idLower.includes('multimodal');
+
+          const isCode =
+            idLower.includes('coder') ||
+            idLower.includes('code') ||
+            idLower.includes('starcoder') ||
+            idLower.includes('dev');
+
+          let category: 'reasoning' | 'vision' | 'code' | 'general' = 'general';
+          if (isReasoning) category = 'reasoning';
+          else if (isVision) category = 'vision';
+          else if (isCode) category = 'code';
+
+          return {
+            id,
+            name: m.name || id,
+            description: m.description || `${m.owned_by || 'Custom'} LLM Model`,
+            contextLength: m.context_length || m.max_tokens || 128000,
+            provider: m.owned_by || 'custom',
+            category,
+            isReasoning,
+            isVision,
+            isCode,
+            raw: m,
+          };
+        });
+      } else if (provider === 'openrouter') {
+        const res = await fetch('https://openrouter.ai/api/v1/models', {
+          headers: {
+            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+            Accept: 'application/json',
+          },
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (res.ok) {
+          const data: any = await res.json();
+          const list: any[] = data.data || [];
+          rawModels = list.map((m: any) => {
+            const id = m.id;
+            const idLower = id.toLowerCase();
+            const isReasoning = idLower.includes('r1') || idLower.includes('o1') || idLower.includes('o3') || idLower.includes('thinking');
+            const isVision = idLower.includes('vision') || idLower.includes('vl') || idLower.includes('4o') || m.architecture?.modality?.includes('image');
+            const isCode = idLower.includes('coder') || idLower.includes('code');
+
+            let category: 'reasoning' | 'vision' | 'code' | 'general' = 'general';
+            if (isReasoning) category = 'reasoning';
+            else if (isVision) category = 'vision';
+            else if (isCode) category = 'code';
+
+            return {
+              id,
+              name: m.name || id,
+              description: m.description || '',
+              contextLength: m.context_length || 128000,
+              provider: id.split('/')[0] || 'openrouter',
+              category,
+              isReasoning,
+              isVision,
+              isCode,
+              pricing: m.pricing ? {
+                prompt: `$${(Number(m.pricing.prompt) * 1000000).toFixed(2)}/M`,
+                completion: `$${(Number(m.pricing.completion) * 1000000).toFixed(2)}/M`,
+              } : undefined,
+            };
+          });
+        }
+      } else if (provider === 'openai') {
+        const res = await fetch('https://api.openai.com/v1/models', {
+          headers: {
+            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+          },
+          signal: AbortSignal.timeout(8000),
+        });
+
+        if (res.ok) {
+          const data: any = await res.json();
+          const list: any[] = data.data || [];
+          rawModels = list
+            .filter((m: any) => m.id.includes('gpt') || m.id.includes('o1') || m.id.includes('o3') || m.id.includes('chat'))
+            .map((m: any) => ({
+              id: m.id,
+              name: m.id,
+              provider: 'openai',
+              category: m.id.includes('o1') || m.id.includes('o3') ? 'reasoning' : m.id.includes('4o') ? 'vision' : 'general',
+              isReasoning: m.id.includes('o1') || m.id.includes('o3'),
+              isVision: m.id.includes('4o'),
+              contextLength: m.id.includes('o1') || m.id.includes('4o') ? 128000 : 16384,
+            }));
+        }
+      } else if (provider === 'ollama') {
+        const url = (baseUrl || 'http://localhost:11434').replace(/\/+$/, '');
+        const res = await fetch(`${url}/api/tags`, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          const data: any = await res.json();
+          const list: any[] = data.models || [];
+          rawModels = list.map((m: any) => ({
+            id: m.name || m.model,
+            name: m.name || m.model,
+            provider: 'ollama',
+            contextLength: 32768,
+            category: (m.name || '').includes('coder') ? 'code' : 'general',
+          }));
+        }
+      }
+
+      if (rawModels.length > 0) {
+        _modelCache.set(cacheKey, { timestamp: now, models: rawModels });
+      }
+    } catch (err: any) {
+      if (cached) {
+        rawModels = cached.models;
+      } else {
+        return {
+          success: false,
+          count: 0,
+          models: [],
+          error: err?.message || 'Failed to fetch models from provider',
+        };
+      }
+    }
+  }
+
+  let filtered = rawModels;
+  if (search && search.trim()) {
+    const q = search.toLowerCase().trim();
+    filtered = rawModels.filter(
+      (m) =>
+        m.id.toLowerCase().includes(q) ||
+        (m.name && m.name.toLowerCase().includes(q)) ||
+        (m.provider && m.provider.toLowerCase().includes(q)) ||
+        (m.category && m.category.toLowerCase().includes(q))
+    );
+  }
+
+  return {
+    success: true,
+    count: filtered.length,
+    models: filtered,
+  };
+}

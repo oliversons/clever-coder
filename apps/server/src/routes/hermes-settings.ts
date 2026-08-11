@@ -10,6 +10,7 @@ import {
   maskSettings,
   getDecryptedApiKey,
   testProviderConnection,
+  fetchAvailableModels,
 } from '../services/hermes.service.js';
 import {
   getHermesBrowserSettings,
@@ -34,6 +35,28 @@ import {
 import { isHermesWebUIRunning, syncHermesConfigFiles, restartHermesWebUI } from '../services/hermes-webui.service.js';
 
 export async function hermesSettingsRoutes(fastify: FastifyInstance) {
+  // ── GET /api/v1/hermes/models ───────────────────────────────────────────────
+  fastify.get('/models', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const query = (request.query as { provider?: string; baseUrl?: string; apiKey?: string; search?: string }) || {};
+
+    let apiKey = query.apiKey;
+    if (!apiKey && payload?.sub) {
+      const userSettings = await getHermesSettings(payload.sub);
+      if (userSettings) apiKey = getDecryptedApiKey(userSettings) || undefined;
+    }
+
+    const result = await fetchAvailableModels(
+      query.provider || 'openrouter',
+      query.baseUrl,
+      apiKey,
+      query.search
+    );
+    return reply.send(result);
+  });
   // ── GET /api/v1/hermes/vision-image ─────────────────────────────────────────
   fastify.get('/vision-image', async (request, reply) => {
     const payload = verifyToken(

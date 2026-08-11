@@ -171,6 +171,18 @@ export const api = {
       request<{ success: boolean; message: string; output?: string }>(`/hermes/cron/jobs/${id}/run`, {
         method: 'POST',
       }),
+    // ── Dynamic Models Discovery & Search ──
+    getAvailableModels: (params?: { provider?: string; baseUrl?: string; apiKey?: string; search?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.provider) qs.set('provider', params.provider);
+      if (params?.baseUrl) qs.set('baseUrl', params.baseUrl);
+      if (params?.apiKey) qs.set('apiKey', params.apiKey);
+      if (params?.search) qs.set('search', params.search);
+      const str = qs.toString();
+      return request<{ success: boolean; count: number; models: HermesModelItem[]; error?: string }>(
+        `/hermes/models${str ? `?${str}` : ''}`
+      );
+    },
     // ── Vision & Image Generation ──
     getVisionImageSettings: () =>
       request<HermesVisionImageSettings>('/hermes/vision-image'),
@@ -251,6 +263,20 @@ export const api = {
       }),
   },
 };
+
+export interface HermesModelItem {
+  id: string;
+  name: string;
+  description?: string;
+  contextLength?: number;
+  provider?: string;
+  category?: 'reasoning' | 'vision' | 'code' | 'general';
+  isReasoning?: boolean;
+  isVision?: boolean;
+  isCode?: boolean;
+  pricing?: { prompt?: string; completion?: string };
+  raw?: any;
+}
 
 export interface SatDiscoveredModel {
   id: string;

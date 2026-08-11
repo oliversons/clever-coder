@@ -54,6 +54,7 @@ import {
 } from 'react-icons/ri';
 import { WebSearchSettings } from './settings/WebSearchSettings';
 import { VisionImageSettings } from './settings/VisionImageSettings';
+import { VirtualModelPicker } from '../components/hermes/VirtualModelPicker';
 import { useHermesStore } from '../store/hermesStore';
 import {
   api,
@@ -1869,40 +1870,25 @@ export default function HermesSettings() {
                       </div>
                     )}
 
-                    {/* Model Selector */}
+                    {/* High-Performance Searchable Model Selector */}
                     <div>
-                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        Active Model Identifier
-                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Active Model Identifier (Instant Search)
+                        </label>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          Click to browse and search models dynamically
+                        </span>
+                      </div>
 
-                      {form.provider === 'custom_openai' || form.provider === 'ollama' ? (
-                        <div style={{ display: 'flex', gap: 10 }}>
-                          <input
-                            type="text"
-                            value={(form.model as string) ?? ''}
-                            onChange={(e) => setField('model', e.target.value)}
-                            placeholder="e.g. deepseek-chat, hermes-3-llama-3.1-405b, claude-3-5-sonnet"
-                            style={{ ...inputStyle, flex: 1, fontFamily: 'var(--font-mono)' }}
-                          />
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                          <select
-                            value={(form.model as string) ?? ''}
-                            onChange={(e) => setField('model', e.target.value)}
-                            style={{ ...selectStyle, flex: 1, minWidth: 240 }}
-                          >
-                            {models.map((m) => <option key={m} value={m}>{m}</option>)}
-                          </select>
-                          <input
-                            type="text"
-                            value={(form.model as string) ?? ''}
-                            onChange={(e) => setField('model', e.target.value)}
-                            placeholder="Or enter custom model ID..."
-                            style={{ ...inputStyle, flex: 1, minWidth: 200, fontFamily: 'var(--font-mono)' }}
-                          />
-                        </div>
-                      )}
+                      <VirtualModelPicker
+                        provider={(form.provider as string) || 'openrouter'}
+                        baseUrl={(form.baseUrl as string) || undefined}
+                        apiKey={(form.apiKey as string) || undefined}
+                        value={(form.model as string) ?? ''}
+                        onChange={(modelId) => setField('model', modelId)}
+                        onContextWindowChange={(tokens) => setField('contextWindow', tokens)}
+                      />
                     </div>
 
                     {/* API Key Vault Card */}
