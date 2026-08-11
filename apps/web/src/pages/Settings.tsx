@@ -22,7 +22,7 @@ interface PaletteOption {
 }
 
 const PALETTES: PaletteOption[] = [
-  // ─── 1. Featured Luxury & Designer Palettes (New) ───
+  // ─── 1. Featured Luxury & Designer Palettes ───
   {
     id: 'gold_elegance',
     name: 'Black & Gold Elegance',
@@ -31,6 +31,60 @@ const PALETTES: PaletteOption[] = [
     icon: Crown,
     colorsDark: ['#050811', '#fca311', '#14213d', '#e5e5e5'],
     colorsLight: ['#f8fafc', '#d97706', '#14213d', '#ffffff'],
+  },
+  {
+    id: 'sapphire_quicksand',
+    name: 'Sapphire & Quicksand Luxe',
+    category: 'featured',
+    description: 'Watchmaking sapphire royal blue with quicksand champagne gold and swan wing alabaster.',
+    icon: Award,
+    colorsDark: ['#09122c', '#e0c58f', '#3c507d', '#f5f0e9'],
+    colorsLight: ['#f5f0e9', '#112250', '#c7a86b', '#3c507d'],
+  },
+  {
+    id: 'deep_azure_jade',
+    name: 'Deep Azure & Jade',
+    category: 'featured',
+    description: 'Deep azure midnight slate with rich nautical teal, pale jade mint, and clean pale teal white.',
+    icon: Compass,
+    colorsDark: ['#0b1521', '#345b63', '#d4ecdd', '#f8fffe'],
+    colorsLight: ['#f8fffe', '#152d35', '#345b63', '#d4ecdd'],
+  },
+  {
+    id: 'midnight_violet_seashell',
+    name: 'Midnight Violet & Seashell',
+    category: 'featured',
+    description: 'Royal midnight violet plum with French blue, glacial powder blue, and warm seashell wheat.',
+    icon: Sparkles,
+    colorsDark: ['#1f0a1a', '#f6e0b6', '#3e4b8e', '#fff4eb'],
+    colorsLight: ['#fff4eb', '#3d1534', '#3e4b8e', '#f6e0b6'],
+  },
+  {
+    id: 'coral_turquoise',
+    name: 'Coral & Turquoise Navy',
+    category: 'featured',
+    description: 'Vivid neon coral red with crisp turquoise aqua, deep navy slate, and pure porcelain white.',
+    icon: Zap,
+    colorsDark: ['#001721', '#f7444e', '#78bcc4', '#f7f8f3'],
+    colorsLight: ['#f7f8f3', '#f7444e', '#002c3e', '#78bcc4'],
+  },
+  {
+    id: 'blush_pink',
+    name: 'Blush Pink & Velvet Plum',
+    category: 'featured',
+    description: 'Deep velvet plum and dark rose night with vivid blush pink, blossom tones, and hot magenta.',
+    icon: Heart,
+    colorsDark: ['#140409', '#ec4899', '#f472b6', '#fdf2f8'],
+    colorsLight: ['#fdf2f8', '#be185d', '#ec4899', '#831843'],
+  },
+  {
+    id: 'teal_harmony',
+    name: 'Teal Harmony & Mint',
+    category: 'featured',
+    description: 'Deep emerald teal harmony with vivid mint aqua, glacial cyan, and crisp arctic white.',
+    icon: Trees,
+    colorsDark: ['#041614', '#2dd4bf', '#1488a6', '#ecfeff'],
+    colorsLight: ['#ecfeff', '#134e4a', '#1488a6', '#ccfbf1'],
   },
   {
     id: 'fiery_ocean',
@@ -219,7 +273,7 @@ export default function Settings() {
               <div>
                 <h2 style={{ fontSize: 17, fontWeight: 700 }}>Appearance & Theme Studio</h2>
                 <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                  Choose from 13 curated luxury, cold, and warm palettes in both Dark and Light modes
+                  Choose from 19 curated luxury, cold, warm, and designer palettes in both Dark and Light modes
                 </p>
               </div>
             </div>
