@@ -100,8 +100,14 @@ async function bootstrap() {
   await fastify.register(fastifyWebsocket);
 
   await fastify.register(fastifyRateLimit, {
-    max: 100,
+    max: 1000,
     timeWindow: '1 minute',
+    // Don't rate-limit proxy passthrough routes — they tunnel to local processes
+    // and can generate many requests per page load (assets, WS, API calls)
+    skip: (request) => {
+      const url = request.url ?? '';
+      return url.startsWith('/hermes-ui') || url.startsWith('/workspace/');
+    },
   });
 
   // ── API Routes ─────────────────────────────────────────────────────────────
