@@ -26,6 +26,7 @@ import {
   type ToolCall,
 } from '../services/hermes.service.js';
 import { readArtifact, getPresignedReadUrl, deleteArtifact } from '../services/s3.service.js';
+import { testWebSearchQuery } from '../services/hermes-search.service.js';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { config } from '../config.js';
@@ -370,13 +371,16 @@ async function executeTool(
       }
 
       case 'web_search': {
-        // Basic DuckDuckGo Instant Answer API
         const { query } = toolCall.args as { query: string };
-        const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`;
-        const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-        const data = await res.json() as { AbstractText?: string; RelatedTopics?: Array<{ Text?: string }> };
-        const summary = data.AbstractText || data.RelatedTopics?.slice(0, 3).map((t) => t.Text).join('\n') || 'No results';
-        return { output: summary };
+        const result = await testWebSearchQuery(query);
+        if (result.success && result.results && result.results.length > 0) {
+          const summary = result.results
+            .map((r: any, i: number) => `${i + 1}. [${r.title}](${r.url})\n   ${r.snippet}`)
+            .join('\n\n');
+          return { output: `Web Search Results (${(result.backend || 'WEB').toUpperCase()}):\n\n${summary}` };
+        } else {
+          return { output: result.error || 'No search results found.' };
+        }
       }
 
       default:
