@@ -122,6 +122,51 @@ const PALETTES: PaletteOption[] = [
     colorsDark: ['#0a0c09', '#7e9466', '#38472a', '#fdfdfd'],
     colorsLight: ['#f7f8f6', '#38472a', '#6d7e5a', '#111111'],
   },
+  {
+    id: 'espresso_silk',
+    name: 'Espresso & Silk Luxury',
+    category: 'featured',
+    description: 'Rich dark roast espresso and timber bronze with cashmere sand, silk gold, and pearl white.',
+    icon: Award,
+    colorsDark: ['#180804', '#e4cdae', '#7f5a3f', '#fffff4'],
+    colorsLight: ['#fffff4', '#2d1008', '#7f5a3f', '#e4cdae'],
+  },
+  {
+    id: 'blood_water',
+    name: 'Blood & Water',
+    category: 'featured',
+    description: 'Vivid scarlet blood red with steel blue, glacier water, nautical navy, and warm alabaster.',
+    icon: Droplets,
+    colorsDark: ['#0b1726', '#df3431', '#718bae', '#faf5dd'],
+    colorsLight: ['#faf5dd', '#df3431', '#2a4b71', '#d9edec'],
+  },
+  {
+    id: 'dusk_mauve',
+    name: 'Dusk Mauve & Coral',
+    category: 'featured',
+    description: 'Calm and sophisticated dusk navy with mauve purple, warm coral highlights, and peach alabaster.',
+    icon: Moon,
+    colorsDark: ['#0e0f1c', '#f08a8a', '#6d5ba6', '#ffd6c9'],
+    colorsLight: ['#fcf7f5', '#42426f', '#d9534f', '#ffd6c9'],
+  },
+  {
+    id: 'sunset_velvet',
+    name: 'Sunset Velvet & Apricot',
+    category: 'featured',
+    description: 'Deep velvet plum indigo with rose terracotta, warm apricot gold, and rich linen cream.',
+    icon: Sun,
+    colorsDark: ['#1f1320', '#e9b57c', '#b8535a', '#e8ddc9'],
+    colorsLight: ['#faf6f0', '#553a59', '#b8535a', '#e9b57c'],
+  },
+  {
+    id: 'lavender_dream',
+    name: 'Lavender Dream & Violet',
+    category: 'featured',
+    description: 'Dreamy soft lavender and royal violet with pastel lilac tones and elegant violet glow.',
+    icon: Sparkles,
+    colorsDark: ['#110d22', '#b9a7e0', '#7d6cc4', '#f6f2fb'],
+    colorsLight: ['#f6f2fb', '#5e4b8b', '#7d6cc4', '#e7d6f7'],
+  },
 
   // ─── Cold Palettes ───
   {
@@ -273,7 +318,7 @@ export default function Settings() {
               <div>
                 <h2 style={{ fontSize: 17, fontWeight: 700 }}>Appearance & Theme Studio</h2>
                 <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                  Choose from 19 curated luxury, cold, warm, and designer palettes in both Dark and Light modes
+                  Choose from 24 curated luxury, cold, warm, and designer palettes in both Dark and Light modes
                 </p>
               </div>
             </div>

@@ -1113,6 +1113,281 @@
   --shadow-glow:   0 0 30px rgba(19, 78, 74, 0.16);
 }
 
+/* ══════════════════════════════════════════════════════════════
+   Palette 20 — Espresso, Bronze & Silk (espresso_silk)
+   ══════════════════════════════════════════════════════════════ */
+:root[data-palette="espresso_silk"] {
+  --bg-base:       #180804;
+  --bg-surface:    #2d1008;
+  --bg-elevated:   #513216;
+  --bg-overlay:    #7f5a3f;
+  --bg-hover:      #966b4d;
+
+  --accent-1:      #e4cdae;
+  --accent-2:      #caac90;
+  --accent-3:      #7f5a3f;
+  --accent-grad:   linear-gradient(135deg, #e4cdae 0%, #caac90 50%, #7f5a3f 100%);
+  --accent-grad2:  linear-gradient(135deg, #513216 0%, #7f5a3f 100%);
+
+  --text-primary:  #fffff4;
+  --text-secondary:#e4cdae;
+  --text-muted:    #a8927b;
+  --text-accent:   #e4cdae;
+
+  --border:        rgba(228, 205, 174, 0.16);
+  --border-accent: rgba(228, 205, 174, 0.55);
+  --border-glow:   rgba(127, 90, 63, 0.45);
+
+  --glass-bg:      rgba(45, 16, 8, 0.82);
+  --shadow-glow:   0 0 45px rgba(228, 205, 174, 0.3);
+}
+
+:root[data-theme="light"][data-palette="espresso_silk"] {
+  --bg-base:       #fffff4;
+  --bg-surface:    #ffffff;
+  --bg-elevated:   #f5ede2;
+  --bg-overlay:    #e4cdae;
+  --bg-hover:      #d3b895;
+
+  --accent-1:      #2d1008;
+  --accent-2:      #7f5a3f;
+  --accent-3:      #513216;
+  --accent-grad:   linear-gradient(135deg, #2d1008 0%, #513216 50%, #7f5a3f 100%);
+  --accent-grad2:  linear-gradient(135deg, #7f5a3f 0%, #2d1008 100%);
+
+  --text-primary:  #2d1008;
+  --text-secondary:#513216;
+  --text-muted:    #7f5a3f;
+  --text-accent:   #513216;
+
+  --border:        rgba(45, 16, 8, 0.12);
+  --border-accent: rgba(81, 50, 22, 0.4);
+  --border-glow:   rgba(127, 90, 63, 0.25);
+
+  --glass-bg:      rgba(255, 255, 255, 0.92);
+  --shadow-glow:   0 0 30px rgba(45, 16, 8, 0.16);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Palette 21 — Blood & Water (blood_water)
+   ══════════════════════════════════════════════════════════════ */
+:root[data-palette="blood_water"] {
+  --bg-base:       #0b1726;
+  --bg-surface:    #1b3350;
+  --bg-elevated:   #2a4b71;
+  --bg-overlay:    #3e6799;
+  --bg-hover:      #517db3;
+
+  --accent-1:      #df3431;
+  --accent-2:      #718bae;
+  --accent-3:      #d9edec;
+  --accent-grad:   linear-gradient(135deg, #df3431 0%, #718bae 60%, #2a4b71 100%);
+  --accent-grad2:  linear-gradient(135deg, #b81e1b 0%, #df3431 100%);
+
+  --text-primary:  #faf5dd;
+  --text-secondary:#d9edec;
+  --text-muted:    #8da6c7;
+  --text-accent:   #ff5754;
+
+  --border:        rgba(217, 237, 236, 0.16);
+  --border-accent: rgba(223, 52, 49, 0.55);
+  --border-glow:   rgba(113, 139, 174, 0.4);
+
+  --glass-bg:      rgba(27, 51, 80, 0.82);
+  --shadow-glow:   0 0 45px rgba(223, 52, 49, 0.35);
+}
+
+:root[data-theme="light"][data-palette="blood_water"] {
+  --bg-base:       #faf5dd;
+  --bg-surface:    #ffffff;
+  --bg-elevated:   #edf5f4;
+  --bg-overlay:    #d9edec;
+  --bg-hover:      #c4e3e2;
+
+  --accent-1:      #df3431;
+  --accent-2:      #2a4b71;
+  --accent-3:      #718bae;
+  --accent-grad:   linear-gradient(135deg, #df3431 0%, #2a4b71 100%);
+  --accent-grad2:  linear-gradient(135deg, #2a4b71 0%, #718bae 100%);
+
+  --text-primary:  #2a4b71;
+  --text-secondary:#3f618a;
+  --text-muted:    #6885a8;
+  --text-accent:   #df3431;
+
+  --border:        rgba(42, 75, 113, 0.12);
+  --border-accent: rgba(223, 52, 49, 0.4);
+  --border-glow:   rgba(113, 139, 174, 0.3);
+
+  --glass-bg:      rgba(255, 255, 255, 0.9);
+  --shadow-glow:   0 0 30px rgba(223, 52, 49, 0.18);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Palette 22 — Dusk Mauve & Coral (dusk_mauve)
+   ══════════════════════════════════════════════════════════════ */
+:root[data-palette="dusk_mauve"] {
+  --bg-base:       #0e0f1c;
+  --bg-surface:    #1a1b2e;
+  --bg-elevated:   #42426f;
+  --bg-overlay:    #5a5a92;
+  --bg-hover:      #6d5ba6;
+
+  --accent-1:      #f08a8a;
+  --accent-2:      #6d5ba6;
+  --accent-3:      #ffd6c9;
+  --accent-grad:   linear-gradient(135deg, #f08a8a 0%, #6d5ba6 100%);
+  --accent-grad2:  linear-gradient(135deg, #42426f 0%, #f08a8a 100%);
+
+  --text-primary:  #ffd6c9;
+  --text-secondary:#e2d6ea;
+  --text-muted:    #9a9abf;
+  --text-accent:   #f08a8a;
+
+  --border:        rgba(240, 138, 138, 0.16);
+  --border-accent: rgba(240, 138, 138, 0.55);
+  --border-glow:   rgba(109, 91, 166, 0.4);
+
+  --glass-bg:      rgba(26, 27, 46, 0.82);
+  --shadow-glow:   0 0 45px rgba(240, 138, 138, 0.35);
+}
+
+:root[data-theme="light"][data-palette="dusk_mauve"] {
+  --bg-base:       #fcf7f5;
+  --bg-surface:    #ffffff;
+  --bg-elevated:   #f9e8e3;
+  --bg-overlay:    #ffd6c9;
+  --bg-hover:      #f4beb0;
+
+  --accent-1:      #42426f;
+  --accent-2:      #d9534f;
+  --accent-3:      #6d5ba6;
+  --accent-grad:   linear-gradient(135deg, #42426f 0%, #6d5ba6 100%);
+  --accent-grad2:  linear-gradient(135deg, #d9534f 0%, #42426f 100%);
+
+  --text-primary:  #1a1b2e;
+  --text-secondary:#42426f;
+  --text-muted:    #7878a0;
+  --text-accent:   #d9534f;
+
+  --border:        rgba(26, 27, 46, 0.1);
+  --border-accent: rgba(66, 66, 111, 0.35);
+  --border-glow:   rgba(240, 138, 138, 0.25);
+
+  --glass-bg:      rgba(255, 255, 255, 0.92);
+  --shadow-glow:   0 0 30px rgba(66, 66, 111, 0.16);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Palette 23 — Sunset Velvet & Apricot (sunset_velvet)
+   ══════════════════════════════════════════════════════════════ */
+:root[data-palette="sunset_velvet"] {
+  --bg-base:       #1f1320;
+  --bg-surface:    #381e35;
+  --bg-elevated:   #553a59;
+  --bg-overlay:    #856968;
+  --bg-hover:      #9e7d7b;
+
+  --accent-1:      #e9b57c;
+  --accent-2:      #b8535a;
+  --accent-3:      #e8ddc9;
+  --accent-grad:   linear-gradient(135deg, #e9b57c 0%, #b8535a 60%, #553a59 100%);
+  --accent-grad2:  linear-gradient(135deg, #b8535a 0%, #e9b57c 100%);
+
+  --text-primary:  #e8ddc9;
+  --text-secondary:#d8c8b4;
+  --text-muted:    #a8919b;
+  --text-accent:   #e9b57c;
+
+  --border:        rgba(233, 181, 124, 0.16);
+  --border-accent: rgba(233, 181, 124, 0.55);
+  --border-glow:   rgba(184, 83, 90, 0.4);
+
+  --glass-bg:      rgba(56, 30, 53, 0.82);
+  --shadow-glow:   0 0 45px rgba(233, 181, 124, 0.35);
+}
+
+:root[data-theme="light"][data-palette="sunset_velvet"] {
+  --bg-base:       #faf6f0;
+  --bg-surface:    #ffffff;
+  --bg-elevated:   #f3ebe0;
+  --bg-overlay:    #e8ddc9;
+  --bg-hover:      #dacbaf;
+
+  --accent-1:      #553a59;
+  --accent-2:      #b8535a;
+  --accent-3:      #d99249;
+  --accent-grad:   linear-gradient(135deg, #553a59 0%, #b8535a 100%);
+  --accent-grad2:  linear-gradient(135deg, #b8535a 0%, #d99249 100%);
+
+  --text-primary:  #381e35;
+  --text-secondary:#553a59;
+  --text-muted:    #856968;
+  --text-accent:   #b8535a;
+
+  --border:        rgba(56, 30, 53, 0.12);
+  --border-accent: rgba(184, 83, 90, 0.4);
+  --border-glow:   rgba(233, 181, 124, 0.25);
+
+  --glass-bg:      rgba(255, 255, 255, 0.92);
+  --shadow-glow:   0 0 30px rgba(85, 58, 89, 0.16);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Palette 24 — Lavender Dream & Violet (lavender_dream)
+   ══════════════════════════════════════════════════════════════ */
+:root[data-palette="lavender_dream"] {
+  --bg-base:       #110d22;
+  --bg-surface:    #241c42;
+  --bg-elevated:   #5e4b8b;
+  --bg-overlay:    #7d6cc4;
+  --bg-hover:      #9382dc;
+
+  --accent-1:      #b9a7e0;
+  --accent-2:      #e7d6f7;
+  --accent-3:      #7d6cc4;
+  --accent-grad:   linear-gradient(135deg, #7d6cc4 0%, #b9a7e0 60%, #e7d6f7 100%);
+  --accent-grad2:  linear-gradient(135deg, #5e4b8b 0%, #7d6cc4 100%);
+
+  --text-primary:  #f6f2fb;
+  --text-secondary:#e7d6f7;
+  --text-muted:    #9d93be;
+  --text-accent:   #b9a7e0;
+
+  --border:        rgba(185, 167, 224, 0.16);
+  --border-accent: rgba(185, 167, 224, 0.55);
+  --border-glow:   rgba(125, 108, 196, 0.4);
+
+  --glass-bg:      rgba(36, 28, 66, 0.82);
+  --shadow-glow:   0 0 45px rgba(185, 167, 224, 0.35);
+}
+
+:root[data-theme="light"][data-palette="lavender_dream"] {
+  --bg-base:       #f6f2fb;
+  --bg-surface:    #ffffff;
+  --bg-elevated:   #f0e8fa;
+  --bg-overlay:    #e7d6f7;
+  --bg-hover:      #dac1f3;
+
+  --accent-1:      #5e4b8b;
+  --accent-2:      #7d6cc4;
+  --accent-3:      #413264;
+  --accent-grad:   linear-gradient(135deg, #5e4b8b 0%, #7d6cc4 100%);
+  --accent-grad2:  linear-gradient(135deg, #413264 0%, #5e4b8b 100%);
+
+  --text-primary:  #2a1d4a;
+  --text-secondary:#5e4b8b;
+  --text-muted:    #7e73a0;
+  --text-accent:   #5e4b8b;
+
+  --border:        rgba(94, 75, 139, 0.12);
+  --border-accent: rgba(94, 75, 139, 0.35);
+  --border-glow:   rgba(125, 108, 196, 0.25);
+
+  --glass-bg:      rgba(255, 255, 255, 0.9);
+  --shadow-glow:   0 0 30px rgba(94, 75, 139, 0.16);
+}
+
 html, body {
   height: 100%;
   font-family: var(--font-sans);
