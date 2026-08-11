@@ -2,7 +2,7 @@
   "apps": [
     {
       "app_id": "app_5a9be4e7-559c-44ea-9dbf-deb69eba5979",
-      "org_id": "user_a380418d-0945-48c1-a605-991768fa54f5",
+      "org_id": "user_28ae24e4-a21f-4fcf-aa2d-bd2ef68d1483",
       "deploy_url": "https://github.com/oliversons/clever-coder.git",
       "git_ssh_url": "https://github.com/oliversons/clever-coder.git",
       "name": "clever-coder",
