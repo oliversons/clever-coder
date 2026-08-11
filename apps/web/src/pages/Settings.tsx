@@ -27,9 +27,22 @@ export interface ThemeStyleOption {
 
 export const THEME_STYLES: ThemeStyleOption[] = [
   {
+    id: 'mui_material',
+    name: 'Official Material UI (MUI)',
+    badge: 'MUI v5 Spec',
+    tagline: 'Authentic Material-UI Paper elevation, uppercase buttons, outlined textfields',
+    description: '100% faithful to official MUI v5 (Material Design). Features 4px Paper elevation shadows, uppercase buttons (letter-spacing: 0.028em), outlined inputs, 16px capsule chips, and Material drawer navigation.',
+    icon: Layers,
+    cardRadius: '4px',
+    btnRadius: '4px',
+    inputRadius: '4px',
+    badgeRadius: '16px Chip',
+    elevation: 'MUI Paper Elevation 1-4',
+  },
+  {
     id: 'material_clean',
     name: 'Material Modern (Materialize)',
-    badge: 'Recommended',
+    badge: 'Popular',
     tagline: 'Clean solid surfaces, ambient drop shadows, crisp SaaS structure',
     description: 'Inspired by modern SaaS dashboards (Materialize). Features solid elevated surfaces, 12px smooth corners, refined 8px outlined inputs, pill badges, and zero blur distortion.',
     icon: LayoutGrid,

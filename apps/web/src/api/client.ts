@@ -53,6 +53,7 @@ export type Palette =
   | 'orange';
 export type ThemeMode = 'dark' | 'light';
 export type ThemeStyle =
+  | 'mui_material'
   | 'material_clean'
   | 'glassmorphism'
   | 'neo_brutalism'

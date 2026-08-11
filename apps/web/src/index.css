@@ -1426,6 +1426,161 @@
   --style-card-hover-shadow: 0 8px 28px 0 rgba(76, 78, 100, 0.14);
 }
 
+/* ══════════════════════════════════════════════════════════════
+   0. Official Material UI (MUI v5 / Material Design)
+   ══════════════════════════════════════════════════════════════ */
+:root[data-style="mui_material"] {
+  --radius-xs: 4px;
+  --radius-sm: 4px;
+  --radius-md: 4px;
+  --radius-lg: 4px;
+  --radius-xl: 8px;
+  --radius-full: 16px;
+
+  --style-card-radius: 4px;
+  --style-card-bg: var(--bg-surface);
+  --style-card-border: 1px solid var(--border);
+  --style-card-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12);
+  --style-card-hover-shadow: 0px 3px 3px -2px rgba(0,0,0,0.2), 0px 3px 4px 0px rgba(0,0,0,0.14), 0px 1px 8px 0px rgba(0,0,0,0.12);
+  --style-card-backdrop: none;
+
+  --style-input-radius: 4px;
+  --style-input-bg: var(--bg-elevated);
+  --style-input-border: 1px solid rgba(255, 255, 255, 0.23);
+  --style-input-shadow: none;
+  --style-input-focus-ring: none;
+
+  --style-btn-radius: 4px;
+  --style-btn-shadow: 0px 3px 1px -2px rgba(0,0,0,0.2), 0px 2px 2px 0px rgba(0,0,0,0.14), 0px 1px 5px 0px rgba(0,0,0,0.12);
+  --style-btn-primary-shadow: 0px 3px 1px -2px rgba(0,0,0,0.2), 0px 2px 2px 0px rgba(0,0,0,0.14), 0px 1px 5px 0px rgba(0,0,0,0.12);
+  --style-btn-transform: none;
+
+  --style-badge-radius: 16px;
+  --style-badge-border: 1px solid rgba(255, 255, 255, 0.12);
+  --style-badge-transform: none;
+  --style-nav-radius: 0 24px 24px 0;
+  --style-table-radius: 4px;
+}
+
+:root[data-theme="light"][data-style="mui_material"] {
+  --style-input-border: 1px solid rgba(0, 0, 0, 0.23);
+  --style-badge-border: 1px solid rgba(0, 0, 0, 0.12);
+  --style-card-shadow: 0px 2px 1px -1px rgba(0,0,0,0.1), 0px 1px 1px 0px rgba(0,0,0,0.07), 0px 1px 3px 0px rgba(0,0,0,0.06);
+  --style-card-hover-shadow: 0px 3px 3px -2px rgba(0,0,0,0.1), 0px 3px 4px 0px rgba(0,0,0,0.07), 0px 1px 8px 0px rgba(0,0,0,0.06);
+}
+
+:root[data-style="mui_material"] .glass-card,
+:root[data-style="mui_material"] .card,
+:root[data-style="mui_material"] .panel-card {
+  border-radius: 4px !important;
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--style-card-shadow) !important;
+  backdrop-filter: none !important;
+}
+
+:root[data-style="mui_material"] .glass-card:hover,
+:root[data-style="mui_material"] .card:hover,
+:root[data-style="mui_material"] .panel-card:hover {
+  box-shadow: var(--style-card-hover-shadow) !important;
+  transform: none !important;
+}
+
+:root[data-style="mui_material"] .btn,
+:root[data-style="mui_material"] button:not(.btn-ghost):not(.tab-btn) {
+  border-radius: 4px !important;
+  text-transform: uppercase !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.02857em !important;
+  font-size: 0.8125rem !important;
+  padding: 6px 16px !important;
+  box-shadow: 0px 3px 1px -2px rgba(0,0,0,0.2), 0px 2px 2px 0px rgba(0,0,0,0.14), 0px 1px 5px 0px rgba(0,0,0,0.12) !important;
+}
+
+:root[data-style="mui_material"] .btn:hover,
+:root[data-style="mui_material"] button:hover {
+  box-shadow: 0px 2px 4px -1px rgba(0,0,0,0.2), 0px 4px 5px 0px rgba(0,0,0,0.14), 0px 1px 10px 0px rgba(0,0,0,0.12) !important;
+  transform: none !important;
+}
+
+:root[data-style="mui_material"] .btn-ghost {
+  box-shadow: none !important;
+  text-transform: uppercase !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.02857em !important;
+  border-radius: 4px !important;
+}
+
+:root[data-style="mui_material"] .input,
+:root[data-style="mui_material"] input[type="text"],
+:root[data-style="mui_material"] input[type="password"],
+:root[data-style="mui_material"] input[type="email"],
+:root[data-style="mui_material"] select,
+:root[data-style="mui_material"] textarea {
+  border-radius: 4px !important;
+  border: 1px solid rgba(255, 255, 255, 0.23) !important;
+  font-size: 0.875rem !important;
+  box-shadow: none !important;
+  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:root[data-theme="light"][data-style="mui_material"] .input,
+:root[data-theme="light"][data-style="mui_material"] input[type="text"],
+:root[data-theme="light"][data-style="mui_material"] input[type="password"],
+:root[data-theme="light"][data-style="mui_material"] input[type="email"],
+:root[data-theme="light"][data-style="mui_material"] select,
+:root[data-theme="light"][data-style="mui_material"] textarea {
+  border: 1px solid rgba(0, 0, 0, 0.23) !important;
+}
+
+:root[data-style="mui_material"] .input:hover,
+:root[data-style="mui_material"] input:hover,
+:root[data-style="mui_material"] select:hover,
+:root[data-style="mui_material"] textarea:hover {
+  border-color: rgba(255, 255, 255, 0.87) !important;
+}
+
+:root[data-theme="light"][data-style="mui_material"] .input:hover,
+:root[data-theme="light"][data-style="mui_material"] input:hover,
+:root[data-theme="light"][data-style="mui_material"] select:hover,
+:root[data-theme="light"][data-style="mui_material"] textarea:hover {
+  border-color: rgba(0, 0, 0, 0.87) !important;
+}
+
+:root[data-style="mui_material"] .input:focus,
+:root[data-style="mui_material"] input:focus,
+:root[data-style="mui_material"] select:focus,
+:root[data-style="mui_material"] textarea:focus {
+  border: 2px solid var(--accent-1) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+:root[data-style="mui_material"] .badge {
+  border-radius: 16px !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.01em !important;
+  height: 24px;
+  padding: 0 8px !important;
+  text-transform: none !important;
+}
+
+:root[data-style="mui_material"] .nav-item {
+  border-radius: 0 24px 24px 0 !important;
+  margin-right: 8px;
+  font-weight: 500 !important;
+}
+
+:root[data-style="mui_material"] .nav-item.active {
+  border-radius: 0 24px 24px 0 !important;
+  background: rgba(124, 58, 237, 0.12) !important;
+  color: var(--text-accent) !important;
+  border-left: 4px solid var(--accent-1) !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+
 /* 1. Material Clean (Material Modern / Materialize SaaS) */
 :root[data-style="material_clean"] {
   --radius-xs: 4px;
