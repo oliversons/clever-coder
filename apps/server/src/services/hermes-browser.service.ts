@@ -368,12 +368,18 @@ export async function upsertHermesBrowserSettings(userId: string, input: HermesB
 }
 
 /**
- * Write the browser configuration block into ~/.hermes/config.yaml and ~/.hermes/.env
+ * Write the browser configuration block into ~/.hermes/config.yaml, ~/.hermes/.env,
+ * ~/.hermes/mcp.json, and mirror across all profile and WebUI state paths.
  */
 export async function syncBrowserConfigToYamlAndEnv(settings: any) {
   const hermesHome = process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes');
-  if (!fs.existsSync(hermesHome)) {
-    fs.mkdirSync(hermesHome, { recursive: true });
+  const defaultProfileHome = path.join(hermesHome, 'profiles', 'default');
+  const webuiDir = path.join(hermesHome, 'webui');
+  const webuiStateDir = path.join(hermesHome, 'webui_state');
+
+  const allTargetDirs = [hermesHome, defaultProfileHome, webuiDir, webuiStateDir];
+  for (const dir of allTargetDirs) {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   }
 
   // Ensure browser directories exist
@@ -383,6 +389,9 @@ export async function syncBrowserConfigToYamlAndEnv(settings: any) {
     path.join(hermesHome, 'browser_recordings'),
     path.join(hermesHome, 'chrome-debug'),
     path.join(hermesHome, 'browser_auth', 'camofox'),
+    path.join(hermesHome, 'logs'),
+    path.join(defaultProfileHome, 'cache', 'screenshots'),
+    path.join(defaultProfileHome, 'cache', 'web'),
   ];
   for (const d of dirsToCreate) {
     if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
@@ -397,7 +406,7 @@ export async function syncBrowserConfigToYamlAndEnv(settings: any) {
     effectiveCdpUrl = settings.cdpUrl || 'wss://kitesurf.cloudflare.app/devtools/browser';
   }
 
-  // ── 1. Append or Update ~/.hermes/config.yaml browser section ───────────────
+  // ── 1. Compose or Update ~/.hermes/config.yaml ──────────────────────────────
   const configYamlPath = path.join(hermesHome, 'config.yaml');
   let currentYaml = '';
   if (fs.existsSync(configYamlPath)) {
@@ -406,10 +415,44 @@ export async function syncBrowserConfigToYamlAndEnv(settings: any) {
     } catch {}
   }
 
-  // Remove existing browser section if present
-  currentYaml = currentYaml.replace(/browser:[\s\S]*?(?=\n[a-z0-9_]+:|$)/gi, '').trim();
+  // Remove existing browser & toolset sections if present
+  currentYaml = currentYaml
+    .replace(/browser:[\s\S]*?(?=\n[a-z0-9_]+:|$)/gi, '')
+    .replace(/platform_toolsets:[\s\S]*?(?=\n[a-z0-9_]+:|$)/gi, '')
+    .replace(/tools:[\s\S]*?(?=\n[a-z0-9_]+:|$)/gi, '')
+    .trim();
 
   const browserYamlSection = `
+platform_toolsets:
+  cli:
+    - browser
+    - web
+    - terminal
+    - file
+    - code_execution
+    - clarify
+    - cronjob
+    - delegation
+    - image_gen
+    - memory
+    - session_search
+    - skills
+    - todo
+    - webhook
+    - mcp
+
+tools:
+  browser:
+    enabled: true
+  web:
+    enabled: true
+  terminal:
+    enabled: true
+  file:
+    enabled: true
+  code_execution:
+    enabled: true
+
 browser:
   provider: "${effectiveProvider}"
   backend: "${settings.backend === 'builtin' ? 'off' : (settings.backend || 'auto')}"
@@ -436,7 +479,13 @@ browser:
     adopt_existing_tab: ${settings.camofoxAdoptExistingTab !== false}
 `;
 
-  fs.writeFileSync(configYamlPath, `${currentYaml}\n${browserYamlSection}`.trim() + '\n', 'utf8');
+  const finalYaml = `${currentYaml}\n${browserYamlSection}`.trim() + '\n';
+  fs.writeFileSync(configYamlPath, finalYaml, 'utf8');
+
+  // Mirror config.yaml to default profile and webui paths
+  fs.writeFileSync(path.join(defaultProfileHome, 'config.yaml'), finalYaml, 'utf8');
+  fs.writeFileSync(path.join(webuiDir, 'config.yaml'), finalYaml, 'utf8');
+  fs.writeFileSync(path.join(webuiStateDir, 'config.yaml'), finalYaml, 'utf8');
 
   // ── 2. Update ~/.hermes/.env ────────────────────────────────────────────────
   const envPath = path.join(hermesHome, '.env');
@@ -487,33 +536,151 @@ browser:
   for (const [k, v] of Object.entries(browserEnvVars)) {
     if (v) envLines.push(`${k}=${v}`);
   }
-  fs.writeFileSync(envPath, envLines.join('\n').trim() + '\n', 'utf8');
+  const finalEnv = envLines.join('\n').trim() + '\n';
+  fs.writeFileSync(envPath, finalEnv, 'utf8');
+  fs.writeFileSync(path.join(defaultProfileHome, '.env'), finalEnv, 'utf8');
 
-  // ── 3. Register Cloudflare Kitesurf MCP in ~/.hermes/mcp.json if enabled ───
-  if (settings.kitesurfMcpEnabled || settings.provider === 'kitesurf_cdp') {
+  // ── 3. Register Cloudflare Kitesurf MCP in ~/.hermes/mcp.json ───────────────
+  const mcpPath = path.join(hermesHome, 'mcp.json');
+  let mcpConfig: any = { mcpServers: {} };
+  if (fs.existsSync(mcpPath)) {
     try {
-      const mcpPath = path.join(hermesHome, 'mcp.json');
-      let mcpConfig: any = { mcpServers: {} };
-      if (fs.existsSync(mcpPath)) {
-        try {
-          mcpConfig = JSON.parse(fs.readFileSync(mcpPath, 'utf8'));
-        } catch {}
-      }
-      mcpConfig.mcpServers = mcpConfig.mcpServers || {};
-      mcpConfig.mcpServers.kitesurf = {
-        command: 'npx',
-        args: [
-          '-y',
-          'chrome-devtools-mcp@latest',
-          `--wsEndpoint=${effectiveCdpUrl || 'wss://kitesurf.cloudflare.app/devtools/browser'}`,
-        ],
-        enabled: true,
-      };
-      fs.writeFileSync(mcpPath, JSON.stringify(mcpConfig, null, 2), 'utf8');
-    } catch (err) {
-      console.warn('[Hermes Browser] Notice: could not write mcp.json:', err);
-    }
+      mcpConfig = JSON.parse(fs.readFileSync(mcpPath, 'utf8'));
+    } catch {}
   }
+  mcpConfig.mcpServers = mcpConfig.mcpServers || {};
+
+  if (settings.kitesurfMcpEnabled || settings.provider === 'kitesurf_cdp') {
+    mcpConfig.mcpServers.kitesurf = {
+      command: 'npx',
+      args: [
+        '-y',
+        'chrome-devtools-mcp@latest',
+        `--wsEndpoint=${effectiveCdpUrl || 'wss://kitesurf.cloudflare.app/devtools/browser'}`,
+      ],
+      enabled: true,
+    };
+  }
+  const finalMcp = JSON.stringify(mcpConfig, null, 2);
+  fs.writeFileSync(mcpPath, finalMcp, 'utf8');
+  fs.writeFileSync(path.join(defaultProfileHome, 'mcp.json'), finalMcp, 'utf8');
+
+  // ── 4. Update WebUI settings.json & config.json ────────────────────────────
+  const webuiSettings = {
+    setup_completed: true,
+    onboarding_completed: true,
+    browser_enabled: true,
+    browser_provider: effectiveProvider,
+    cdp_url: effectiveCdpUrl,
+    toolsets: [
+      'browser',
+      'web',
+      'terminal',
+      'file',
+      'code_execution',
+      'clarify',
+      'cronjob',
+      'delegation',
+      'image_gen',
+      'memory',
+      'session_search',
+      'skills',
+      'todo',
+      'webhook',
+      'mcp',
+    ],
+    enabled_toolsets: [
+      'browser',
+      'web',
+      'terminal',
+      'file',
+      'code_execution',
+      'clarify',
+      'cronjob',
+      'delegation',
+      'image_gen',
+      'memory',
+      'session_search',
+      'skills',
+      'todo',
+      'webhook',
+      'mcp',
+    ],
+  };
+
+  for (const dir of [hermesHome, defaultProfileHome, webuiDir, webuiStateDir]) {
+    try {
+      fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify(webuiSettings, null, 2), 'utf8');
+    } catch {}
+  }
+}
+
+/**
+ * Returns comprehensive inspection of all active Hermes config files on disk.
+ */
+export async function getHermesSyncStatus(userId?: string) {
+  const hermesHome = process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes');
+  const defaultProfileHome = path.join(hermesHome, 'profiles', 'default');
+  const webuiDir = path.join(hermesHome, 'webui');
+
+  const filesToCheck = [
+    { name: 'Root config.yaml', path: path.join(hermesHome, 'config.yaml'), category: 'Core Config' },
+    { name: 'Profile config.yaml', path: path.join(defaultProfileHome, 'config.yaml'), category: 'WebUI Profile' },
+    { name: 'Root .env', path: path.join(hermesHome, '.env'), category: 'Environment' },
+    { name: 'Profile .env', path: path.join(defaultProfileHome, '.env'), category: 'Environment' },
+    { name: 'Root mcp.json', path: path.join(hermesHome, 'mcp.json'), category: 'MCP Toolsets' },
+    { name: 'Profile mcp.json', path: path.join(defaultProfileHome, 'mcp.json'), category: 'MCP Toolsets' },
+    { name: 'WebUI settings.json', path: path.join(webuiDir, 'settings.json'), category: 'WebUI State' },
+    { name: 'Sitecustomize.py', path: path.join(hermesHome, 'sitecustomize.py'), category: 'Network Interceptors' },
+  ];
+
+  const fileStatuses = filesToCheck.map((f) => {
+    const exists = fs.existsSync(f.path);
+    let mtime: string | null = null;
+    let sizeBytes = 0;
+    if (exists) {
+      try {
+        const stats = fs.statSync(f.path);
+        mtime = stats.mtime.toISOString();
+        sizeBytes = stats.size;
+      } catch {}
+    }
+    return {
+      name: f.name,
+      path: f.path,
+      category: f.category,
+      exists,
+      mtime,
+      sizeBytes,
+    };
+  });
+
+  let rawConfigYaml = '';
+  try {
+    if (fs.existsSync(path.join(hermesHome, 'config.yaml'))) {
+      rawConfigYaml = fs.readFileSync(path.join(hermesHome, 'config.yaml'), 'utf8');
+    }
+  } catch {}
+
+  let rawMcpJson = '';
+  try {
+    if (fs.existsSync(path.join(hermesHome, 'mcp.json'))) {
+      rawMcpJson = fs.readFileSync(path.join(hermesHome, 'mcp.json'), 'utf8');
+    }
+  } catch {}
+
+  const browserSettings = userId ? await getHermesBrowserSettings(userId) : null;
+
+  return {
+    synced: fileStatuses.every((f) => f.exists),
+    hermesHome,
+    defaultProfileHome,
+    fileStatuses,
+    rawConfigYaml,
+    rawMcpJson,
+    browserSettings: maskBrowserSettings(browserSettings),
+    lastCheckAt: new Date().toISOString(),
+  };
 }
 
 /**

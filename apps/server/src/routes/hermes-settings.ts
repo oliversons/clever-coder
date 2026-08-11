@@ -16,6 +16,8 @@ import {
   upsertHermesBrowserSettings,
   maskBrowserSettings,
   testBrowserConnection,
+  getHermesSyncStatus,
+  syncBrowserConfigToYamlAndEnv,
 } from '../services/hermes-browser.service.js';
 import { isHermesWebUIRunning, syncHermesConfigFiles, restartHermesWebUI } from '../services/hermes-webui.service.js';
 
@@ -199,6 +201,31 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
 
     const result = await testBrowserConnection(testInput);
     return reply.send(result);
+  });
+
+  // ── GET /api/v1/hermes/browser/sync-status ───────────────────────────────────
+  fastify.get('/browser/sync-status', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const status = await getHermesSyncStatus(payload.sub);
+    return reply.send(status);
+  });
+
+  // ── POST /api/v1/hermes/browser/sync-now ─────────────────────────────────────
+  fastify.post('/browser/sync-now', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    await syncHermesConfigFiles(payload.sub);
+    const settings = await getHermesBrowserSettings(payload.sub);
+    if (settings) {
+      await syncBrowserConfigToYamlAndEnv(settings);
+    }
+    const status = await getHermesSyncStatus(payload.sub);
+    return reply.send({ success: true, status });
   });
 
   // ── GET /api/v1/hermes/gateway/status ─────────────────────────────────────────

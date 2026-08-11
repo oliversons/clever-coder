@@ -152,8 +152,34 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    getBrowserSyncStatus: () =>
+      request<HermesSyncStatus>('/hermes/browser/sync-status'),
+    forceResyncBrowserConfig: () =>
+      request<{ success: boolean; status: HermesSyncStatus }>('/hermes/browser/sync-now', {
+        method: 'POST',
+      }),
   },
 };
+
+export interface HermesSyncFileStatus {
+  name: string;
+  path: string;
+  category: string;
+  exists: boolean;
+  mtime: string | null;
+  sizeBytes: number;
+}
+
+export interface HermesSyncStatus {
+  synced: boolean;
+  hermesHome: string;
+  defaultProfileHome: string;
+  fileStatuses: HermesSyncFileStatus[];
+  rawConfigYaml: string;
+  rawMcpJson: string;
+  browserSettings: HermesBrowserSettings;
+  lastCheckAt: string;
+}
 
 export interface HermesBrowserSettings {
   id?: string;

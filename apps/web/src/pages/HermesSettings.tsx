@@ -33,6 +33,7 @@ import {
   type CronJobItem,
   type Project,
   type HermesBrowserSettings,
+  type HermesSyncStatus,
 } from '../api/client';
 
 // ── Types & Constants ──────────────────────────────────────────────────────────
@@ -290,6 +291,14 @@ export default function HermesSettings() {
   const [browserTestResult, setBrowserTestResult] = useState<{ ok: boolean; message: string; latencyMs?: number; details?: any } | null>(null);
   const [showBrowserKeys, setShowBrowserKeys] = useState<Record<string, boolean>>({});
 
+  // ── Global Config Sync Status State ──
+  const [syncStatus, setSyncStatus] = useState<HermesSyncStatus | null>(null);
+  const [loadingSyncStatus, setLoadingSyncStatus] = useState(false);
+  const [resyncingConfigs, setResyncingConfigs] = useState(false);
+  const [showConfigInspector, setShowConfigInspector] = useState(false);
+  const [configInspectorTab, setConfigInspectorTab] = useState<'yaml' | 'mcp'>('yaml');
+  const [copiedConfig, setCopiedConfig] = useState(false);
+
   // ── Gateway & Scheduler State ──────────────────────────────────────────────
   const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus | null>(null);
   const [cronJobs, setCronJobs] = useState<CronJobItem[]>([]);
@@ -330,6 +339,35 @@ export default function HermesSettings() {
     }
   };
 
+  const loadSyncStatus = async () => {
+    setLoadingSyncStatus(true);
+    try {
+      const res = await api.hermes.getBrowserSyncStatus();
+      if (res) {
+        setSyncStatus(res);
+      }
+    } catch (err) {
+      console.warn('Failed to load sync status:', err);
+    } finally {
+      setLoadingSyncStatus(false);
+    }
+  };
+
+  const handleForceResync = async () => {
+    setResyncingConfigs(true);
+    try {
+      const res = await api.hermes.forceResyncBrowserConfig();
+      if (res?.status) {
+        setSyncStatus(res.status);
+      }
+      setSaveMsg({ type: 'success', text: 'All Hermes global configs, profiles, and MCP toolsets successfully synchronized across disk!' });
+    } catch (err: any) {
+      setSaveMsg({ type: 'error', text: err?.message || 'Failed to resync configs' });
+    } finally {
+      setResyncingConfigs(false);
+    }
+  };
+
   const loadGatewayAndCrons = async () => {
     setLoadingGateway(true);
     try {
@@ -360,6 +398,7 @@ export default function HermesSettings() {
   useEffect(() => {
     loadSettings();
     loadBrowserSettings();
+    loadSyncStatus();
     loadGatewayAndCrons();
   }, []);
 
@@ -1511,6 +1550,185 @@ export default function HermesSettings() {
                           )}
                         </div>
                       )}
+                    </div>
+                  )}
+                </section>
+
+                {/* ── Global Hermes & WebUI Sync Verification Panel ────────────── */}
+                <section className="glass-card" style={{ padding: 26, border: '1px solid rgba(124,58,237,0.25)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, marginBottom: 18 }}>
+                    <div>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Shield style={{ color: '#10b981' }} size={20} />
+                        Global Hermes & WebUI Configuration Synchronization
+                      </div>
+                      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                        Verifies that Hermes WebUI and Hermes Agent CLI share identical active configuration, browser backends, and toolsets across all profile paths.
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <button
+                        type="button"
+                        onClick={handleForceResync}
+                        disabled={resyncingConfigs}
+                        className="btn"
+                        style={{
+                          background: 'rgba(124,58,237,0.12)',
+                          border: '1px solid rgba(124,58,237,0.3)',
+                          color: 'var(--text-accent)',
+                          padding: '8px 14px',
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {resyncingConfigs ? <Loader size={14} className="spin" /> : <RefreshCw size={14} />}
+                        <span>Force Re-Sync All Profiles</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowConfigInspector(!showConfigInspector);
+                          loadSyncStatus();
+                        }}
+                        className="btn"
+                        style={{
+                          background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border)',
+                          color: 'var(--text-primary)',
+                          padding: '8px 14px',
+                          fontSize: 12,
+                          fontWeight: 600,
+                        }}
+                      >
+                        <Code2 size={14} />
+                        <span>{showConfigInspector ? 'Hide Raw Files' : 'Inspect Live Files'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Sync Status Badge Grid */}
+                  {syncStatus && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10, marginBottom: 16 }}>
+                      {syncStatus.fileStatuses.map((f) => (
+                        <div
+                          key={f.path}
+                          style={{
+                            padding: '10px 14px',
+                            borderRadius: 'var(--radius-md)',
+                            background: f.exists ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)',
+                            border: `1px solid ${f.exists ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 8,
+                          }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{f.name}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {f.path}
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                            {f.exists ? (
+                              <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(16,185,129,0.15)', color: '#10b981', fontWeight: 700 }}>
+                                ✓ Active ({f.sizeBytes} B)
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontWeight: 700 }}>
+                                ✗ Missing
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Expandable Live File Inspector */}
+                  {showConfigInspector && syncStatus && (
+                    <div
+                      style={{
+                        padding: 16,
+                        borderRadius: 'var(--radius-md)',
+                        background: '#090d16',
+                        border: '1px solid rgba(124,58,237,0.3)',
+                        marginTop: 10,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => setConfigInspectorTab('yaml')}
+                            style={{
+                              padding: '4px 12px',
+                              borderRadius: 4,
+                              background: configInspectorTab === 'yaml' ? 'rgba(124,58,237,0.3)' : 'transparent',
+                              border: `1px solid ${configInspectorTab === 'yaml' ? '#7c3aed' : 'transparent'}`,
+                              color: configInspectorTab === 'yaml' ? '#fff' : 'var(--text-muted)',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            config.yaml (Live)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfigInspectorTab('mcp')}
+                            style={{
+                              padding: '4px 12px',
+                              borderRadius: 4,
+                              background: configInspectorTab === 'mcp' ? 'rgba(124,58,237,0.3)' : 'transparent',
+                              border: `1px solid ${configInspectorTab === 'mcp' ? '#7c3aed' : 'transparent'}`,
+                              color: configInspectorTab === 'mcp' ? '#fff' : 'var(--text-muted)',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            mcp.json (Live)
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const text = configInspectorTab === 'yaml' ? syncStatus.rawConfigYaml : syncStatus.rawMcpJson;
+                            navigator.clipboard.writeText(text);
+                            setCopiedConfig(true);
+                            setTimeout(() => setCopiedConfig(false), 2000);
+                          }}
+                          className="btn"
+                          style={{ padding: '4px 10px', fontSize: 11 }}
+                        >
+                          {copiedConfig ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                          <span>{copiedConfig ? 'Copied!' : 'Copy'}</span>
+                        </button>
+                      </div>
+
+                      <pre
+                        style={{
+                          margin: 0,
+                          padding: 14,
+                          borderRadius: 6,
+                          background: '#040711',
+                          color: '#a7f3d0',
+                          fontSize: 12,
+                          lineHeight: 1.5,
+                          maxHeight: 320,
+                          overflowY: 'auto',
+                          fontFamily: 'var(--font-mono)',
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-all',
+                        }}
+                      >
+                        {configInspectorTab === 'yaml' ? (syncStatus.rawConfigYaml || '# No config.yaml found') : (syncStatus.rawMcpJson || '{}')}
+                      </pre>
                     </div>
                   )}
                 </section>
