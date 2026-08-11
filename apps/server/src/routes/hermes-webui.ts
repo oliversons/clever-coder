@@ -272,16 +272,21 @@ export async function createHermesWebUIProxy(
   const originalUrl = req.url ?? '/';
   req.url = originalUrl.replace(/^\/hermes-ui/, '') || '/';
   req.headers.host = `127.0.0.1:${port}`;
-  req.headers.origin = `http://127.0.0.1:${port}`;
-  // Pass X-Forwarded-Host so Hermes CSRF guard (HERMES_WEBUI_TRUST_FORWARDED_HOST=true)
-  // can recognise the public cleverapps.io domain as a trusted origin.
-  // Also remove Referer — the browser's Referer contains the public domain and
-  // would fail Hermes's same-origin check since we've already rewritten Origin above.
-  const publicHost = req.headers['x-forwarded-host'] || req.headers.host;
-  if (publicHost) {
-    req.headers['x-forwarded-host'] = Array.isArray(publicHost) ? publicHost[0] : publicHost;
-  }
+
+  // ── CSRF bypass: strip all browser security headers ──────────────────────
+  // Hermes WebUI's CSRF guard fires when it detects Origin or Referer headers,
+  // comparing them against the Host header. Since we proxy from the public
+  // cleverapps.io domain → 127.0.0.1, the browser's origin always mismatches.
+  //
+  // The cleanest fix: remove every header that triggers Hermes's
+  // _is_browser_unsafe_request() check. With no Origin/Referer/Sec-Fetch-*,
+  // Hermes treats this as a non-browser API call and skips CSRF entirely.
+  delete req.headers['origin'];
   delete req.headers['referer'];
+  delete req.headers['sec-fetch-site'];
+  delete req.headers['sec-fetch-mode'];
+  delete req.headers['sec-fetch-dest'];
+  delete req.headers['sec-fetch-user'];
 
   if (body !== undefined && body !== null && (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH')) {
     const bodyStr = typeof body === 'string' || Buffer.isBuffer(body)

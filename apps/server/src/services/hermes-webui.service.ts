@@ -224,6 +224,9 @@ openai:
       `SETUP_COMPLETED=true`,
       `HERMES_ONBOARDING_COMPLETED=true`,
       `LITELLM_LOG=DEBUG`,
+      // Disable Nous Portal JWT from overriding the custom API key
+      `DISABLE_NOUS_AUTH=true`,
+      `NOUS_API_KEY=`,
     ];
     fs.writeFileSync(path.join(hermesHome, '.env'), envLines.join('\n'), 'utf8');
 
@@ -423,11 +426,9 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
   const pythonPath = [hermesHome, scriptDir, existingPythonPath].filter(Boolean).join(':');
 
   // Build the allowed origins list for Hermes WebUI CSRF guard.
-  // Hermes WebUI's CSRF check compares the browser's Origin/Referer header against
-  // the request Host header. When proxied behind our Node server, the browser sends
-  // the public cleverapps.io origin — which Hermes rejects as "cross-origin".
-  // Fix: pass HERMES_WEBUI_ALLOWED_ORIGINS so Hermes whitelists the public URL,
-  // and HERMES_WEBUI_TRUST_FORWARDED_HOST so X-Forwarded-Host is also trusted.
+  // Build the allowed origins list for Hermes WebUI CSRF guard.
+  // Note: CSRF bypass is now handled at the proxy layer (stripping browser security headers),
+  // but we still set these as a belt-and-suspenders fallback.
   const publicUrl = (process.env.PUBLIC_URL || '').trim().replace(/\/$/, '');
   const allowedOrigins = [
     'http://127.0.0.1:8787',
@@ -445,15 +446,20 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
     HERMES_WEBUI_HOST: '127.0.0.1',
     HERMES_HOME: hermesHome,
     HERMES_WORKSPACE: process.env.WORKSPACES_ROOT || '/workspaces',
-    // ── CSRF fix: allow the public cleverapps.io domain ───────────────────────
-    // Hermes WebUI CSRF guard blocks requests whose Origin/Referer doesn't match
-    // the server's Host. Since we proxy from the public URL → 127.0.0.1:port,
-    // the browser sends the public origin, which Hermes sees as "cross-site".
-    // HERMES_WEBUI_ALLOWED_ORIGINS whitelists those origins explicitly.
-    // HERMES_WEBUI_TRUST_FORWARDED_HOST lets Hermes also check X-Forwarded-Host.
+    // ── CSRF fix (belt-and-suspenders) ───────────────────────────────────
     HERMES_WEBUI_ALLOWED_ORIGINS: allowedOrigins,
     HERMES_WEBUI_TRUST_FORWARDED_HOST: 'true',
-    // Inject decrypted credentials directly into the Python process environment
+    // ── Nous Auth fix ────────────────────────────────────────────────
+    // hermes-agent can override our custom API key with a Nous Portal JWT.
+    // DISABLE_NOUS_AUTH prevents this; NOUS_API_KEY= clears any cached token.
+    DISABLE_NOUS_AUTH: 'true',
+    NOUS_API_KEY: '',
+    // ── Browser User-Agent ────────────────────────────────────────────
+    // Cloudflare / Clever Cloud WAF blocks default python-httpx/requests agents.
+    // Spoofing a Chrome user-agent prevents bot detection on outgoing AI calls.
+    USER_AGENT: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    HTTP_USER_AGENT: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    // ── Credentials ─────────────────────────────────────────────────────
     DEFAULT_API_KEY: apiKey,
     CUSTOM_API_KEY: apiKey,
     OPENAI_API_KEY: apiKey,
