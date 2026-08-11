@@ -436,7 +436,13 @@ export async function syncBrowserConfigToYamlAndEnv(settings: any) {
     .replace(/browser:[\s\S]*?(?=\n[a-z0-9_]+:|$)/gi, '')
     .replace(/platform_toolsets:[\s\S]*?(?=\n[a-z0-9_]+:|$)/gi, '')
     .replace(/tools:[\s\S]*?(?=\n[a-z0-9_]+:|$)/gi, '')
+    .replace(/web_search:[\s\S]*?(?=\n[a-z0-9_]+:|$)/gi, '')
+    .replace(/web_extract:[\s\S]*?(?=\n[a-z0-9_]+:|$)/gi, '')
+    .replace(/search:[\s\S]*?(?=\n[a-z0-9_]+:|$)/gi, '')
+    .replace(/web:[\s\S]*?(?=\n[a-z0-9_]+:|$)/gi, '')
     .trim();
+
+  const searchProvider = settings.firecrawlApiKey ? 'firecrawl' : 'duckduckgo';
 
   const browserYamlSection = `
 platform_toolsets:
@@ -468,6 +474,25 @@ tools:
     enabled: true
   code_execution:
     enabled: true
+
+web_search:
+  provider: "${searchProvider}"
+  fallback: "browser"
+  max_results: 10
+
+web_extract:
+  provider: "browser"
+  fallback: "trafilatura"
+
+search:
+  provider: "${searchProvider}"
+  fallback: "browser"
+
+web:
+  provider: "${searchProvider}"
+  search_provider: "${searchProvider}"
+  extract_provider: "browser"
+  browser_fallback: true
 
 browser:
   provider: "${effectiveProvider}"
@@ -514,13 +539,28 @@ browser:
 
   const browserEnvVars: Record<string, string> = {
     BROWSER_PROVIDER: effectiveProvider,
+    HERMES_BROWSER_PROVIDER: effectiveProvider,
     BROWSER_HEADLESS: String(settings.headless !== false),
     AGENT_BROWSER_HEADED: settings.headed ? '1' : '0',
     CDP_ENDPOINT_URL: effectiveCdpUrl,
+    CDP_URL: effectiveCdpUrl,
+    HERMES_CDP_URL: effectiveCdpUrl,
     BROWSER_VISION_ENABLED: String(settings.visionEnabled !== false),
     BROWSER_TIMEOUT_SECONDS: String(settings.timeoutSeconds || 300),
     BROWSER_INACTIVITY_TIMEOUT: String(settings.inactivityTimeout || 120),
     AGENT_BROWSER_ARGS: settings.agentBrowserArgs || '--no-sandbox,--disable-dev-shm-usage',
+    BROWSER_TOOL_ENABLED: 'true',
+    HERMES_BROWSER_ENABLED: 'true',
+    WEB_SEARCH_PROVIDER: searchProvider,
+    SEARCH_PROVIDER: searchProvider,
+    WEB_EXTRACT_PROVIDER: 'browser',
+    SEARCH_FALLBACK: 'browser',
+    PIP_BREAK_SYSTEM_PACKAGES: '1',
+    PIP_ROOT_USER_ACTION: 'ignore',
+    PLAYWRIGHT_BROWSERS_PATH: '0',
+    CHROME_PATH: '/usr/bin/chromium',
+    CHROMIUM_PATH: '/usr/bin/chromium',
+    PUPPETEER_EXECUTABLE_PATH: '/usr/bin/chromium',
   };
 
   if (settings.browserbaseApiKey) browserEnvVars.BROWSERBASE_API_KEY = settings.browserbaseApiKey;

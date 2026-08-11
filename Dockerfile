@@ -56,10 +56,11 @@ RUN curl -fsSL https://rclone.org/install.sh | bash \
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3-pip python3-venv \
     && rm -rf /var/lib/apt/lists/* \
-    && (pip install --no-cache-dir hermes-agent playwright camoufox --break-system-packages || true) \
+    && (pip install --no-cache-dir hermes-agent playwright camoufox duckduckgo_search trafilatura beautifulsoup4 litellm firecrawl-py tavily-python --break-system-packages || true) \
+    && (playwright install chromium || true) \
     && git clone https://github.com/nesquena/hermes-webui.git /opt/hermes-webui \
     && cd /opt/hermes-webui \
-    && (pip install --no-cache-dir -r requirements.txt --break-system-packages || true)
+    && (pip install --no-cache-dir -r requirements.txt duckduckgo_search trafilatura beautifulsoup4 litellm firecrawl-py tavily-python --break-system-packages || true)
 
 # ── App ────────────────────────────────────────────────────────
 WORKDIR /app

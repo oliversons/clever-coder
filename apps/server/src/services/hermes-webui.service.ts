@@ -235,6 +235,14 @@ openai:
     const sitecustomizeContent = `import os
 import sys
 
+# Ensure pip does not fail with externally-managed-environment in Debian/Ubuntu
+os.environ.setdefault('PIP_BREAK_SYSTEM_PACKAGES', '1')
+os.environ.setdefault('PIP_ROOT_USER_ACTION', 'ignore')
+os.environ.setdefault('WEB_SEARCH_PROVIDER', 'duckduckgo')
+os.environ.setdefault('SEARCH_PROVIDER', 'duckduckgo')
+os.environ.setdefault('WEB_EXTRACT_PROVIDER', 'browser')
+os.environ.setdefault('SEARCH_FALLBACK', 'browser')
+
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
 def _patch_all():
@@ -301,14 +309,14 @@ def _patch_all():
             kwargs['default_headers'] = dh
             orig_async_init(self, *args, **kwargs)
         openai.AsyncOpenAI.__init__ = patched_async_init
-    except Exception as e:
+    except Exception:
         pass
 
     # Patch LiteLLM if imported
     try:
         import litellm
         if os.environ.get('LITELLM_LOG') == 'DEBUG':
-            litellm.set_verbose = True
+            litellm.set_verbose = False
 
         orig_completion = getattr(litellm, 'completion', None)
         if orig_completion and not getattr(orig_completion, '_is_patched', False):
@@ -343,10 +351,8 @@ def _patch_all():
                 return await orig_acompletion(*args, **kwargs)
             patched_acompletion._is_patched = True
             litellm.acompletion = patched_acompletion
-
-        print(f"[sitecustomize] Successfully patched openai, httpx, requests & litellm with base_url={base_url}", file=sys.stderr)
-    except Exception as e:
-        print(f"[sitecustomize] Note: {e}", file=sys.stderr)
+    except Exception:
+        pass
 
 _patch_all()
 `;
@@ -518,6 +524,19 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
     // Spoofing a Chrome user-agent prevents bot detection on outgoing AI calls.
     USER_AGENT: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     HTTP_USER_AGENT: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    // ── Search, Extract & Browser Fallbacks ────────────────────────────
+    PIP_BREAK_SYSTEM_PACKAGES: '1',
+    PIP_ROOT_USER_ACTION: 'ignore',
+    WEB_SEARCH_PROVIDER: 'duckduckgo',
+    SEARCH_PROVIDER: 'duckduckgo',
+    WEB_EXTRACT_PROVIDER: 'browser',
+    SEARCH_FALLBACK: 'browser',
+    BROWSER_TOOL_ENABLED: 'true',
+    HERMES_BROWSER_ENABLED: 'true',
+    PLAYWRIGHT_BROWSERS_PATH: '0',
+    CHROME_PATH: '/usr/bin/chromium',
+    CHROMIUM_PATH: '/usr/bin/chromium',
+    PUPPETEER_EXECUTABLE_PATH: '/usr/bin/chromium',
     // ── Credentials ─────────────────────────────────────────────────────
     DEFAULT_API_KEY: apiKey,
     CUSTOM_API_KEY: apiKey,
