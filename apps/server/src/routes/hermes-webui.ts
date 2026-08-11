@@ -273,6 +273,15 @@ export async function createHermesWebUIProxy(
   req.url = originalUrl.replace(/^\/hermes-ui/, '') || '/';
   req.headers.host = `127.0.0.1:${port}`;
   req.headers.origin = `http://127.0.0.1:${port}`;
+  // Pass X-Forwarded-Host so Hermes CSRF guard (HERMES_WEBUI_TRUST_FORWARDED_HOST=true)
+  // can recognise the public cleverapps.io domain as a trusted origin.
+  // Also remove Referer — the browser's Referer contains the public domain and
+  // would fail Hermes's same-origin check since we've already rewritten Origin above.
+  const publicHost = req.headers['x-forwarded-host'] || req.headers.host;
+  if (publicHost) {
+    req.headers['x-forwarded-host'] = Array.isArray(publicHost) ? publicHost[0] : publicHost;
+  }
+  delete req.headers['referer'];
 
   if (body !== undefined && body !== null && (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH')) {
     const bodyStr = typeof body === 'string' || Buffer.isBuffer(body)

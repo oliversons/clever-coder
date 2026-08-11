@@ -422,6 +422,20 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
   const existingPythonPath = process.env.PYTHONPATH || '';
   const pythonPath = [hermesHome, scriptDir, existingPythonPath].filter(Boolean).join(':');
 
+  // Build the allowed origins list for Hermes WebUI CSRF guard.
+  // Hermes WebUI's CSRF check compares the browser's Origin/Referer header against
+  // the request Host header. When proxied behind our Node server, the browser sends
+  // the public cleverapps.io origin — which Hermes rejects as "cross-origin".
+  // Fix: pass HERMES_WEBUI_ALLOWED_ORIGINS so Hermes whitelists the public URL,
+  // and HERMES_WEBUI_TRUST_FORWARDED_HOST so X-Forwarded-Host is also trusted.
+  const publicUrl = (process.env.PUBLIC_URL || '').trim().replace(/\/$/, '');
+  const allowedOrigins = [
+    'http://127.0.0.1:8787',
+    `http://127.0.0.1:${port}`,
+    'http://localhost:8080',
+    ...(publicUrl ? [publicUrl] : []),
+  ].join(',');
+
   const env: Record<string, string> = {
     ...process.env,
     ...buildMultiCoreEnv(totalCores),
@@ -431,6 +445,14 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
     HERMES_WEBUI_HOST: '127.0.0.1',
     HERMES_HOME: hermesHome,
     HERMES_WORKSPACE: process.env.WORKSPACES_ROOT || '/workspaces',
+    // ── CSRF fix: allow the public cleverapps.io domain ───────────────────────
+    // Hermes WebUI CSRF guard blocks requests whose Origin/Referer doesn't match
+    // the server's Host. Since we proxy from the public URL → 127.0.0.1:port,
+    // the browser sends the public origin, which Hermes sees as "cross-site".
+    // HERMES_WEBUI_ALLOWED_ORIGINS whitelists those origins explicitly.
+    // HERMES_WEBUI_TRUST_FORWARDED_HOST lets Hermes also check X-Forwarded-Host.
+    HERMES_WEBUI_ALLOWED_ORIGINS: allowedOrigins,
+    HERMES_WEBUI_TRUST_FORWARDED_HOST: 'true',
     // Inject decrypted credentials directly into the Python process environment
     DEFAULT_API_KEY: apiKey,
     CUSTOM_API_KEY: apiKey,
