@@ -1,5 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutDashboard, LogOut, Settings, Sun, Moon, Bot } from 'lucide-react';
+import {
+  RiDashboard3Line,
+  RiSettings4Line,
+  RiRobot2Line,
+  RiSunLine,
+  RiMoonClearLine,
+  RiLogoutBoxRLine,
+  RiFlashlightLine
+} from 'react-icons/ri';
 import { useAuthStore } from '../store';
 import { useThemeStore } from '../store/themeStore';
 import { motion } from 'framer-motion';
@@ -16,7 +24,9 @@ export default function Layout() {
     <div className="app-layout">
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <span className="sidebar-logo-icon">⚡</span>
+          <span className="sidebar-logo-icon">
+            <RiFlashlightLine size={18} style={{ color: 'var(--accent-1)' }} />
+          </span>
           <div className="sidebar-logo-text">
             <h2>CleverCoder</h2>
             <span>Vibe Coding Platform</span>
@@ -26,19 +36,19 @@ export default function Layout() {
         <nav className="sidebar-nav">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
             <NavLink to="/dashboard" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-              <LayoutDashboard size={16} />
-              Dashboard
+              <RiDashboard3Line size={18} />
+              <span>Dashboard</span>
             </NavLink>
             <NavLink to="/settings/hermes" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-              <Bot size={16} />
-              Hermes AI
+              <RiRobot2Line size={18} />
+              <span>Hermes AI</span>
             </NavLink>
           </div>
 
           <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border)' }}>
             <NavLink to="/settings" end className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-              <Settings size={16} />
-              Settings
+              <RiSettings4Line size={18} />
+              <span>Settings</span>
             </NavLink>
           </div>
         </nav>
@@ -66,7 +76,7 @@ export default function Layout() {
             title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
             style={{ padding: '6px' }}
           >
-            {theme === 'dark' ? <Sun size={15} style={{ color: 'var(--warning)' }} /> : <Moon size={15} style={{ color: 'var(--text-accent)' }} />}
+            {theme === 'dark' ? <RiSunLine size={16} style={{ color: 'var(--warning)' }} /> : <RiMoonClearLine size={16} style={{ color: 'var(--text-accent)' }} />}
           </button>
 
           {/* Hermes Trigger */}
@@ -84,7 +94,7 @@ export default function Layout() {
             title="Logout"
             style={{ padding: '6px' }}
           >
-            <LogOut size={15} />
+            <RiLogoutBoxRLine size={16} />
           </button>
         </div>
       </aside>

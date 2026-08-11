@@ -1,12 +1,42 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import type { IconType } from 'react-icons';
 import {
-  Sun, Moon, Github, Shield, User as UserIcon, Check, HardDrive,
-  Palette as PaletteIcon, Snowflake, Flame, Zap, Droplets, Trees, Heart, Sparkles, Bot,
-  Crown, Waves, Leaf, Compass, Award, LayoutGrid, Layers, Square, CircleDot, MinusSquare, Box,
-  type LucideIcon
-} from 'lucide-react';
+  RiSunLine,
+  RiMoonClearLine,
+  RiGithubLine,
+  RiShieldCheckLine,
+  RiShieldLine,
+  RiUser3Line,
+  RiCheckLine,
+  RiHardDrive2Line,
+  RiPaletteLine,
+  RiSnowflakeLine,
+  RiFireLine,
+  RiFlashlightLine,
+  RiDropLine,
+  RiTreeLine,
+  RiHeart3Line,
+  RiSparkling2Line,
+  RiSparklingLine,
+  RiRobot2Line,
+  RiVipCrownLine,
+  RiWaterPercentLine,
+  RiLeafLine,
+  RiCompass3Line,
+  RiMedalLine,
+  RiLayoutGridLine,
+  RiStackLine,
+  RiSquareLine,
+  RiCheckboxBlankCircleLine,
+  RiSubtractLine,
+  RiBox3Line,
+  RiMoonFoggyLine,
+  RiSunCloudyLine,
+  RiContrastDropLine,
+  RiTerminalBoxLine
+} from 'react-icons/ri';
 import { useAuthStore } from '../store';
 import { useThemeStore, type Palette, type ThemeStyle } from '../store/themeStore';
 import { api, openGithubOAuthPopup } from '../api/client';
@@ -17,7 +47,7 @@ export interface ThemeStyleOption {
   badge?: string;
   tagline: string;
   description: string;
-  icon: LucideIcon;
+  icon: IconType;
   cardRadius: string;
   btnRadius: string;
   inputRadius: string;
@@ -32,7 +62,7 @@ export const THEME_STYLES: ThemeStyleOption[] = [
     badge: 'MUI v5 Spec',
     tagline: 'Authentic Material-UI Paper elevation, uppercase buttons, outlined textfields',
     description: '100% faithful to official MUI v5 (Material Design). Features 4px Paper elevation shadows, uppercase buttons (letter-spacing: 0.028em), outlined inputs, 16px capsule chips, and Material drawer navigation.',
-    icon: Layers,
+    icon: RiStackLine,
     cardRadius: '4px',
     btnRadius: '4px',
     inputRadius: '4px',
@@ -45,7 +75,7 @@ export const THEME_STYLES: ThemeStyleOption[] = [
     badge: 'Popular',
     tagline: 'Clean solid surfaces, ambient drop shadows, crisp SaaS structure',
     description: 'Inspired by modern SaaS dashboards (Materialize). Features solid elevated surfaces, 12px smooth corners, refined 8px outlined inputs, pill badges, and zero blur distortion.',
-    icon: LayoutGrid,
+    icon: RiLayoutGridLine,
     cardRadius: '12px',
     btnRadius: '8px',
     inputRadius: '8px',
@@ -57,7 +87,7 @@ export const THEME_STYLES: ThemeStyleOption[] = [
     name: 'Cyberpunk Glass Frost',
     tagline: 'Translucent frosted glass with vibrant neon edge glow',
     description: 'Futuristic glass aesthetics featuring 20px backdrop blur, semi-transparent frosted card bodies, glowing neon shadow highlights, and rounded 16px corners.',
-    icon: Sparkles,
+    icon: RiSparkling2Line,
     cardRadius: '16px',
     btnRadius: '12px',
     inputRadius: '12px',
@@ -69,7 +99,7 @@ export const THEME_STYLES: ThemeStyleOption[] = [
     name: 'Neo-Brutalist Geometric',
     tagline: 'Bold 2px solid contrast borders and hard 4px offset shadows',
     description: 'High-contrast tactile brutalist style with sharp 2px corners, solid structural borders, offset drop shadows without blur, and bold typography.',
-    icon: Square,
+    icon: RiSquareLine,
     cardRadius: '2px',
     btnRadius: '2px',
     inputRadius: '2px',
@@ -81,7 +111,7 @@ export const THEME_STYLES: ThemeStyleOption[] = [
     name: 'Soft Rounded & Organic',
     tagline: 'Cupertino tactile curves, pill buttons, and smooth fluid contours',
     description: 'Ultra-friendly fluid design with sweeping 24px card curves, full capsule pill buttons (9999px), inset input shadows, and soft ambient shadows.',
-    icon: CircleDot,
+    icon: RiCheckboxBlankCircleLine,
     cardRadius: '24px',
     btnRadius: 'Pill (9999px)',
     inputRadius: 'Pill (9999px)',
@@ -93,7 +123,7 @@ export const THEME_STYLES: ThemeStyleOption[] = [
     name: 'Swiss Minimalist Flat',
     tagline: 'Zero drop-shadows, 1px hairline dividers, structured clarity',
     description: 'High-density utilitarian minimalism with 0px shadows, clean 1px hairline borders, compact 4px-6px radii, and distraction-free contrast.',
-    icon: MinusSquare,
+    icon: RiSubtractLine,
     cardRadius: '6px',
     btnRadius: '4px',
     inputRadius: '4px',
@@ -107,7 +137,7 @@ interface PaletteOption {
   name: string;
   category: 'featured' | 'cold' | 'warm' | 'classic';
   description: string;
-  icon: LucideIcon;
+  icon: IconType;
   colorsDark: string[];
   colorsLight: string[];
 }
@@ -119,7 +149,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Black & Gold Elegance',
     category: 'featured',
     description: 'High-luxury deep pitch black and midnight navy with radiant amber gold and platinum highlights.',
-    icon: Crown,
+    icon: RiVipCrownLine,
     colorsDark: ['#050811', '#fca311', '#14213d', '#e5e5e5'],
     colorsLight: ['#f8fafc', '#d97706', '#14213d', '#ffffff'],
   },
@@ -128,7 +158,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Sapphire & Quicksand Luxe',
     category: 'featured',
     description: 'Watchmaking sapphire royal blue with quicksand champagne gold and swan wing alabaster.',
-    icon: Award,
+    icon: RiMedalLine,
     colorsDark: ['#09122c', '#e0c58f', '#3c507d', '#f5f0e9'],
     colorsLight: ['#f5f0e9', '#112250', '#c7a86b', '#3c507d'],
   },
@@ -137,7 +167,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Deep Azure & Jade',
     category: 'featured',
     description: 'Deep azure midnight slate with rich nautical teal, pale jade mint, and clean pale teal white.',
-    icon: Compass,
+    icon: RiCompass3Line,
     colorsDark: ['#0b1521', '#345b63', '#d4ecdd', '#f8fffe'],
     colorsLight: ['#f8fffe', '#152d35', '#345b63', '#d4ecdd'],
   },
@@ -146,7 +176,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Midnight Violet & Seashell',
     category: 'featured',
     description: 'Royal midnight violet plum with French blue, glacial powder blue, and warm seashell wheat.',
-    icon: Sparkles,
+    icon: RiSparklingLine,
     colorsDark: ['#1f0a1a', '#f6e0b6', '#3e4b8e', '#fff4eb'],
     colorsLight: ['#fff4eb', '#3d1534', '#3e4b8e', '#f6e0b6'],
   },
@@ -155,7 +185,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Coral & Turquoise Navy',
     category: 'featured',
     description: 'Vivid neon coral red with crisp turquoise aqua, deep navy slate, and pure porcelain white.',
-    icon: Zap,
+    icon: RiFlashlightLine,
     colorsDark: ['#001721', '#f7444e', '#78bcc4', '#f7f8f3'],
     colorsLight: ['#f7f8f3', '#f7444e', '#002c3e', '#78bcc4'],
   },
@@ -164,7 +194,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Blush Pink & Velvet Plum',
     category: 'featured',
     description: 'Deep velvet plum and dark rose night with vivid blush pink, blossom tones, and hot magenta.',
-    icon: Heart,
+    icon: RiHeart3Line,
     colorsDark: ['#140409', '#ec4899', '#f472b6', '#fdf2f8'],
     colorsLight: ['#fdf2f8', '#be185d', '#ec4899', '#831843'],
   },
@@ -173,7 +203,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Teal Harmony & Mint',
     category: 'featured',
     description: 'Deep emerald teal harmony with vivid mint aqua, glacial cyan, and crisp arctic white.',
-    icon: Trees,
+    icon: RiTreeLine,
     colorsDark: ['#041614', '#2dd4bf', '#1488a6', '#ecfeff'],
     colorsLight: ['#ecfeff', '#134e4a', '#1488a6', '#ccfbf1'],
   },
@@ -182,7 +212,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Fiery Ocean',
     category: 'featured',
     description: 'Prussian deep ocean navy with vivid scarlet crimson flame, glacier blue, and warm cream alabaster.',
-    icon: Flame,
+    icon: RiFireLine,
     colorsDark: ['#00121e', '#c1121f', '#669bbc', '#fdf0d5'],
     colorsLight: ['#faf6ee', '#c1121f', '#003049', '#669bbc'],
   },
@@ -191,7 +221,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Crimson Twilight',
     category: 'featured',
     description: 'Deep twilight indigo navy with rich wine crimson, warm sand linen, and soft snow pearl typography.',
-    icon: Compass,
+    icon: RiCompass3Line,
     colorsDark: ['#0e1424', '#c53030', '#2a3b64', '#faf3f3'],
     colorsLight: ['#faf7f5', '#9e2121', '#2a3b64', '#e7e1d9'],
   },
@@ -200,7 +230,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Deep Oceanic Wave',
     category: 'featured',
     description: 'Abyssal midnight sea with Nordic steel blue, frosted powder cyan waves, and arctic mist white text.',
-    icon: Waves,
+    icon: RiWaterPercentLine,
     colorsDark: ['#040a14', '#4a7fa7', '#1a3d63', '#f6fafd'],
     colorsLight: ['#f6fafd', '#1a3d63', '#4a7fa7', '#b3cfe5'],
   },
@@ -209,7 +239,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Forest Sage & Obsidian',
     category: 'featured',
     description: 'Obsidian charcoal black and deep forest evergreen with mineral sage grey and muted moss olive accents.',
-    icon: Leaf,
+    icon: RiLeafLine,
     colorsDark: ['#0a0c09', '#7e9466', '#38472a', '#fdfdfd'],
     colorsLight: ['#f7f8f6', '#38472a', '#6d7e5a', '#111111'],
   },
@@ -218,7 +248,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Espresso & Silk Luxury',
     category: 'featured',
     description: 'Rich dark roast espresso and timber bronze with cashmere sand, silk gold, and pearl white.',
-    icon: Award,
+    icon: RiMedalLine,
     colorsDark: ['#180804', '#e4cdae', '#7f5a3f', '#fffff4'],
     colorsLight: ['#fffff4', '#2d1008', '#7f5a3f', '#e4cdae'],
   },
@@ -227,7 +257,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Blood & Water',
     category: 'featured',
     description: 'Vivid scarlet blood red with steel blue, glacier water, nautical navy, and warm alabaster.',
-    icon: Droplets,
+    icon: RiDropLine,
     colorsDark: ['#0b1726', '#df3431', '#718bae', '#faf5dd'],
     colorsLight: ['#faf5dd', '#df3431', '#2a4b71', '#d9edec'],
   },
@@ -236,7 +266,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Dusk Mauve & Coral',
     category: 'featured',
     description: 'Calm and sophisticated dusk navy with mauve purple, warm coral highlights, and peach alabaster.',
-    icon: Moon,
+    icon: RiMoonFoggyLine,
     colorsDark: ['#0e0f1c', '#f08a8a', '#6d5ba6', '#ffd6c9'],
     colorsLight: ['#fcf7f5', '#42426f', '#d9534f', '#ffd6c9'],
   },
@@ -245,7 +275,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Sunset Velvet & Apricot',
     category: 'featured',
     description: 'Deep velvet plum indigo with rose terracotta, warm apricot gold, and rich linen cream.',
-    icon: Sun,
+    icon: RiSunCloudyLine,
     colorsDark: ['#1f1320', '#e9b57c', '#b8535a', '#e8ddc9'],
     colorsLight: ['#faf6f0', '#553a59', '#b8535a', '#e9b57c'],
   },
@@ -254,7 +284,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Lavender Dream & Violet',
     category: 'featured',
     description: 'Dreamy soft lavender and royal violet with pastel lilac tones and elegant violet glow.',
-    icon: Sparkles,
+    icon: RiSparklingLine,
     colorsDark: ['#110d22', '#b9a7e0', '#7d6cc4', '#f6f2fb'],
     colorsLight: ['#f6f2fb', '#5e4b8b', '#7d6cc4', '#e7d6f7'],
   },
@@ -265,7 +295,7 @@ const PALETTES: PaletteOption[] = [
     name: 'Ocean Sapphire',
     category: 'cold',
     description: 'Deep abyss navy with royal sapphire blue and crystalline sky accents.',
-    icon: Droplets,
+    icon: RiWaterPercentLine,
     colorsDark: ['#091322', '#2563eb', '#38bdf8'],
     colorsLight: ['#ffffff', '#1d4ed8', '#0284c7'],
   },
@@ -274,67 +304,67 @@ const PALETTES: PaletteOption[] = [
     name: 'Nordic Ice',
     category: 'cold',
     description: 'Arctic frost slate with crisp glacial cyan and polar teal gradients.',
-    icon: Snowflake,
+    icon: RiSnowflakeLine,
     colorsDark: ['#0b161f', '#06b6d4', '#14b8a6'],
     colorsLight: ['#ffffff', '#0891b2', '#0d9488'],
   },
   {
     id: 'emerald',
-    name: 'Emerald Forest',
+    name: 'Emerald Matrix',
     category: 'cold',
-    description: 'Deep pine greens with vivid emerald gemstones and refreshing mint highlights.',
-    icon: Trees,
-    colorsDark: ['#081a10', '#10b981', '#34d399'],
-    colorsLight: ['#ffffff', '#059669', '#0891b2'],
+    description: 'Deep jade obsidian with bright emerald green and matrix cyber accents.',
+    icon: RiLeafLine,
+    colorsDark: ['#051510', '#10b981', '#34d399'],
+    colorsLight: ['#ffffff', '#059669', '#10b981'],
   },
 
   // ─── Warm Palettes ───
   {
     id: 'rose',
-    name: 'Crimson Sunset',
+    name: 'Rose Velvet',
     category: 'warm',
-    description: 'Midnight berry with intense ruby rose and warm coral pink tones.',
-    icon: Heart,
-    colorsDark: ['#1c0a13', '#f43f5e', '#fb7185'],
+    description: 'Midnight plum black with vibrant magenta rose and soft petal pinks.',
+    icon: RiHeart3Line,
+    colorsDark: ['#17060e', '#f43f5e', '#fb7185'],
     colorsLight: ['#ffffff', '#e11d48', '#f43f5e'],
   },
   {
     id: 'amber',
-    name: 'Amber Gold',
+    name: 'Warm Amber',
     category: 'warm',
-    description: 'Dark bronze with rich golden amber and radiant honey highlights.',
-    icon: Sun,
-    colorsDark: ['#1c1507', '#f59e0b', '#fbbf24'],
+    description: 'Espresso dark charcoal with radiant warm amber and honey gold.',
+    icon: RiSunLine,
+    colorsDark: ['#170f04', '#f59e0b', '#fbbf24'],
     colorsLight: ['#ffffff', '#d97706', '#f59e0b'],
   },
   {
-    id: 'volcanic',
-    name: 'Volcanic Clay',
+    id: 'orange',
+    name: 'Sunset Orange',
     category: 'warm',
-    description: 'Obsidian earth with burnt terracotta, magma orange, and fiery red accents.',
-    icon: Flame,
-    colorsDark: ['#1c0c08', '#ea580c', '#f97316'],
+    description: 'Deep mahogany charcoal with fiery sunset orange and apricot glow.',
+    icon: RiSunCloudyLine,
+    colorsDark: ['#170903', '#ea580c', '#fb923c'],
     colorsLight: ['#ffffff', '#c2410c', '#ea580c'],
+  },
+  {
+    id: 'volcanic',
+    name: 'Volcanic Ash',
+    category: 'warm',
+    description: 'Dark obsidian lava with fiery scarlet crimson and burnt copper embers.',
+    icon: RiFireLine,
+    colorsDark: ['#170505', '#ef4444', '#f87171'],
+    colorsLight: ['#ffffff', '#dc2626', '#ef4444'],
   },
 
   // ─── Classic & Cyberpunk ───
   {
     id: 'default',
-    name: 'Electric Violet & Cyan',
+    name: 'Cyberpunk Violet (Default)',
     category: 'classic',
-    description: 'Classic cyberpunk coding palette with electric violet, cyan, and neon glow.',
-    icon: Sparkles,
+    description: 'The signature CleverCoder high-contrast violet & cyan neon dark theme.',
+    icon: RiFlashlightLine,
     colorsDark: ['#0d1117', '#7c3aed', '#06b6d4'],
-    colorsLight: ['#ffffff', '#6d28d9', '#0891b2'],
-  },
-  {
-    id: 'orange',
-    name: 'Solar Orange',
-    category: 'classic',
-    description: 'High-energy cyberpunk carbon with blazing solar orange and tangerine neon.',
-    icon: Zap,
-    colorsDark: ['#180f06', '#ff6b00', '#ff9e00'],
-    colorsLight: ['#ffffff', '#e65100', '#ff6b00'],
+    colorsLight: ['#ffffff', '#7c3aed', '#06b6d4'],
   },
 ];
 
@@ -354,7 +384,7 @@ export default function Settings() {
         setUser(u);
         setMessage({ type: 'success', text: 'GitHub account connected and saved to your profile in database!' });
       } catch (err) {
-        setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to connect GitHub' });
+        setMessage({ type: 'error', text: err instanceof Error ? err.message : 'GitHub OAuth failed' });
       } finally {
         setConnecting(false);
       }
@@ -362,13 +392,13 @@ export default function Settings() {
   };
 
   const handleDisconnectGithub = async () => {
-    if (!confirm('Are you sure you want to disconnect your GitHub account from your profile?')) return;
     setConnecting(true);
+    setMessage(null);
     try {
       await api.auth.disconnectGithub();
-      const u = await api.auth.me();
-      setUser(u);
-      setMessage({ type: 'success', text: 'GitHub account disconnected from your database profile.' });
+      const me = await api.auth.me();
+      setUser(me);
+      setMessage({ type: 'success', text: 'GitHub account disconnected successfully.' });
     } catch (err) {
       setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to disconnect GitHub' });
     } finally {
@@ -404,7 +434,7 @@ export default function Settings() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: 'var(--text-accent)'
               }}>
-                <Layers size={20} />
+                <RiStackLine size={20} />
               </div>
               <div>
                 <h2 style={{ fontSize: 17, fontWeight: 700 }}>UI Architecture &amp; Shape System</h2>
@@ -421,7 +451,7 @@ export default function Settings() {
               fontSize: 12, fontWeight: 600, color: 'var(--text-accent)',
               boxShadow: 'var(--shadow-sm)'
             }}>
-              <Box size={14} /> Active Style: {THEME_STYLES.find(s => s.id === themeStyle)?.name ?? 'Material Modern'}
+              <RiBox3Line size={14} /> Active Style: {THEME_STYLES.find(s => s.id === themeStyle)?.name ?? 'Material Modern'}
             </div>
           </div>
 
@@ -449,7 +479,7 @@ export default function Settings() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: 'var(--text-accent)'
               }}>
-                <PaletteIcon size={20} />
+                <RiPaletteLine size={20} />
               </div>
               <div>
                 <h2 style={{ fontSize: 17, fontWeight: 700 }}>Color Palette &amp; Mode Studio</h2>
@@ -470,7 +500,7 @@ export default function Settings() {
                 onClick={() => setTheme('dark')}
                 style={{ padding: '6px 14px' }}
               >
-                <Moon size={14} />
+                <RiMoonClearLine size={14} />
                 Dark Mode
               </button>
               <button
@@ -479,7 +509,7 @@ export default function Settings() {
                 onClick={() => setTheme('light')}
                 style={{ padding: '6px 14px' }}
               >
-                <Sun size={14} />
+                <RiSunLine size={14} />
                 Light Mode
               </button>
             </div>
@@ -491,7 +521,7 @@ export default function Settings() {
               fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
               color: 'var(--text-muted)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6
             }}>
-              <Crown size={14} style={{ color: '#fca311' }} /> Featured Luxury & Designer Palettes
+              <RiVipCrownLine size={14} style={{ color: '#fca311' }} /> Featured Luxury &amp; Designer Palettes
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
               {PALETTES.filter(p => p.category === 'featured').map(p => (
@@ -512,7 +542,7 @@ export default function Settings() {
               fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
               color: 'var(--text-muted)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6
             }}>
-              <Snowflake size={13} style={{ color: '#38bdf8' }} /> Cold Color Palettes
+              <RiSnowflakeLine size={13} style={{ color: '#38bdf8' }} /> Cold Color Palettes
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
               {PALETTES.filter(p => p.category === 'cold').map(p => (
@@ -533,7 +563,7 @@ export default function Settings() {
               fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
               color: 'var(--text-muted)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6
             }}>
-              <Flame size={13} style={{ color: '#f43f5e' }} /> Warm Color Palettes
+              <RiFireLine size={13} style={{ color: '#f43f5e' }} /> Warm Color Palettes
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
               {PALETTES.filter(p => p.category === 'warm').map(p => (
@@ -554,7 +584,7 @@ export default function Settings() {
               fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
               color: 'var(--text-muted)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6
             }}>
-              <Zap size={13} style={{ color: '#ff6b00' }} /> Classic &amp; Cyberpunk Palettes
+              <RiFlashlightLine size={13} style={{ color: '#ff6b00' }} /> Classic &amp; Cyberpunk Palettes
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
               {PALETTES.filter(p => p.category === 'classic').map(p => (
@@ -579,10 +609,10 @@ export default function Settings() {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'var(--text-accent)'
             }}>
-              <UserIcon size={20} />
+              <RiUser3Line size={20} />
             </div>
             <div>
-              <h2 style={{ fontSize: 17, fontWeight: 700 }}>Account & Integrations</h2>
+              <h2 style={{ fontSize: 17, fontWeight: 700 }}>Account &amp; Integrations</h2>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Manage your user profile and GitHub connection</p>
             </div>
           </div>
@@ -623,13 +653,13 @@ export default function Settings() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: user?.hasGithubToken ? 'var(--success)' : 'var(--text-secondary)'
                 }}>
-                  <Github size={22} />
+                  <RiGithubLine size={22} />
                 </div>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    GitHub Account & Security
+                    GitHub Account &amp; Security
                     {user?.hasGithubToken ? (
-                      <span className="badge badge-ready">Connected & Stored in DB</span>
+                      <span className="badge badge-ready">Connected &amp; Stored in DB</span>
                     ) : (
                       <span className="badge badge-error">Not Connected</span>
                     )}
@@ -659,7 +689,7 @@ export default function Settings() {
                   onClick={handleConnectGithub}
                   disabled={connecting}
                 >
-                  {connecting ? <span className="spinner" /> : <Github size={14} />}
+                  {connecting ? <span className="spinner" /> : <RiGithubLine size={14} />}
                   {connecting ? 'Connecting...' : user?.hasGithubToken ? 'Reconnect' : 'Connect via Popup'}
                 </button>
               </div>
@@ -676,11 +706,11 @@ export default function Settings() {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'var(--text-accent)'
             }}>
-              <HardDrive size={20} />
+              <RiHardDrive2Line size={20} />
             </div>
             <div>
-              <h2 style={{ fontSize: 17, fontWeight: 700 }}>Workspace Storage & Cloud Sync</h2>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Permanent persistence via rclone bisync & S3 Cellar</p>
+              <h2 style={{ fontSize: 17, fontWeight: 700 }}>Workspace Storage &amp; Cloud Sync</h2>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Permanent persistence via rclone bisync &amp; S3 Cellar</p>
             </div>
           </div>
 
@@ -712,7 +742,7 @@ export default function Settings() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: 'var(--danger)'
               }}>
-                <Shield size={20} />
+                <RiShieldLine size={20} />
               </div>
               <div>
                 <h2 style={{ fontSize: 16, fontWeight: 700 }}>Session Control</h2>
@@ -740,7 +770,7 @@ export default function Settings() {
                 border: '1px solid rgba(124,58,237,0.3)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <Bot size={24} style={{ color: 'var(--text-accent)' }} />
+                <RiRobot2Line size={24} style={{ color: 'var(--text-accent)' }} />
               </div>
               <div>
                 <h2 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -807,7 +837,7 @@ function PaletteCard({
             width: 20, height: 20, borderRadius: '50%', background: accentColor,
             display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff'
           }}>
-            <Check size={13} />
+            <RiCheckLine size={13} />
           </span>
         )}
       </div>
@@ -897,7 +927,7 @@ function ThemeStyleCard({
               width: 20, height: 20, borderRadius: '50%', background: 'var(--accent-1)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0
             }}>
-              <Check size={13} />
+              <RiCheckLine size={13} />
             </span>
           )}
         </div>

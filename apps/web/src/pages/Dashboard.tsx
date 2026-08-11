@@ -1,7 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, RefreshCw, Github, Code2, Download, Trash2, X, AlertTriangle } from 'lucide-react';
+import {
+  RiAddLine,
+  RiRefreshLine,
+  RiGithubLine,
+  RiCodeSSlashLine,
+  RiDownload2Line,
+  RiDeleteBin6Line,
+  RiCloseLine,
+  RiAlertLine,
+  RiFolder3Line,
+  RiFlashlightLine,
+  RiExternalLinkLine
+} from 'react-icons/ri';
 import { useProjectStore, useAuthStore } from '../store';
 import { api, type Project, type GithubRepo, openGithubOAuthPopup, createProjectSSE } from '../api/client';
 import { formatDistanceToNow } from 'date-fns';
@@ -45,16 +57,16 @@ export default function Dashboard() {
       <div className="page-header">
         <div>
           <h1 className="page-title">My Workspaces</h1>
-          <p className="page-subtitle">Manage your public & private GitHub projects and cloud IDEs</p>
+          <p className="page-subtitle">Manage your public &amp; private GitHub projects and cloud IDEs</p>
         </div>
         <div className="flex gap-3">
           <button className="btn btn-secondary" onClick={fetchProjects} disabled={isLoading}>
-            <RefreshCw size={14} className={isLoading ? 'spin' : ''} />
-            Refresh
+            <RiRefreshLine size={16} className={isLoading ? 'spin' : ''} />
+            <span>Refresh</span>
           </button>
           <button id="add-project-btn" className="btn btn-primary" onClick={() => setShowAddModal(true)}>
-            <Plus size={16} />
-            Add Project
+            <RiAddLine size={18} />
+            <span>Add Project</span>
           </button>
         </div>
       </div>
@@ -65,12 +77,14 @@ export default function Dashboard() {
         </div>
       ) : projects.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">⚡</div>
+          <div className="empty-state-icon">
+            <RiFlashlightLine size={32} style={{ color: 'var(--accent-1)' }} />
+          </div>
           <h3>No projects yet</h3>
           <p>Add your first public or private GitHub project to get started with your cloud coding workspace.</p>
           <button className="btn btn-primary btn-lg" onClick={() => setShowAddModal(true)}>
-            <Plus size={18} />
-            Add Your First Project
+            <RiAddLine size={18} />
+            <span>Add Your First Project</span>
           </button>
         </div>
       ) : (
@@ -94,8 +108,8 @@ export default function Dashboard() {
                     <div>
                       <div className="project-card-title">{project.name}</div>
                       <div className="project-card-repo">
-                        <Github size={12} />
-                        {project.repoUrl.replace('https://github.com/', '')}
+                        <RiGithubLine size={14} />
+                        <span>{project.repoUrl.replace('https://github.com/', '')}</span>
                       </div>
                     </div>
                     {statusBadge(project.status)}
@@ -122,8 +136,9 @@ export default function Dashboard() {
                         }}
                         title="Open IDE in new tab"
                       >
-                        <Code2 size={12} />
-                        Open IDE
+                        <RiCodeSSlashLine size={14} />
+                        <span>Open IDE</span>
+                        <RiExternalLinkLine size={12} />
                       </button>
                     )}
                     <a
@@ -133,7 +148,7 @@ export default function Dashboard() {
                       onClick={(e) => e.stopPropagation()}
                       title="Download zip"
                     >
-                      <Download size={12} />
+                      <RiDownload2Line size={14} />
                     </a>
                     <button
                       type="button"
@@ -145,7 +160,7 @@ export default function Dashboard() {
                       }}
                       title="Delete project"
                     >
-                      <Trash2 size={12} />
+                      <RiDeleteBin6Line size={14} />
                     </button>
                   </div>
                 </div>
@@ -173,7 +188,7 @@ export default function Dashboard() {
                     background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--danger)'
                   }}>
-                    <Trash2 size={18} />
+                    <RiDeleteBin6Line size={18} />
                   </div>
                   <h2 className="modal-title" style={{ fontSize: 18, fontWeight: 700 }}>Delete Project</h2>
                 </div>
@@ -183,7 +198,7 @@ export default function Dashboard() {
                   onClick={() => !isDeleting && setProjectToDelete(null)}
                   disabled={isDeleting}
                 >
-                  <X size={16} />
+                  <RiCloseLine size={18} />
                 </button>
               </div>
 
@@ -196,7 +211,7 @@ export default function Dashboard() {
                   background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)',
                   fontSize: 13, color: 'var(--danger)', display: 'flex', alignItems: 'flex-start', gap: 8
                 }}>
-                  <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <RiAlertLine size={18} style={{ flexShrink: 0, marginTop: 2 }} />
                   <span>
                     This will permanently delete the project workspace, code-server data, and remove all backups from Cellar object storage. This action cannot be undone.
                   </span>
@@ -218,8 +233,8 @@ export default function Dashboard() {
                   disabled={isDeleting}
                   onClick={handleDeleteConfirm}
                 >
-                  {isDeleting ? <span className="spinner" /> : <Trash2 size={14} />}
-                  {isDeleting ? 'Deleting...' : 'Delete Project'}
+                  {isDeleting ? <span className="spinner" /> : <RiDeleteBin6Line size={14} />}
+                  <span>{isDeleting ? 'Deleting...' : 'Delete Project'}</span>
                 </button>
               </div>
             </motion.div>
@@ -351,7 +366,7 @@ function AddProjectModal({
           justifyContent: 'space-between',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Github size={18} style={{ color: user?.hasGithubToken ? 'var(--success)' : 'var(--text-secondary)' }} />
+            <RiGithubLine size={20} style={{ color: user?.hasGithubToken ? 'var(--success)' : 'var(--text-secondary)' }} />
             <div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>
                 {user?.hasGithubToken ? 'GitHub Account Connected' : 'Connect GitHub via Popup'}
@@ -387,7 +402,7 @@ function AddProjectModal({
                   title="Refresh Repositories"
                   style={{ padding: '2px 6px', fontSize: 11 }}
                 >
-                  <RefreshCw size={12} className={loadingRepos ? 'spin' : ''} />
+                  <RiRefreshLine size={14} className={loadingRepos ? 'spin' : ''} />
                 </button>
               </div>
             </label>
@@ -493,8 +508,8 @@ function AddProjectModal({
               Cancel
             </button>
             <button id="clone-btn" type="submit" className="btn btn-primary" disabled={loading || !repoUrl || !name}>
-              {loading ? <span className="spinner" /> : <Github size={14} />}
-              {loading ? 'Cloning...' : 'Clone Workspace'}
+              {loading ? <span className="spinner" /> : <RiGithubLine size={16} />}
+              <span>{loading ? 'Cloning...' : 'Clone Workspace'}</span>
             </button>
           </div>
         </form>

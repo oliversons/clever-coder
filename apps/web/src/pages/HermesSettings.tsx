@@ -26,6 +26,30 @@ import {
   Compass, Chrome, Radio, Video, ScreenShare, ShieldAlert,
   type LucideIcon
 } from 'lucide-react';
+import type { IconType } from 'react-icons';
+import {
+  RiCompass3Line,
+  RiRobot2Line,
+  RiCpuLine,
+  RiBrainLine,
+  RiToolsLine,
+  RiDatabase2Line,
+  RiWindow2Line,
+  RiTimeLine,
+  RiCheckLine,
+  RiCloseLine,
+  RiRefreshLine,
+  RiExternalLinkLine,
+  RiDeleteBin6Line,
+  RiPlayCircleLine,
+  RiPauseCircleLine,
+  RiShieldCheckLine,
+  RiFlashlightLine,
+  RiSettings4Line,
+  RiTerminalBoxLine,
+  RiInformationLine,
+  RiSparklingLine
+} from 'react-icons/ri';
 import { useHermesStore } from '../store/hermesStore';
 import {
   api,
@@ -44,19 +68,19 @@ interface TabItem {
   id: TabId;
   label: string;
   badge?: string | number;
-  icon: LucideIcon;
+  icon: IconType;
   description: string;
 }
 
 const TABS: TabItem[] = [
-  { id: 'browser', label: 'Browser Automation', icon: Compass, description: 'Cloudflare Kitesurf, CDP, local & cloud', badge: 'New' },
-  { id: 'model', label: 'Model & API', icon: Bot, description: 'LLM providers, endpoints & keys' },
-  { id: 'execution', label: 'Execution', icon: Cpu, description: 'Sandbox, multi-core & approval' },
-  { id: 'memory', label: 'Memory & Skills', icon: Brain, description: 'Cross-session memory & persona' },
-  { id: 'tools', label: 'Tools & MCP', icon: Wrench, description: 'Shell, file edit & agent tools' },
-  { id: 's3', label: 'S3 & Storage', icon: Database, description: 'Cellar S3 archiving & exports' },
-  { id: 'webui', label: 'Hermes WebUI', icon: Globe, description: 'Standalone 3-panel interface' },
-  { id: 'scheduler', label: 'Job Scheduler', icon: Clock, description: 'Cron daemon & automated jobs' },
+  { id: 'browser', label: 'Browser Automation', icon: RiCompass3Line, description: 'Cloudflare Kitesurf, CDP, local & cloud', badge: 'New' },
+  { id: 'model', label: 'Model & API', icon: RiRobot2Line, description: 'LLM providers, endpoints & keys' },
+  { id: 'execution', label: 'Execution & Sandbox', icon: RiCpuLine, description: 'Multi-core clustering, approval & shell' },
+  { id: 'memory', label: 'Memory & Skills', icon: RiBrainLine, description: 'Cross-session memory, persona & skills' },
+  { id: 'tools', label: 'Tools & MCP', icon: RiToolsLine, description: 'Shell, file edit, web search & tools' },
+  { id: 's3', label: 'S3 & Storage', icon: RiDatabase2Line, description: 'Cellar S3 archiving & exports' },
+  { id: 'webui', label: 'Hermes WebUI', icon: RiWindow2Line, description: 'Standalone 3-panel chat interface' },
+  { id: 'scheduler', label: 'Job Scheduler', icon: RiTimeLine, description: 'Cron daemon & automated tasks' },
 ];
 
 const BROWSER_PROVIDERS = [
