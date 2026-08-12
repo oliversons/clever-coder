@@ -453,10 +453,10 @@ export async function testVisionAnalysis(
     apiKey = settings.openaiImageApiKey || process.env.OPENAI_API_KEY || '';
   } else if (provider === 'openrouter') {
     baseUrl = 'https://openrouter.ai/api/v1';
-    apiKey = settings.visionApiKey || process.env.OPENROUTER_API_KEY || '';
+    apiKey = settings.visionApiKey || settings.satApiKey || process.env.OPENROUTER_API_KEY || '';
   } else if (provider === 'custom' && settings.visionBaseUrl) {
     baseUrl = settings.visionBaseUrl.replace(/\/$/, '');
-    apiKey = settings.visionApiKey || '';
+    apiKey = settings.visionApiKey || settings.satApiKey || process.env.SAT_API_KEY || '';
   }
 
   try {
@@ -551,7 +551,7 @@ export async function testImageGeneration(
     apiKey = settings.openaiImageApiKey || process.env.OPENAI_API_KEY || '';
   } else if (provider === 'custom' && settings.imageGenBaseUrl) {
     baseUrl = settings.imageGenBaseUrl.replace(/\/$/, '');
-    apiKey = settings.imageGenApiKey || '';
+    apiKey = settings.imageGenApiKey || settings.satApiKey || process.env.SAT_API_KEY || '';
   }
 
   try {

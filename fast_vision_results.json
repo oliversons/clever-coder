@@ -1,0 +1,16 @@
+[
+  {
+    "model": "autoglm-phone-multilingual",
+    "success": true,
+    "isTrueVision": true,
+    "hits": 7,
+    "latencyMs": 8667,
+    "wordCount": 162,
+    "content": "This image shows a close-up view of a printed电路板 (PCB), likely from a desktop or laptop. The image is taken with a shallow depth of field, creating a soft background that highlights the details of the电路板.\n\nKey visual elements include:\n1. **中央处理器 (CPU)** - A prominent square-shaped integrated circuit in the center of the image\n2. **内存芯片 (Memory Chips)** - Several black integrated circuits, likely RAM or ROM, positioned around the CPU\n3. **电容 (Capacitors)** - Red and orange circular components, visible on the left side of the image\n4. **螺丝 (Screws)** -金属 screws used to secure the components, visible near the top right\n5. **线路 (Circuits)** - The dark blue conductive pathways connecting different components\n6. **其他组件 (Other Components)** - Various smaller integrated circuits and resistors\n7. **背景模糊 (Background Blur)** - The out-of focus background provides contrast, making the电路板 details more prominent\n\nThe overall composition uses a cool color palette with blue and gray tones, creating a technical and precise atmosphere.",
+    "tokens": {
+      "prompt_tokens": 571,
+      "completion_tokens": 234,
+      "total_tokens": 805
+    }
+  }
+]

@@ -46,13 +46,15 @@ const FAL_MODELS = [
 ];
 
 const DEFAULT_POPULAR_MODELS: VisionImageSelectOption[] = [
+  { id: 'gemini/gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite (Fastest ~1.7s)', isVision: true, isImageGen: false },
+  { id: 'gemini/gemini-flash-lite-latest', name: 'Gemini Flash Lite Latest (~2.3s)', isVision: true, isImageGen: false },
+  { id: 'gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash Lite Preview (~2.7s)', isVision: true, isImageGen: false },
+  { id: '@cf/meta/llama-3.2-11b-vision-instruct', name: 'Llama 3.2 11B Vision Instruct', isVision: true, isImageGen: false },
   { id: '@cf/zai-org/glm-4.2', name: 'GLM 4.2 Multimodal Vision', isVision: true, isImageGen: false },
-  { id: 'sat-vision-v1', name: 'SAT Vision v1 Reasoning', isVision: true, isImageGen: false },
   { id: 'gpt-4o', name: 'OpenAI GPT-4o Omnimodal', isVision: true, isImageGen: false, contextLength: 128000 },
   { id: 'gpt-4o-mini', name: 'OpenAI GPT-4o Mini', isVision: true, isImageGen: false, contextLength: 128000 },
   { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet Vision', isVision: true, isImageGen: false, contextLength: 200000 },
   { id: 'qwen/qwen-2.5-vl-72b-instruct', name: 'Qwen 2.5 VL 72B Instruct', isVision: true, isImageGen: false, contextLength: 32000 },
-  { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash Vision', isVision: true, isImageGen: false, contextLength: 1000000 },
   { id: 'sat-flux-1-schnell', name: 'SAT FLUX.1 Schnell Turbo', isVision: false, isImageGen: true },
   { id: 'dall-e-3', name: 'OpenAI DALL-E 3', isVision: false, isImageGen: true },
   { id: 'fal-ai/flux-2-pro', name: 'FLUX 2 Pro Studio Photorealism', isVision: false, isImageGen: true },
