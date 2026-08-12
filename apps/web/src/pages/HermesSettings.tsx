@@ -51,11 +51,15 @@ import {
   RiSparklingLine,
   RiSearchEyeLine,
   RiImageEditLine,
-  RiMessengerLine
+  RiMessengerLine,
+  RiMusic2Line,
+  RiVolumeUpLine,
 } from 'react-icons/ri';
 import { WebSearchSettings } from './settings/WebSearchSettings';
 import { VisionImageSettings } from './settings/VisionImageSettings';
 import { MessagingGatewaySettings } from './settings/MessagingGatewaySettings';
+import { SpotifySettings } from './settings/SpotifySettings';
+import { TtsSettings } from './settings/TtsSettings';
 import { VirtualModelPicker } from '../components/hermes/VirtualModelPicker';
 import { useHermesStore } from '../store/hermesStore';
 import {
@@ -69,7 +73,7 @@ import {
 
 // ── Types & Constants ──────────────────────────────────────────────────────────
 
-type TabId = 'browser' | 'search' | 'vision_image' | 'model' | 'execution' | 'memory' | 'tools' | 's3' | 'webui' | 'scheduler' | 'messaging';
+type TabId = 'browser' | 'search' | 'vision_image' | 'tts' | 'model' | 'execution' | 'memory' | 'tools' | 's3' | 'webui' | 'scheduler' | 'messaging' | 'spotify';
 
 interface TabItem {
   id: TabId;
@@ -83,6 +87,7 @@ const TABS: TabItem[] = [
   { id: 'browser', label: 'Browser Automation', icon: RiCompass3Line, description: 'Cloudflare Kitesurf, CDP, local & cloud', badge: 'New' },
   { id: 'search', label: 'Web Search & Extract', icon: RiSearchEyeLine, description: 'DuckDuckGo, Firecrawl, SearXNG, Tavily, Exa, xAI', badge: 'Active' },
   { id: 'vision_image', label: 'Vision & Image Gen', icon: RiImageEditLine, description: 'SAT AI, FAL.ai FLUX 2, DALL-E, auxiliary vision', badge: 'Active' },
+  { id: 'tts', label: 'Voice & TTS', icon: RiVolumeUpLine, description: 'Custom OpenAI-compatible TTS, voices & audio preview', badge: 'New' },
   { id: 'model', label: 'Model & API', icon: RiRobot2Line, description: 'LLM providers, endpoints & keys' },
   { id: 'execution', label: 'Execution & Sandbox', icon: RiCpuLine, description: 'Multi-core clustering, approval & shell' },
   { id: 'memory', label: 'Memory & Skills', icon: RiBrainLine, description: 'Cross-session memory, persona & skills' },
@@ -90,7 +95,8 @@ const TABS: TabItem[] = [
   { id: 's3', label: 'S3 & Storage', icon: RiDatabase2Line, description: 'Cellar S3 archiving & exports' },
   { id: 'webui', label: 'Hermes WebUI', icon: RiWindow2Line, description: 'Standalone 3-panel chat interface' },
   { id: 'scheduler', label: 'Job Scheduler', icon: RiTimeLine, description: 'Cron daemon & automated tasks' },
-  { id: 'messaging', label: 'Messaging Gateways', icon: RiMessengerLine, description: 'Telegram, WhatsApp, Email & Webhooks', badge: 'New' },
+  { id: 'messaging', label: 'Messaging Gateways', icon: RiMessengerLine, description: 'Telegram, WhatsApp, Email & Webhooks', badge: 'Active' },
+  { id: 'spotify', label: 'Spotify Control', icon: RiMusic2Line, description: 'Playback, devices, playlists & library', badge: 'Active' },
 ];
 
 const BROWSER_PROVIDERS = [
@@ -3766,6 +3772,20 @@ export default function HermesSettings() {
               ══════════════════════════════════════════════════════════════ */}
             {activeTab === 'messaging' && (
               <MessagingGatewaySettings />
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════
+               TAB 10: SPOTIFY CONTROL
+              ══════════════════════════════════════════════════════════════ */}
+            {activeTab === 'spotify' && (
+              <SpotifySettings />
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════
+               TAB 11: VOICE & TEXT-TO-SPEECH (TTS)
+              ══════════════════════════════════════════════════════════════ */}
+            {activeTab === 'tts' && (
+              <TtsSettings />
             )}
 
           </motion.div>

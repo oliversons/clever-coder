@@ -302,6 +302,45 @@ export const api = {
       request<{ configured: { telegram: boolean; whatsapp: boolean; email: boolean; webhooks: boolean } }>(
         '/hermes/messaging/status',
       ),
+    // ── Spotify ──
+    getSpotifySettings: () =>
+      request<any>('/hermes/spotify'),
+    saveSpotifySettings: (data: any) =>
+      request<{ success: boolean; message: string; settings: any }>('/hermes/spotify', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    getSpotifyAuthorizeUrl: (clientId?: string, redirectUri?: string) =>
+      request<{ authUrl: string; clientId: string; redirectUri: string }>(
+        `/hermes/spotify/authorize?clientId=${encodeURIComponent(clientId || '')}&redirectUri=${encodeURIComponent(redirectUri || '')}`,
+      ),
+    getSpotifyDevices: () =>
+      request<{ devices: any[] }>('/hermes/spotify/devices'),
+    testSpotifyConnection: () =>
+      request<{ success: boolean; message: string; user?: any }>('/hermes/spotify/test', {
+        method: 'POST',
+      }),
+    disconnectSpotify: () =>
+      request<{ success: boolean; message: string }>('/hermes/spotify/disconnect', {
+        method: 'POST',
+      }),
+    // ── Voice & TTS ──
+    getTtsSettings: () =>
+      request<any>('/hermes/tts'),
+    saveTtsSettings: (data: any) =>
+      request<{ success: boolean; message: string; settings: any }>('/hermes/tts', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    getTtsModels: (baseUrl?: string, apiKey?: string) =>
+      request<{ success: boolean; baseUrl: string; models: Array<{ id: string; name?: string; description?: string }> }>(
+        `/hermes/tts/models?baseUrl=${encodeURIComponent(baseUrl || '')}&apiKey=${encodeURIComponent(apiKey || '')}`,
+      ),
+    generateTtsPreview: (data: { baseUrl?: string; apiKey?: string; model?: string; voice?: string; speed?: number; text?: string; format?: string }) =>
+      request<{ success: boolean; audioDataUrl: string; contentType: string }>('/hermes/tts/preview', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
 };
 

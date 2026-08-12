@@ -44,6 +44,19 @@ import {
   testEmailConnection,
   getConfiguredGateways,
 } from '../services/hermes-messaging.service.js';
+import {
+  getSpotifySettings,
+  upsertSpotifySettings,
+  syncSpotifyConfigToFiles,
+  refreshSpotifyAccessToken,
+} from '../services/hermes-spotify.service.js';
+import {
+  getTtsSettings,
+  upsertTtsSettings,
+  syncTtsConfigToFiles,
+  discoverTtsModels,
+  generateTtsAudioPreview,
+} from '../services/hermes-tts.service.js';
 
 export async function hermesSettingsRoutes(fastify: FastifyInstance) {
   // ── GET /api/v1/hermes/models ───────────────────────────────────────────────
@@ -694,5 +707,605 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
     return reply.send({
       configured: getConfiguredGateways(settings),
     });
+  });
+
+  // ── GET /api/v1/hermes/spotify ──────────────────────────────────────────────
+  fastify.get('/spotify', async (request, reply) => {
+    let userId: string | undefined;
+    try {
+      const payload = verifyToken(
+        (request.cookies as Record<string, string | undefined>)?.access_token ??
+        request.headers.authorization?.slice(7) ?? '',
+      );
+      userId = payload?.sub;
+    } catch {}
+
+    const settings = await getSpotifySettings(userId);
+    const host = request.headers.host || 'localhost:8080';
+    const protocol = (request.headers['x-forwarded-proto'] as string) || 'http';
+    const defaultRedirect = `${protocol}://${host}/api/v1/hermes/spotify/callback`;
+
+    if (!settings) {
+      return reply.send({
+        enabled: false,
+        clientId: '',
+        clientSecret: '',
+        clientSecretSet: false,
+        redirectUri: defaultRedirect,
+        defaultDeviceId: '',
+        defaultVolume: 70,
+        autoTransfer: true,
+        market: 'US',
+        isConnected: false,
+        hasRefreshToken: false,
+      });
+    }
+
+    return reply.send({
+      ...settings,
+      clientSecret: settings.clientSecret ? '••••••••••••••••' : '',
+      clientSecretSet: Boolean(settings.clientSecret),
+      redirectUri: settings.redirectUri || defaultRedirect,
+      isConnected: Boolean(settings.refreshToken || settings.accessToken),
+      hasRefreshToken: Boolean(settings.refreshToken),
+    });
+  });
+
+  // ── PUT /api/v1/hermes/spotify ──────────────────────────────────────────────
+  fastify.put('/spotify', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const body = (request.body as Record<string, any>) ?? {};
+
+    // Don't overwrite secret with mask
+    const existing = await getSpotifySettings(payload.sub);
+    if (body.clientSecret?.includes('••••')) {
+      body.clientSecret = existing?.clientSecret ?? '';
+    }
+
+    delete body.id;
+    delete body.userId;
+    delete body.createdAt;
+    delete body.updatedAt;
+    delete body.isConnected;
+    delete body.clientSecretSet;
+
+    const saved = await upsertSpotifySettings(payload.sub, body);
+
+    try {
+      await syncSpotifyConfigToFiles(saved);
+    } catch (syncErr) {
+      console.warn('[Hermes Spotify] File sync notice:', syncErr);
+    }
+
+    return reply.send({
+      success: true,
+      message: 'Spotify configuration saved successfully.',
+      settings: {
+        ...saved,
+        clientSecret: saved.clientSecret ? '••••••••••••••••' : '',
+        clientSecretSet: Boolean(saved.clientSecret),
+        isConnected: Boolean(saved.refreshToken || saved.accessToken),
+      },
+    });
+  });
+
+  // ── POST /api/v1/hermes/spotify ─────────────────────────────────────────────
+  fastify.post('/spotify', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const body = (request.body as Record<string, any>) ?? {};
+
+    const existing = await getSpotifySettings(payload.sub);
+    if (body.clientSecret?.includes('••••')) {
+      body.clientSecret = existing?.clientSecret ?? '';
+    }
+
+    delete body.id;
+    delete body.userId;
+    delete body.createdAt;
+    delete body.updatedAt;
+    delete body.isConnected;
+    delete body.clientSecretSet;
+
+    const saved = await upsertSpotifySettings(payload.sub, body);
+    await syncSpotifyConfigToFiles(saved);
+
+    return reply.send({
+      success: true,
+      message: 'Spotify configuration saved successfully.',
+      settings: {
+        ...saved,
+        clientSecret: saved.clientSecret ? '••••••••••••••••' : '',
+        clientSecretSet: Boolean(saved.clientSecret),
+        isConnected: Boolean(saved.refreshToken || saved.accessToken),
+      },
+    });
+  });
+
+  // ── GET /api/v1/hermes/spotify/authorize ─────────────────────────────────────
+  fastify.get('/spotify/authorize', async (request, reply) => {
+    const query = (request.query as { clientId?: string; redirectUri?: string }) || {};
+    let userId: string | undefined;
+    try {
+      const payload = verifyToken(
+        (request.cookies as Record<string, string | undefined>)?.access_token ??
+        request.headers.authorization?.slice(7) ?? '',
+      );
+      userId = payload?.sub;
+    } catch {}
+
+    const settings = await getSpotifySettings(userId);
+    const clientId = query.clientId || settings?.clientId;
+    const host = request.headers.host || 'localhost:8080';
+    const protocol = (request.headers['x-forwarded-proto'] as string) || 'http';
+    const redirectUri = query.redirectUri || settings?.redirectUri || `${protocol}://${host}/api/v1/hermes/spotify/callback`;
+
+    if (!clientId) {
+      return reply.status(400).send({ error: 'Spotify Client ID is required before authorization.' });
+    }
+
+    const scopes = [
+      'user-read-playback-state',
+      'user-modify-playback-state',
+      'user-read-currently-playing',
+      'playlist-read-private',
+      'playlist-modify-public',
+      'playlist-modify-private',
+      'user-library-read',
+      'user-library-modify',
+      'user-read-recently-played',
+    ].join(' ');
+
+    const authUrl = `https://accounts.spotify.com/authorize?response_type=code&client_id=${encodeURIComponent(
+      clientId
+    )}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}&show_dialog=true`;
+
+    return reply.send({ authUrl, clientId, redirectUri });
+  });
+
+  // ── GET /api/v1/hermes/spotify/callback ──────────────────────────────────────
+  fastify.get('/spotify/callback', async (request, reply) => {
+    const query = (request.query as { code?: string; error?: string }) || {};
+
+    if (query.error) {
+      reply.type('text/html');
+      return reply.send(`
+        <!DOCTYPE html>
+        <html>
+          <head><title>Spotify Connection Error</title></head>
+          <body style="font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #090d16; color: #ef4444; margin: 0;">
+            <div style="text-align: center; padding: 2rem; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px solid rgba(239,68,68,0.3);">
+              <h2 style="margin: 0 0 10px;">❌ Authorization Rejected</h2>
+              <p style="color: #9ca3af; font-size: 14px;">Error: ${query.error}</p>
+            </div>
+          </body>
+        </html>
+      `);
+    }
+
+    if (!query.code) {
+      reply.type('text/html');
+      return reply.send(`
+        <!DOCTYPE html>
+        <html>
+          <head><title>Missing Code</title></head>
+          <body style="font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #090d16; color: #f59e0b; margin: 0;">
+            <div style="text-align: center; padding: 2rem; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px solid rgba(245,158,11,0.3);">
+              <h2>⚠️ Missing Authorization Code</h2>
+            </div>
+          </body>
+        </html>
+      `);
+    }
+
+    const settings = await getSpotifySettings();
+    if (!settings || !settings.clientId) {
+      reply.type('text/html');
+      return reply.send(`
+        <!DOCTYPE html>
+        <html>
+          <head><title>Configuration Missing</title></head>
+          <body style="font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #090d16; color: #ef4444; margin: 0;">
+            <div style="text-align: center; padding: 2rem; background: rgba(255,255,255,0.05); border-radius: 12px;">
+              <h2>❌ Client Credentials Not Saved</h2>
+              <p style="color: #9ca3af;">Please save your Client ID and Client Secret in Hermes Settings first.</p>
+            </div>
+          </body>
+        </html>
+      `);
+    }
+
+    const host = request.headers.host || 'localhost:8080';
+    const protocol = (request.headers['x-forwarded-proto'] as string) || 'http';
+    const redirectUri = settings.redirectUri || `${protocol}://${host}/api/v1/hermes/spotify/callback`;
+
+    try {
+      const tokenBody = new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: query.code,
+        redirect_uri: redirectUri,
+      });
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      };
+
+      if (settings.clientSecret) {
+        headers['Authorization'] = `Basic ${Buffer.from(`${settings.clientId}:${settings.clientSecret}`).toString('base64')}`;
+      } else {
+        tokenBody.append('client_id', settings.clientId);
+      }
+
+      const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers,
+        body: tokenBody.toString(),
+      });
+
+      if (!tokenRes.ok) {
+        const errJson: any = await tokenRes.json().catch(() => ({}));
+        reply.type('text/html');
+        return reply.send(`
+          <!DOCTYPE html>
+          <html>
+            <head><title>Token Exchange Failed</title></head>
+            <body style="font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #090d16; color: #ef4444; margin: 0;">
+              <div style="text-align: center; padding: 2rem; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px solid rgba(239,68,68,0.3);">
+                <h2>❌ Token Exchange Error</h2>
+                <p style="color: #9ca3af;">${errJson.error_description || errJson.error || 'Failed to exchange code for access token'}</p>
+              </div>
+            </body>
+          </html>
+        `);
+      }
+
+      const tokenData: any = await tokenRes.json();
+      const expiresAt = new Date(Date.now() + (tokenData.expires_in || 3600) * 1000);
+
+      await upsertSpotifySettings(settings.userId, {
+        enabled: true,
+        refreshToken: tokenData.refresh_token || settings.refreshToken,
+        accessToken: tokenData.access_token,
+        tokenExpiresAt: expiresAt,
+        scope: tokenData.scope || settings.scope,
+      });
+
+      reply.type('text/html');
+      return reply.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Spotify Connected</title>
+            <style>
+              body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #0a0e1a; color: #fff; margin: 0; }
+              .card { text-align: center; padding: 2.5rem 3rem; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 16px; backdrop-filter: blur(12px); max-width: 420px; }
+              h2 { color: #10b981; margin: 0 0 10px; font-size: 22px; }
+              p { color: #9ca3af; font-size: 14px; line-height: 1.5; margin: 0 0 20px; }
+              .icon { font-size: 48px; margin-bottom: 12px; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <div class="icon">🎵</div>
+              <h2>Spotify Connected Successfully!</h2>
+              <p>Your Spotify account is now linked with Hermes Agent. This window will close automatically.</p>
+              <script>
+                if (window.opener) {
+                  try { window.opener.postMessage({ type: 'SPOTIFY_AUTH_SUCCESS' }, '*'); } catch (e) {}
+                }
+                setTimeout(() => { window.close(); }, 2000);
+              </script>
+            </div>
+          </body>
+        </html>
+      `);
+    } catch (err: any) {
+      reply.type('text/html');
+      return reply.send(`
+        <!DOCTYPE html>
+        <html>
+          <head><title>Spotify OAuth Error</title></head>
+          <body style="font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #090d16; color: #ef4444; margin: 0;">
+            <div style="text-align: center; padding: 2rem; background: rgba(255,255,255,0.05); border-radius: 12px;">
+              <h2>❌ OAuth Callback Exception</h2>
+              <p style="color: #9ca3af;">${err?.message || 'Unknown error occurred'}</p>
+            </div>
+          </body>
+        </html>
+      `);
+    }
+  });
+
+  // ── GET /api/v1/hermes/spotify/devices ───────────────────────────────────────
+  fastify.get('/spotify/devices', async (request, reply) => {
+    let userId: string | undefined;
+    try {
+      const payload = verifyToken(
+        (request.cookies as Record<string, string | undefined>)?.access_token ??
+        request.headers.authorization?.slice(7) ?? '',
+      );
+      userId = payload?.sub;
+    } catch {}
+
+    const settings = await getSpotifySettings(userId);
+    if (!settings || (!settings.refreshToken && !settings.accessToken)) {
+      return reply.status(400).send({ error: 'Spotify account is not connected yet.' });
+    }
+
+    let token = settings.accessToken;
+    if (!token || !settings.tokenExpiresAt || new Date(settings.tokenExpiresAt).getTime() < Date.now() + 60000) {
+      token = await refreshSpotifyAccessToken(settings);
+    }
+
+    if (!token) {
+      return reply.status(401).send({ error: 'Failed to refresh Spotify access token.' });
+    }
+
+    try {
+      const devRes = await fetch('https://api.spotify.com/v1/me/player/devices', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!devRes.ok) {
+        const errJson: any = await devRes.json().catch(() => ({}));
+        return reply.status(devRes.status).send({ error: errJson?.error?.message || 'Failed to fetch Spotify devices' });
+      }
+
+      const devData: any = await devRes.json();
+      return reply.send({ devices: devData.devices || [] });
+    } catch (err: any) {
+      return reply.status(500).send({ error: err?.message || 'Failed to query Spotify API' });
+    }
+  });
+
+  // ── POST /api/v1/hermes/spotify/test ────────────────────────────────────────
+  fastify.post('/spotify/test', async (request, reply) => {
+    let userId: string | undefined;
+    try {
+      const payload = verifyToken(
+        (request.cookies as Record<string, string | undefined>)?.access_token ??
+        request.headers.authorization?.slice(7) ?? '',
+      );
+      userId = payload?.sub;
+    } catch {}
+
+    const settings = await getSpotifySettings(userId);
+    if (!settings || (!settings.refreshToken && !settings.accessToken)) {
+      return reply.send({ success: false, message: 'Spotify account is not connected yet.' });
+    }
+
+    let token = settings.accessToken;
+    if (!token || !settings.tokenExpiresAt || new Date(settings.tokenExpiresAt).getTime() < Date.now() + 60000) {
+      token = await refreshSpotifyAccessToken(settings);
+    }
+
+    if (!token) {
+      return reply.send({ success: false, message: 'Failed to refresh Spotify access token.' });
+    }
+
+    try {
+      const userRes = await fetch('https://api.spotify.com/v1/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!userRes.ok) {
+        return reply.send({ success: false, message: `Spotify API check returned status ${userRes.status}` });
+      }
+
+      const userData: any = await userRes.json();
+      return reply.send({
+        success: true,
+        message: `Connected to Spotify as ${userData.display_name || userData.id} (${userData.product || 'user'})`,
+        user: {
+          displayName: userData.display_name,
+          email: userData.email,
+          product: userData.product, // 'premium' or 'free'
+          country: userData.country,
+          id: userData.id,
+        },
+      });
+    } catch (err: any) {
+      return reply.send({ success: false, message: `Test failed: ${err?.message}` });
+    }
+  });
+
+  // ── POST /api/v1/hermes/spotify/disconnect ──────────────────────────────────
+  fastify.post('/spotify/disconnect', async (request, reply) => {
+    let userId: string | undefined;
+    try {
+      const payload = verifyToken(
+        (request.cookies as Record<string, string | undefined>)?.access_token ??
+        request.headers.authorization?.slice(7) ?? '',
+      );
+      userId = payload?.sub;
+    } catch {}
+
+    if (!userId) {
+      const settings = await getSpotifySettings();
+      if (settings) userId = settings.userId;
+    }
+
+    if (userId) {
+      const saved = await upsertSpotifySettings(userId, {
+        enabled: false,
+        refreshToken: '',
+        accessToken: '',
+        tokenExpiresAt: undefined,
+      });
+      await syncSpotifyConfigToFiles(saved);
+    }
+
+    return reply.send({ success: true, message: 'Spotify account disconnected successfully.' });
+  });
+
+  // ── GET /api/v1/hermes/tts ──────────────────────────────────────────────────
+  fastify.get('/tts', async (request, reply) => {
+    let userId: string | undefined;
+    try {
+      const payload = verifyToken(
+        (request.cookies as Record<string, string | undefined>)?.access_token ??
+        request.headers.authorization?.slice(7) ?? '',
+      );
+      userId = payload?.sub;
+    } catch {}
+
+    const settings = await getTtsSettings(userId);
+    const result = settings || {
+      enabled: true,
+      provider: 'custom_openai',
+      baseUrl: 'https://api.sat.ai/v1',
+      apiKey: '',
+      model: 'sat-tts-hd',
+      voice: 'alloy',
+      speed: 1.0,
+      format: 'mp3',
+      autoPlayInWebui: true,
+    };
+
+    return reply.send({
+      ...result,
+      apiKeySet: Boolean(result.apiKey),
+      apiKey: result.apiKey ? '••••••••' : '',
+    });
+  });
+
+  // ── PUT /api/v1/hermes/tts & POST /api/v1/hermes/tts ───────────────────────
+  const saveTtsHandler = async (request: any, reply: any) => {
+    let userId: string | undefined;
+    try {
+      const payload = verifyToken(
+        (request.cookies as Record<string, string | undefined>)?.access_token ??
+        request.headers.authorization?.slice(7) ?? '',
+      );
+      userId = payload?.sub;
+    } catch {}
+
+    if (!userId) {
+      const existing = await getTtsSettings();
+      if (existing) userId = existing.userId;
+    }
+
+    if (!userId) {
+      const { getDb } = await import('../db/index.js');
+      const { users } = await import('../db/schema.js');
+      const [firstUser] = await getDb().select().from(users).limit(1);
+      if (firstUser) userId = firstUser.id;
+    }
+
+    if (!userId) {
+      return reply.code(401).send({ error: 'Unauthorized: User ID required to save settings' });
+    }
+
+    const body = (request.body as Record<string, any>) || {};
+    const existing = await getTtsSettings(userId);
+
+    let apiKey = body.apiKey;
+    if (apiKey === '••••••••' || apiKey === '' || apiKey === undefined) {
+      apiKey = existing?.apiKey || '';
+    }
+
+    const saved = await upsertTtsSettings(userId, {
+      enabled: body.enabled ?? true,
+      provider: body.provider || 'custom_openai',
+      baseUrl: body.baseUrl || 'https://api.sat.ai/v1',
+      apiKey,
+      model: body.model || 'sat-tts-hd',
+      voice: body.voice || 'alloy',
+      speed: body.speed !== undefined ? Number(body.speed) : 1.0,
+      format: body.format || 'mp3',
+      autoPlayInWebui: body.autoPlayInWebui ?? true,
+    });
+
+    await syncTtsConfigToFiles(saved);
+
+    return reply.send({
+      success: true,
+      message: 'Voice & TTS configuration saved and synced to ~/.hermes state files.',
+      settings: {
+        ...saved,
+        apiKeySet: Boolean(saved.apiKey),
+        apiKey: saved.apiKey ? '••••••••' : '',
+      },
+    });
+  };
+
+  fastify.put('/tts', saveTtsHandler);
+  fastify.post('/tts', saveTtsHandler);
+
+  // ── GET /api/v1/hermes/tts/models ───────────────────────────────────────────
+  fastify.get('/tts/models', async (request, reply) => {
+    let userId: string | undefined;
+    try {
+      const payload = verifyToken(
+        (request.cookies as Record<string, string | undefined>)?.access_token ??
+        request.headers.authorization?.slice(7) ?? '',
+      );
+      userId = payload?.sub;
+    } catch {}
+
+    const query = (request.query as Record<string, string>) || {};
+    let baseUrl = query.baseUrl;
+    let apiKey = query.apiKey;
+
+    const existing = await getTtsSettings(userId);
+    if (!baseUrl) baseUrl = existing?.baseUrl || 'https://api.sat.ai/v1';
+    if (!apiKey || apiKey === '••••••••') apiKey = existing?.apiKey || '';
+
+    try {
+      const models = await discoverTtsModels(baseUrl, apiKey);
+      return reply.send({ success: true, baseUrl, models });
+    } catch (err: any) {
+      return reply.status(500).send({
+        success: false,
+        error: err?.response?.data?.error?.message || err?.message || 'Failed to discover TTS models from endpoint',
+      });
+    }
+  });
+
+  // ── POST /api/v1/hermes/tts/preview ─────────────────────────────────────────
+  fastify.post('/tts/preview', async (request, reply) => {
+    let userId: string | undefined;
+    try {
+      const payload = verifyToken(
+        (request.cookies as Record<string, string | undefined>)?.access_token ??
+        request.headers.authorization?.slice(7) ?? '',
+      );
+      userId = payload?.sub;
+    } catch {}
+
+    const body = (request.body as Record<string, any>) || {};
+    const existing = await getTtsSettings(userId);
+
+    let baseUrl = body.baseUrl || existing?.baseUrl || 'https://api.sat.ai/v1';
+    let apiKey = body.apiKey;
+    if (!apiKey || apiKey === '••••••••') apiKey = existing?.apiKey || '';
+
+    try {
+      const result = await generateTtsAudioPreview({
+        baseUrl,
+        apiKey,
+        model: body.model || existing?.model || 'sat-tts-hd',
+        voice: body.voice || existing?.voice || 'alloy',
+        speed: body.speed !== undefined ? Number(body.speed) : existing?.speed || 1.0,
+        text: body.text || 'Hello! Voice and Text to Speech synthesis is successfully configured on Hermes Agent.',
+        format: body.format || existing?.format || 'mp3',
+      });
+
+      return reply.send({
+        success: true,
+        audioDataUrl: result.audioDataUrl,
+        contentType: result.contentType,
+      });
+    } catch (err: any) {
+      return reply.status(500).send({
+        success: false,
+        error: err?.response?.data?.error?.message || err?.message || 'Speech generation preview failed',
+      });
+    }
   });
 }

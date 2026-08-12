@@ -15,6 +15,8 @@ import { getAvailableCpuCores, buildMultiCoreEnv, getHermesSettings, getDecrypte
 import { getHermesBrowserSettings, syncBrowserConfigToYamlAndEnv, DEFAULT_BROWSER_SETTINGS } from './hermes-browser.service.js';
 import { getHermesVisionImageSettings, syncVisionImageConfigToYamlAndEnv } from './hermes-vision-image.service.js';
 import { getMessagingSettings, syncMessagingConfigToFiles } from './hermes-messaging.service.js';
+import { getSpotifySettings, syncSpotifyConfigToFiles } from './hermes-spotify.service.js';
+import { getTtsSettings, syncTtsConfigToFiles } from './hermes-tts.service.js';
 
 let webuiProcess: ChildProcess | null = null;
 let currentPort = 8787;
@@ -210,6 +212,8 @@ platform_toolsets:
     - webhook
     - mcp
     - send_message
+    - spotify
+    - text_to_speech
   webui:
     - browser
     - web
@@ -227,6 +231,8 @@ platform_toolsets:
     - webhook
     - mcp
     - send_message
+    - spotify
+    - text_to_speech
 
 providers:
   custom:
@@ -327,6 +333,35 @@ os.environ.setdefault('IMAGE_GENERATION_ENABLED', 'true')
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
+# Clean unsupported parameters and map vision models
+def _clean_llm_kwargs(kwargs):
+    if not isinstance(kwargs, dict):
+        return kwargs
+    kwargs.pop('reasoning', None)
+    extra_body = kwargs.get('extra_body')
+    if isinstance(extra_body, dict):
+        extra_body.pop('reasoning', None)
+    model = kwargs.get('model')
+    if isinstance(model, str):
+        model = model.strip()
+        if model.startswith('custom/'):
+            model = model[7:]
+        elif model.startswith('local/'):
+            model = model[6:]
+        elif model.startswith('openai/'):
+            model = model[7:]
+        elif model.startswith('openrouter/'):
+            model = model[11:]
+        elif model.startswith('nous/'):
+            model = model[5:]
+
+        if not model or model in ('gemini/gemini-3.5-flash-lite', 'gemini-3.5-flash-lite', 'sat-vision-v1', 'infron:google/gemini-3.1-flash-lite-preview', 'google/gemini-2.0-flash'):
+            model = os.environ.get('HERMES_MODEL') or os.environ.get('VISION_MODEL') or '@cf/zai-org/glm-5.2'
+        kwargs['model'] = model
+    elif not model:
+        kwargs['model'] = os.environ.get('HERMES_MODEL') or '@cf/zai-org/glm-5.2'
+    return kwargs
+
 def _patch_all():
     base_url = os.environ.get('OPENAI_BASE_URL') or os.environ.get('OPENAI_API_BASE') or os.environ.get('CUSTOM_BASE_URL') or os.environ.get('SAT_BASE_URL') or 'https://app-fcbf4053-74e6-4498-ac0e-eb160010a3c5.cleverapps.io/v1'
     api_key = os.environ.get('OPENAI_API_KEY') or os.environ.get('CUSTOM_API_KEY') or os.environ.get('DEFAULT_API_KEY') or os.environ.get('SAT_API_KEY') or os.environ.get('IMAGE_GEN_API_KEY')
@@ -363,17 +398,6 @@ def _patch_all():
     except Exception:
         pass
 
-    # Clean unsupported parameters and map vision models
-    def _clean_llm_kwargs(kwargs):
-        kwargs.pop('reasoning', None)
-        extra_body = kwargs.get('extra_body')
-        if isinstance(extra_body, dict):
-            extra_body.pop('reasoning', None)
-        model = kwargs.get('model')
-        if model in ('gemini/gemini-3.5-flash-lite', 'gemini-3.5-flash-lite', 'sat-vision-v1', 'infron:google/gemini-3.1-flash-lite-preview', 'google/gemini-2.0-flash', None, ''):
-            kwargs['model'] = os.environ.get('VISION_MODEL') or '@cf/meta/llama-3.2-11b-vision-instruct'
-        return kwargs
-
     # Patch OpenAI Python SDK if imported
     try:
         import openai
@@ -402,6 +426,26 @@ def _patch_all():
             kwargs['default_headers'] = dh
             orig_async_init(self, *args, **kwargs)
         openai.AsyncOpenAI.__init__ = patched_async_init
+
+        try:
+            from openai.resources.chat import completions
+            orig_cc_create = completions.Completions.create
+            if not getattr(orig_cc_create, '_is_patched', False):
+                def patched_cc_create(self, *args, **kwargs):
+                    kwargs = _clean_llm_kwargs(kwargs)
+                    return orig_cc_create(self, *args, **kwargs)
+                patched_cc_create._is_patched = True
+                completions.Completions.create = patched_cc_create
+
+            orig_acc_create = completions.AsyncCompletions.create
+            if not getattr(orig_acc_create, '_is_patched', False):
+                async def patched_acc_create(self, *args, **kwargs):
+                    kwargs = _clean_llm_kwargs(kwargs)
+                    return await orig_acc_create(self, *args, **kwargs)
+                patched_acc_create._is_patched = True
+                completions.AsyncCompletions.create = patched_acc_create
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -479,7 +523,27 @@ _patch_all()
       console.warn('[Hermes WebUI] Notice: Messaging config sync warning:', messagingErr);
     }
 
-    console.log(`✅ [Hermes WebUI] Config, browser, vision, image & messaging settings synced to ${hermesHome} (provider=${provider}, model=${model})`);
+    // Sync Hermes Spotify settings
+    try {
+      const spotifySettings = await getSpotifySettings(userId);
+      if (spotifySettings) {
+        await syncSpotifyConfigToFiles(spotifySettings);
+      }
+    } catch (spotifyErr) {
+      console.warn('[Hermes WebUI] Notice: Spotify config sync warning:', spotifyErr);
+    }
+
+    // Sync Hermes Voice & TTS settings
+    try {
+      const ttsSettings = await getTtsSettings(userId);
+      if (ttsSettings) {
+        await syncTtsConfigToFiles(ttsSettings);
+      }
+    } catch (ttsErr) {
+      console.warn('[Hermes WebUI] Notice: TTS config sync warning:', ttsErr);
+    }
+
+    console.log(`✅ [Hermes WebUI] Config, browser, vision, image, messaging, spotify & tts settings synced to ${hermesHome} (provider=${provider}, model=${model})`);
 
   } catch (err) {
     console.error('[Hermes WebUI] Failed to write Hermes config files:', err);
@@ -687,6 +751,59 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
         env.EMAIL_ADDRESS = messaging.emailAddress;
         if (messaging.emailPassword) env.EMAIL_PASSWORD = messaging.emailPassword;
       }
+    }
+  } catch {}
+
+  // Inject Spotify credentials if configured
+  try {
+    const spotify = await getSpotifySettings(config.userId);
+    if (spotify && spotify.clientId) {
+      env.SPOTIFY_CLIENT_ID = spotify.clientId;
+      env.SPOTIPY_CLIENT_ID = spotify.clientId;
+      env.HERMES_SPOTIFY_CLIENT_ID = spotify.clientId;
+      if (spotify.clientSecret) {
+        env.SPOTIFY_CLIENT_SECRET = spotify.clientSecret;
+        env.SPOTIPY_CLIENT_SECRET = spotify.clientSecret;
+        env.HERMES_SPOTIFY_CLIENT_SECRET = spotify.clientSecret;
+      }
+      if (spotify.redirectUri) {
+        env.SPOTIFY_REDIRECT_URI = spotify.redirectUri;
+        env.SPOTIPY_REDIRECT_URI = spotify.redirectUri;
+        env.HERMES_SPOTIFY_REDIRECT_URI = spotify.redirectUri;
+      }
+      if (spotify.refreshToken) {
+        env.SPOTIFY_REFRESH_TOKEN = spotify.refreshToken;
+      }
+      if (spotify.accessToken) {
+        env.SPOTIFY_ACCESS_TOKEN = spotify.accessToken;
+      }
+      if (spotify.defaultDeviceId) {
+        env.SPOTIFY_DEFAULT_DEVICE_ID = spotify.defaultDeviceId;
+      }
+      if (spotify.market) {
+        env.SPOTIFY_MARKET = spotify.market;
+      }
+    }
+  } catch {}
+
+  // Inject Voice & TTS credentials if configured
+  try {
+    const tts = await getTtsSettings(config.userId);
+    if (tts) {
+      if (tts.baseUrl) {
+        env.TTS_BASE_URL = tts.baseUrl;
+        env.SAT_BASE_URL = tts.baseUrl;
+      }
+      if (tts.apiKey) {
+        env.TTS_API_KEY = tts.apiKey;
+        env.VOICE_TOOLS_OPENAI_KEY = tts.apiKey;
+        env.SAT_API_KEY = tts.apiKey;
+      }
+      if (tts.provider) env.TTS_PROVIDER = tts.provider;
+      if (tts.model) env.TTS_MODEL = tts.model;
+      if (tts.voice) env.TTS_VOICE = tts.voice;
+      if (tts.speed !== undefined) env.TTS_SPEED = String(tts.speed);
+      if (tts.format) env.TTS_FORMAT = tts.format;
     }
   } catch {}
 

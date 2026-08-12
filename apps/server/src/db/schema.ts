@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, integer, bigint, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, integer, bigint, jsonb, boolean, real } from 'drizzle-orm/pg-core';
 
 export interface UserSettings {
   theme?: 'dark' | 'light';
@@ -79,8 +79,6 @@ export type SyncState = typeof syncStates.$inferSelect;
 export type Command = typeof commands.$inferSelect;
 
 // ── Hermes AI Agent Tables ────────────────────────────────────────────────────
-
-import { boolean } from 'drizzle-orm/pg-core';
 
 /** Per-user Hermes configuration */
 export const hermesSettings = pgTable('hermes_settings', {
@@ -387,4 +385,61 @@ export const hermesMessagingSettings = pgTable('hermes_messaging_settings', {
 
 export type HermesMessagingSettings = typeof hermesMessagingSettings.$inferSelect;
 export type NewHermesMessagingSettings = typeof hermesMessagingSettings.$inferInsert;
+
+/**
+ * Hermes Spotify Settings Schema
+ */
+export const hermesSpotifySettings = pgTable('hermes_spotify_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+
+  enabled: boolean('enabled').notNull().default(false),
+  clientId: text('client_id'),
+  clientSecret: text('client_secret'),
+  redirectUri: text('redirect_uri'),
+  refreshToken: text('refresh_token'),
+  accessToken: text('access_token'),
+  tokenExpiresAt: timestamp('token_expires_at'),
+  scope: text('scope'),
+  defaultDeviceId: text('default_device_id'),
+  defaultVolume: integer('default_volume').notNull().default(70),
+  autoTransfer: boolean('auto_transfer').notNull().default(true),
+  market: text('market').notNull().default('US'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export type HermesSpotifySettings = typeof hermesSpotifySettings.$inferSelect;
+export type NewHermesSpotifySettings = typeof hermesSpotifySettings.$inferInsert;
+
+/**
+ * Hermes Voice & Text-to-Speech (TTS) Settings Schema
+ */
+export const hermesTtsSettings = pgTable('hermes_tts_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+
+  enabled: boolean('enabled').notNull().default(true),
+  provider: text('provider').notNull().default('custom_openai'),
+  baseUrl: text('base_url').notNull().default('https://api.sat.ai/v1'),
+  apiKey: text('api_key'),
+  model: text('model').notNull().default('sat-tts-hd'),
+  voice: text('voice').notNull().default('alloy'),
+  speed: real('speed').notNull().default(1.0),
+  format: text('format').notNull().default('mp3'),
+  autoPlayInWebui: boolean('auto_play_in_webui').notNull().default(true),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export type HermesTtsSettings = typeof hermesTtsSettings.$inferSelect;
+export type NewHermesTtsSettings = typeof hermesTtsSettings.$inferInsert;
 

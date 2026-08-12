@@ -46,11 +46,12 @@ mkdir -p /root/.hermes/logs /root/.hermes/cron \
 
 touch /root/.hermes/config.yaml /root/.hermes/.env
 
-# Pre-install Python dependencies (Pillow, ddgs, duckduckgo_search, trafilatura, bs4)
+# Pre-install Python & system audio dependencies (Pillow, ddgs, duckduckgo_search, trafilatura, bs4, spotipy, edge-tts, openai)
+mkdir -p /root/.hermes/audio_cache
 if command -v pip3 &> /dev/null; then
-  pip3 install --no-cache-dir --quiet Pillow ddgs duckduckgo_search trafilatura beautifulsoup4 --break-system-packages 2>/dev/null || true
+  pip3 install --no-cache-dir --quiet Pillow ddgs duckduckgo_search trafilatura beautifulsoup4 spotipy edge-tts openai --break-system-packages 2>/dev/null || true
 elif command -v pip &> /dev/null; then
-  pip install --no-cache-dir --quiet Pillow ddgs duckduckgo_search trafilatura beautifulsoup4 --break-system-packages 2>/dev/null || true
+  pip install --no-cache-dir --quiet Pillow ddgs duckduckgo_search trafilatura beautifulsoup4 spotipy edge-tts openai --break-system-packages 2>/dev/null || true
 fi
 
 # ── Browser Automation Dependencies & Virtual Display (Xvfb) ──────────────────

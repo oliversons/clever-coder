@@ -12,6 +12,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { syncHermesConfigFiles } from './hermes-webui.service.js';
 import { getMessagingSettings, syncMessagingConfigToFiles } from './hermes-messaging.service.js';
+import { getSpotifySettings, syncSpotifyConfigToFiles } from './hermes-spotify.service.js';
+import { getTtsSettings, syncTtsConfigToFiles } from './hermes-tts.service.js';
 
 const execAsync = promisify(exec);
 
@@ -429,6 +431,45 @@ export async function startGateway(options?: { userId?: string }): Promise<{ suc
         if (messaging.emailEnabled && messaging.emailAddress) {
           env.EMAIL_ADDRESS = messaging.emailAddress;
         }
+      }
+    } catch {}
+
+    try {
+      const spotify = await getSpotifySettings(options?.userId);
+      if (spotify && spotify.clientId) {
+        await syncSpotifyConfigToFiles(spotify);
+        env.SPOTIFY_CLIENT_ID = spotify.clientId;
+        env.SPOTIPY_CLIENT_ID = spotify.clientId;
+        env.HERMES_SPOTIFY_CLIENT_ID = spotify.clientId;
+        if (spotify.clientSecret) {
+          env.SPOTIFY_CLIENT_SECRET = spotify.clientSecret;
+          env.SPOTIPY_CLIENT_SECRET = spotify.clientSecret;
+          env.HERMES_SPOTIFY_CLIENT_SECRET = spotify.clientSecret;
+        }
+        if (spotify.refreshToken) {
+          env.SPOTIFY_REFRESH_TOKEN = spotify.refreshToken;
+        }
+      }
+    } catch {}
+
+    try {
+      const tts = await getTtsSettings(options?.userId);
+      if (tts) {
+        await syncTtsConfigToFiles(tts);
+        if (tts.baseUrl) {
+          env.TTS_BASE_URL = tts.baseUrl;
+          env.SAT_BASE_URL = tts.baseUrl;
+        }
+        if (tts.apiKey) {
+          env.TTS_API_KEY = tts.apiKey;
+          env.VOICE_TOOLS_OPENAI_KEY = tts.apiKey;
+          env.SAT_API_KEY = tts.apiKey;
+        }
+        if (tts.provider) env.TTS_PROVIDER = tts.provider;
+        if (tts.model) env.TTS_MODEL = tts.model;
+        if (tts.voice) env.TTS_VOICE = tts.voice;
+        if (tts.speed !== undefined) env.TTS_SPEED = String(tts.speed);
+        if (tts.format) env.TTS_FORMAT = tts.format;
       }
     } catch {}
 

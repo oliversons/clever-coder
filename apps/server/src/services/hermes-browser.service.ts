@@ -463,6 +463,8 @@ platform_toolsets:
     - webhook
     - mcp
     - send_message
+    - spotify
+    - text_to_speech
   webui:
     - browser
     - web
@@ -480,6 +482,8 @@ platform_toolsets:
     - webhook
     - mcp
     - send_message
+    - spotify
+    - text_to_speech
 
 tools:
   browser:
