@@ -171,6 +171,9 @@ export async function syncHermesConfigFiles(userId?: string, activeWorkspacePath
       workspace: targetWorkspace,
       workspace_path: targetWorkspace,
       allowed_workspaces: allowedWorkspaces,
+      workspaces: allowedWorkspaces,
+    };
+
     // 3. YAML and ENV contents
     const yamlContent = `model:
   provider: "${provider}"
