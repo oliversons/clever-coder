@@ -11,6 +11,7 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 import fs from 'node:fs';
 import { syncHermesConfigFiles } from './hermes-webui.service.js';
+import { getMessagingSettings, syncMessagingConfigToFiles } from './hermes-messaging.service.js';
 
 const execAsync = promisify(exec);
 
@@ -112,16 +113,49 @@ function appendToGatewayLog(message: string): void {
  * Sync gateway_state.json and gateway.pid across all Hermes state directories
  * with a fresh ISO-8601 UTC timestamp so Python hermes-webui detects the gateway as 100% alive.
  */
-export function syncGatewayHeartbeat(pid?: number): void {
+export async function syncGatewayHeartbeat(pid?: number, userId?: string): Promise<void> {
   const nowIso = new Date().toISOString();
   const currentPid = pid || (gatewayDaemonProcess?.pid) || process.pid;
+
+  const platformsObj: Record<string, any> = {};
+  try {
+    const messaging = await getMessagingSettings(userId);
+    if (messaging) {
+      if (messaging.telegramEnabled && messaging.telegramBotToken) {
+        platformsObj.telegram = {
+          enabled: true,
+          status: isGatewayActive ? 'connected' : 'configured',
+          mode: messaging.telegramWebhookUrl ? 'webhook' : 'polling',
+        };
+      }
+      if (messaging.whatsappEnabled && messaging.whatsappAccessToken) {
+        platformsObj.whatsapp_cloud = {
+          enabled: true,
+          status: isGatewayActive ? 'connected' : 'configured',
+        };
+      }
+      if (messaging.emailEnabled && messaging.emailAddress) {
+        platformsObj.email = {
+          enabled: true,
+          status: isGatewayActive ? 'connected' : 'configured',
+        };
+      }
+      if (messaging.webhookEnabled) {
+        platformsObj.webhook = {
+          enabled: true,
+          status: isGatewayActive ? 'listening' : 'configured',
+          port: messaging.webhookPort || 8644,
+        };
+      }
+    }
+  } catch {}
 
   const statePayload = JSON.stringify(
     {
       gateway_state: isGatewayActive ? 'running' : 'stopped',
       updated_at: nowIso,
       active_agents: 0,
-      platforms: {},
+      platforms: platformsObj,
     },
     null,
     2
@@ -374,11 +408,29 @@ export async function startGateway(options?: { userId?: string }): Promise<{ suc
     }
 
     const outFd = fs.openSync(logPath, 'a');
-    const env = {
+    const env: Record<string, string> = {
       ...process.env,
       HERMES_HOME: hermesHome,
       PYTHONUNBUFFERED: '1',
     };
+
+    try {
+      const messaging = await getMessagingSettings(options?.userId);
+      if (messaging) {
+        await syncMessagingConfigToFiles(messaging);
+        if (messaging.telegramEnabled && messaging.telegramBotToken) {
+          env.TELEGRAM_BOT_TOKEN = messaging.telegramBotToken;
+          if (messaging.telegramAllowedUsers) env.TELEGRAM_ALLOWED_USERS = messaging.telegramAllowedUsers;
+          if (messaging.telegramAllowedChats) env.TELEGRAM_ALLOWED_CHATS = messaging.telegramAllowedChats;
+        }
+        if (messaging.whatsappEnabled && messaging.whatsappAccessToken) {
+          env.WHATSAPP_CLOUD_ACCESS_TOKEN = messaging.whatsappAccessToken;
+        }
+        if (messaging.emailEnabled && messaging.emailAddress) {
+          env.EMAIL_ADDRESS = messaging.emailAddress;
+        }
+      }
+    } catch {}
 
     try {
       if (useHermesCli) {

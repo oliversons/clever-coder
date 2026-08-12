@@ -14,6 +14,7 @@ import { getDb, schema } from '../db/index.js';
 import { getAvailableCpuCores, buildMultiCoreEnv, getHermesSettings, getDecryptedApiKey } from './hermes.service.js';
 import { getHermesBrowserSettings, syncBrowserConfigToYamlAndEnv, DEFAULT_BROWSER_SETTINGS } from './hermes-browser.service.js';
 import { getHermesVisionImageSettings, syncVisionImageConfigToYamlAndEnv } from './hermes-vision-image.service.js';
+import { getMessagingSettings, syncMessagingConfigToFiles } from './hermes-messaging.service.js';
 
 let webuiProcess: ChildProcess | null = null;
 let currentPort = 8787;
@@ -191,6 +192,42 @@ custom_base_url: "${baseUrl}"
 setup_completed: true
 onboarding_completed: true
 
+platform_toolsets:
+  cli:
+    - browser
+    - web
+    - terminal
+    - file
+    - code_execution
+    - clarify
+    - cronjob
+    - delegation
+    - image_gen
+    - memory
+    - session_search
+    - skills
+    - todo
+    - webhook
+    - mcp
+    - send_message
+  webui:
+    - browser
+    - web
+    - terminal
+    - file
+    - code_execution
+    - clarify
+    - cronjob
+    - delegation
+    - image_gen
+    - memory
+    - session_search
+    - skills
+    - todo
+    - webhook
+    - mcp
+    - send_message
+
 providers:
   custom:
     api_key: "${apiKey}"
@@ -259,6 +296,24 @@ openai:
     // 5. Write ~/.hermes/sitecustomize.py to monkeypatch openai, httpx, requests, and litellm calls in Python
     const sitecustomizeContent = `import os
 import sys
+
+# Auto-load ~/.hermes/.env into os.environ if present
+def _load_hermes_env():
+    env_path = os.path.expanduser('~/.hermes/.env')
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#') or '=' not in line:
+                        continue
+                    k, v = line.split('=', 1)
+                    k, v = k.strip(), v.strip()
+                    if k and k not in os.environ:
+                        os.environ[k] = v
+        except Exception:
+            pass
+_load_hermes_env()
 
 # Ensure pip does not fail with externally-managed-environment in Debian/Ubuntu
 os.environ.setdefault('PIP_BREAK_SYSTEM_PACKAGES', '1')
@@ -414,7 +469,18 @@ _patch_all()
       console.warn('[Hermes WebUI] Notice: Vision & Image config sync warning:', visionImageErr);
     }
 
-    console.log(`✅ [Hermes WebUI] Config, browser, vision & image settings synced to ${hermesHome} (provider=${provider}, model=${model})`);
+    // Sync Hermes Messaging settings
+    try {
+      const messagingSettings = await getMessagingSettings(userId);
+      if (messagingSettings) {
+        await syncMessagingConfigToFiles(messagingSettings);
+      }
+    } catch (messagingErr) {
+      console.warn('[Hermes WebUI] Notice: Messaging config sync warning:', messagingErr);
+    }
+
+    console.log(`✅ [Hermes WebUI] Config, browser, vision, image & messaging settings synced to ${hermesHome} (provider=${provider}, model=${model})`);
+
   } catch (err) {
     console.error('[Hermes WebUI] Failed to write Hermes config files:', err);
   }
@@ -601,6 +667,28 @@ export async function startHermesWebUI(config: WebUIServiceConfig = {}): Promise
     SETUP_COMPLETED: 'true',
     HERMES_ONBOARDING_COMPLETED: 'true',
   };
+
+  // Inject messaging credentials if configured
+  try {
+    const messaging = await getMessagingSettings(config.userId);
+    if (messaging) {
+      if (messaging.telegramEnabled && messaging.telegramBotToken) {
+        env.TELEGRAM_BOT_TOKEN = messaging.telegramBotToken;
+        if (messaging.telegramAllowedUsers) env.TELEGRAM_ALLOWED_USERS = messaging.telegramAllowedUsers;
+        if (messaging.telegramAllowedChats) env.TELEGRAM_ALLOWED_CHATS = messaging.telegramAllowedChats;
+        if (messaging.telegramGroupAllowedChats) env.TELEGRAM_GROUP_ALLOWED_CHATS = messaging.telegramGroupAllowedChats;
+        if (messaging.telegramObserveUnmentioned) env.TELEGRAM_OBSERVE_UNMENTIONED_GROUP_MESSAGES = 'true';
+      }
+      if (messaging.whatsappEnabled && messaging.whatsappAccessToken) {
+        env.WHATSAPP_CLOUD_ACCESS_TOKEN = messaging.whatsappAccessToken;
+        if (messaging.whatsappPhoneNumberId) env.WHATSAPP_CLOUD_PHONE_NUMBER_ID = messaging.whatsappPhoneNumberId;
+      }
+      if (messaging.emailEnabled && messaging.emailAddress) {
+        env.EMAIL_ADDRESS = messaging.emailAddress;
+        if (messaging.emailPassword) env.EMAIL_PASSWORD = messaging.emailPassword;
+      }
+    }
+  } catch {}
 
   if (config.password) {
     env.HERMES_WEBUI_PASSWORD = config.password;

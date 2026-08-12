@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { eq } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { getDb, schema } from '../db/index.js';
 import type { HermesMessagingSettings, NewHermesMessagingSettings } from '../db/schema.js';
 
@@ -190,14 +190,21 @@ export async function ensureMessagingSettingsTable(): Promise<void> {
 }
 
 export async function getMessagingSettings(userId?: string): Promise<HermesMessagingSettings | null> {
-  if (!userId) return null;
   await ensureMessagingSettingsTable();
   const db = getDb();
   try {
+    if (userId) {
+      const rows = await db
+        .select()
+        .from(schema.hermesMessagingSettings)
+        .where(eq(schema.hermesMessagingSettings.userId, userId))
+        .limit(1);
+      if (rows[0]) return rows[0];
+    }
     const rows = await db
       .select()
       .from(schema.hermesMessagingSettings)
-      .where(eq(schema.hermesMessagingSettings.userId, userId))
+      .orderBy(desc(schema.hermesMessagingSettings.updatedAt))
       .limit(1);
     return rows[0] ?? null;
   } catch (err: any) {
@@ -208,7 +215,7 @@ export async function getMessagingSettings(userId?: string): Promise<HermesMessa
         const rows = await db
           .select()
           .from(schema.hermesMessagingSettings)
-          .where(eq(schema.hermesMessagingSettings.userId, userId))
+          .orderBy(desc(schema.hermesMessagingSettings.updatedAt))
           .limit(1);
         return rows[0] ?? null;
       } catch {}
@@ -372,7 +379,7 @@ export async function syncMessagingConfigToFiles(settings: HermesMessagingSettin
           };
         }
         platformSections.push(
-          `  telegram:\n    extra:\n${Object.entries(extra)
+          `  telegram:\n    enabled: true\n    token: "${settings.telegramBotToken}"\n    extra:\n${Object.entries(extra)
             .map(([k, v]) => {
               if (typeof v === 'object') {
                 return `      ${k}:\n${Object.entries(v).map(([kk, vv]) => `        ${kk}: ${vv}`).join('\n')}`;
@@ -391,9 +398,8 @@ export async function syncMessagingConfigToFiles(settings: HermesMessagingSettin
         if (settings.whatsappTextBatchDelay && settings.whatsappTextBatchDelay !== 2) {
           waExtra.text_batch_delay_seconds = settings.whatsappTextBatchDelay;
         }
-        if (Object.keys(waExtra).length > 0) {
-          platformSections.push(
-            `  whatsapp_cloud:\n    extra:\n${Object.entries(waExtra)
+        const extraLines = Object.keys(waExtra).length > 0
+          ? `\n    extra:\n${Object.entries(waExtra)
               .map(([k, v]) => {
                 if (Array.isArray(v)) {
                   return `      ${k}:\n${v.map((item) => `        - "${item}"`).join('\n')}`;
@@ -401,8 +407,14 @@ export async function syncMessagingConfigToFiles(settings: HermesMessagingSettin
                 return `      ${k}: ${v}`;
               })
               .join('\n')}`
-          );
-        }
+          : '';
+        platformSections.push(`  whatsapp_cloud:\n    enabled: true\n    token: "${settings.whatsappAccessToken}"${extraLines}`);
+      }
+
+      if (settings.emailEnabled && settings.emailAddress) {
+        platformSections.push(
+          `  email:\n    enabled: true\n    extra:\n      address: "${settings.emailAddress}"\n      imap_host: "${settings.emailImapHost || 'imap.gmail.com'}"\n      smtp_host: "${settings.emailSmtpHost || 'smtp.gmail.com'}"`
+        );
       }
 
       if (settings.webhookEnabled) {
@@ -415,9 +427,9 @@ export async function syncMessagingConfigToFiles(settings: HermesMessagingSettin
             if (r.profile) lines.push(`        profile: "${r.profile}"`);
             return lines.join('\n');
           });
-          platformSections.push(`  webhook:\n    extra:\n      routes:\n${routeLines.join('\n')}`);
+          platformSections.push(`  webhook:\n    enabled: true\n    extra:\n      routes:\n${routeLines.join('\n')}`);
         } else {
-          platformSections.push(`  webhook:\n    extra:\n      routes: []`);
+          platformSections.push(`  webhook:\n    enabled: true\n    extra:\n      routes: []`);
         }
       }
 

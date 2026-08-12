@@ -462,6 +462,24 @@ platform_toolsets:
     - todo
     - webhook
     - mcp
+    - send_message
+  webui:
+    - browser
+    - web
+    - terminal
+    - file
+    - code_execution
+    - clarify
+    - cronjob
+    - delegation
+    - image_gen
+    - memory
+    - session_search
+    - skills
+    - todo
+    - webhook
+    - mcp
+    - send_message
 
 tools:
   browser:
