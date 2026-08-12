@@ -243,6 +243,8 @@ os.environ.setdefault('WEB_SEARCH_PROVIDER', 'duckduckgo')
 os.environ.setdefault('SEARCH_PROVIDER', 'duckduckgo')
 os.environ.setdefault('WEB_EXTRACT_PROVIDER', 'browser')
 os.environ.setdefault('SEARCH_FALLBACK', 'browser')
+os.environ.setdefault('IMAGE_GEN_ENABLED', 'true')
+os.environ.setdefault('IMAGE_GENERATION_ENABLED', 'true')
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
@@ -281,6 +283,17 @@ def _patch_all():
         requests.utils.default_user_agent = lambda: USER_AGENT
     except Exception:
         pass
+
+    # Clean unsupported parameters and map vision models
+    def _clean_llm_kwargs(kwargs):
+        kwargs.pop('reasoning', None)
+        extra_body = kwargs.get('extra_body')
+        if isinstance(extra_body, dict):
+            extra_body.pop('reasoning', None)
+        model = kwargs.get('model')
+        if model in ('gemini/gemini-3.5-flash-lite', 'gemini-3.5-flash-lite', 'sat-vision-v1', None, ''):
+            kwargs['model'] = os.environ.get('VISION_MODEL') or 'infron:google/gemini-3.1-flash-lite-preview'
+        return kwargs
 
     # Patch OpenAI Python SDK if imported
     try:
@@ -322,6 +335,7 @@ def _patch_all():
         orig_completion = getattr(litellm, 'completion', None)
         if orig_completion and not getattr(orig_completion, '_is_patched', False):
             def patched_completion(*args, **kwargs):
+                kwargs = _clean_llm_kwargs(kwargs)
                 if base_url:
                     kwargs['api_base'] = base_url
                     kwargs['base_url'] = base_url
@@ -339,6 +353,7 @@ def _patch_all():
         orig_acompletion = getattr(litellm, 'acompletion', None)
         if orig_acompletion and not getattr(orig_acompletion, '_is_patched', False):
             async def patched_acompletion(*args, **kwargs):
+                kwargs = _clean_llm_kwargs(kwargs)
                 if base_url:
                     kwargs['api_base'] = base_url
                     kwargs['base_url'] = base_url

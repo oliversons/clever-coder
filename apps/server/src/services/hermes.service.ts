@@ -540,7 +540,7 @@ export async function testLlmPrompt(
         max_tokens: 1024,
         temperature: typeof temperature === 'number' ? temperature / 100 : 0.7,
       }),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(120000),
     });
 
     const latencyMs = Date.now() - start;

@@ -80,6 +80,15 @@
   --transition-slow: 400ms cubic-bezier(0.4,0,0.2,1);
 }
 
+.prompt-benchmark-textarea {
+  color: #f8fafc !important;
+  background-color: #0c101d !important;
+}
+
+.prompt-benchmark-textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
 :root[data-theme="light"] {
   /* ─── Light Color Palette (Default) ─────────────────────── */
   --bg-base:       #f8fafc;

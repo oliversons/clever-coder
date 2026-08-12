@@ -318,6 +318,36 @@ vision:
   model: "${defaultVisionModel}"
   base_url: "${resolvedVisionBaseUrl}"
   api_key: "${resolvedVisionApiKey}"
+
+tools:
+  browser:
+    enabled: true
+  web:
+    enabled: true
+  terminal:
+    enabled: true
+  file:
+    enabled: true
+  code_execution:
+    enabled: true
+  image_gen:
+    enabled: true
+    provider: "${imageGenProvider}"
+    model: "${defaultImageGenModel}"
+    base_url: "${resolvedImageBaseUrl}"
+    api_key: "${resolvedImageApiKey}"
+  image_generation:
+    enabled: true
+    provider: "${imageGenProvider}"
+    model: "${defaultImageGenModel}"
+    base_url: "${resolvedImageBaseUrl}"
+    api_key: "${resolvedImageApiKey}"
+  vision:
+    enabled: true
+    provider: "${visionProvider}"
+    model: "${defaultVisionModel}"
+    base_url: "${resolvedVisionBaseUrl}"
+    api_key: "${resolvedVisionApiKey}"
 `;
 
   const finalYaml = `${currentYaml}\n${visionImageYamlSection}`.trim() + '\n';
@@ -343,15 +373,21 @@ vision:
     VISION_ENABLED: 'true',
     VISION_PROVIDER: visionProvider,
     VISION_MODEL: defaultVisionModel,
+    DEFAULT_VISION_MODEL: defaultVisionModel,
+    HERMES_VISION_MODEL: defaultVisionModel,
     VISION_BASE_URL: resolvedVisionBaseUrl,
     VISION_API_KEY: resolvedVisionApiKey,
     IMAGE_GEN_ENABLED: 'true',
+    IMAGE_GENERATION_ENABLED: 'true',
     IMAGE_GEN_PROVIDER: imageGenProvider,
     IMAGE_GEN_MODEL: defaultImageGenModel,
+    DEFAULT_IMAGE_GEN_MODEL: defaultImageGenModel,
+    HERMES_IMAGE_GEN_MODEL: defaultImageGenModel,
     IMAGE_GEN_BASE_URL: resolvedImageBaseUrl,
     IMAGE_GEN_API_KEY: resolvedImageApiKey,
-    FAL_KEY: settings.falApiKey || '',
-    OPENAI_IMAGE_API_KEY: settings.openaiImageApiKey || '',
+    FAL_KEY: settings.falApiKey || resolvedImageApiKey || satApiKey,
+    FAL_API_KEY: settings.falApiKey || resolvedImageApiKey || satApiKey,
+    OPENAI_IMAGE_API_KEY: settings.openaiImageApiKey || resolvedImageApiKey || satApiKey,
   };
 
   const envLines = currentEnv.split('\n').filter((line) => {

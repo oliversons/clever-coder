@@ -2247,16 +2247,21 @@ export default function HermesSettings() {
                           setSelectedPromptPreset('custom');
                         }}
                         placeholder="Type a creative test prompt to evaluate the selected model..."
+                        className="prompt-benchmark-textarea"
                         style={{
-                          ...inputStyle,
                           width: '100%',
                           resize: 'vertical',
                           fontFamily: 'var(--font-sans)',
-                          lineHeight: 1.5,
-                          padding: '14px',
+                          lineHeight: 1.6,
+                          padding: '14px 16px',
                           fontSize: 13,
-                          background: '#090d16',
-                          border: '1px solid rgba(124,58,237,0.3)',
+                          background: '#0c101d',
+                          color: '#f8fafc',
+                          border: '1px solid rgba(168,85,247,0.4)',
+                          borderRadius: 'var(--radius-md)',
+                          outline: 'none',
+                          boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.5)',
+                          boxSizing: 'border-box',
                         }}
                       />
                       <div style={{ position: 'absolute', right: 12, bottom: 12, fontSize: 11, color: 'var(--text-muted)' }}>
