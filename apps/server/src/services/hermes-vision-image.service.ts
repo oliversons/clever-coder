@@ -294,17 +294,21 @@ export async function syncVisionImageConfigToYamlAndEnv(settings: HermesVisionIm
     resolvedImageApiKey = settings.imageGenApiKey || satApiKey || '${SAT_API_KEY}';
   }
 
+  // Map custom / sat providers to openai for Python Hermes plugin compatibility
+  const pythonImageGenProvider = (imageGenProvider === 'custom' || imageGenProvider === 'sat') ? 'openai' : imageGenProvider;
+  const pythonVisionProvider = (visionProvider === 'custom' || visionProvider === 'sat') ? 'openai' : visionProvider;
+
   const visionImageYamlSection = `
 auxiliary:
   vision:
-    provider: "${visionProvider}"
+    provider: "${pythonVisionProvider}"
     model: "${defaultVisionModel}"
     base_url: "${resolvedVisionBaseUrl}"
     api_key: "${resolvedVisionApiKey}"
 
 image_gen:
   enabled: true
-  provider: "${imageGenProvider}"
+  provider: "${pythonImageGenProvider}"
   model: "${defaultImageGenModel}"
   base_url: "${resolvedImageBaseUrl}"
   api_key: "${resolvedImageApiKey}"
@@ -314,7 +318,7 @@ image_gen:
 
 vision:
   enabled: true
-  provider: "${visionProvider}"
+  provider: "${pythonVisionProvider}"
   model: "${defaultVisionModel}"
   base_url: "${resolvedVisionBaseUrl}"
   api_key: "${resolvedVisionApiKey}"
@@ -332,19 +336,19 @@ tools:
     enabled: true
   image_gen:
     enabled: true
-    provider: "${imageGenProvider}"
+    provider: "${pythonImageGenProvider}"
     model: "${defaultImageGenModel}"
     base_url: "${resolvedImageBaseUrl}"
     api_key: "${resolvedImageApiKey}"
   image_generation:
     enabled: true
-    provider: "${imageGenProvider}"
+    provider: "${pythonImageGenProvider}"
     model: "${defaultImageGenModel}"
     base_url: "${resolvedImageBaseUrl}"
     api_key: "${resolvedImageApiKey}"
   vision:
     enabled: true
-    provider: "${visionProvider}"
+    provider: "${pythonVisionProvider}"
     model: "${defaultVisionModel}"
     base_url: "${resolvedVisionBaseUrl}"
     api_key: "${resolvedVisionApiKey}"
@@ -371,7 +375,7 @@ tools:
     SAT_BASE_URL: satBaseUrl,
     SAT_API_KEY: satApiKey,
     VISION_ENABLED: 'true',
-    VISION_PROVIDER: visionProvider,
+    VISION_PROVIDER: pythonVisionProvider,
     VISION_MODEL: defaultVisionModel,
     DEFAULT_VISION_MODEL: defaultVisionModel,
     HERMES_VISION_MODEL: defaultVisionModel,
@@ -379,7 +383,7 @@ tools:
     VISION_API_KEY: resolvedVisionApiKey,
     IMAGE_GEN_ENABLED: 'true',
     IMAGE_GENERATION_ENABLED: 'true',
-    IMAGE_GEN_PROVIDER: imageGenProvider,
+    IMAGE_GEN_PROVIDER: pythonImageGenProvider,
     IMAGE_GEN_MODEL: defaultImageGenModel,
     DEFAULT_IMAGE_GEN_MODEL: defaultImageGenModel,
     HERMES_IMAGE_GEN_MODEL: defaultImageGenModel,
