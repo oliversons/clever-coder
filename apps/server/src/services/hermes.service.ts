@@ -15,6 +15,8 @@ import { encrypt, decrypt } from '../utils/crypto.js';
 import { autoOffload, artifactKey, uploadTrajectory } from './s3.service.js';
 import { randomUUID } from 'crypto';
 import os from 'node:os';
+import fs from 'node:fs';
+import path from 'node:path';
 import { getHermesVisionImageSettings } from './hermes-vision-image.service.js';
 
 /** Detect available logical CPU cores on host/container */
@@ -65,19 +67,36 @@ export interface ChatMessage {
 
 // ── Settings Helpers ───────────────────────────────────────────────────────────
 
+// In-memory and disk cache for Hermes settings fallback
+const _memoryHermesSettings: Record<string, any> = {};
+
 export async function getHermesSettings(userId: string) {
-  const db = getDb();
-  return db.query.hermesSettings.findFirst({
-    where: eq(schema.hermesSettings.userId, userId),
-  });
+  try {
+    const db = getDb();
+    const row = await db.query.hermesSettings.findFirst({
+      where: eq(schema.hermesSettings.userId, userId),
+    });
+    if (row) return row;
+  } catch (err) {
+    console.warn('[Hermes Service] DB getHermesSettings fallback:', err);
+  }
+
+  // Fallback to disk ~/.hermes/settings.json
+  const hermesHome = process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes');
+  const settingsJsonPath = path.join(hermesHome, 'settings.json');
+  if (fs.existsSync(settingsJsonPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(settingsJsonPath, 'utf8'));
+      if (data) return { ...data, userId };
+    } catch {}
+  }
+  return _memoryHermesSettings[userId] || null;
 }
 
 export async function upsertHermesSettings(
   userId: string,
   data: Partial<typeof schema.hermesSettings.$inferInsert> & { apiKey?: string },
 ) {
-  const db = getDb();
-
   // Encrypt API key if provided
   const update: Partial<typeof schema.hermesSettings.$inferInsert> = { ...data };
   if (data.apiKey !== undefined) {
@@ -86,21 +105,50 @@ export async function upsertHermesSettings(
   }
   delete (update as Record<string, unknown>).apiKey;
 
-  const existing = await getHermesSettings(userId);
-  if (existing) {
-    const [row] = await db
-      .update(schema.hermesSettings)
-      .set({ ...update, updatedAt: new Date() })
-      .where(eq(schema.hermesSettings.userId, userId))
-      .returning();
-    return row;
-  } else {
-    const [row] = await db
-      .insert(schema.hermesSettings)
-      .values({ userId, ...update })
-      .returning();
-    return row;
+  let row: any = null;
+
+  try {
+    const db = getDb();
+    const existing = await db.query.hermesSettings.findFirst({
+      where: eq(schema.hermesSettings.userId, userId),
+    });
+    if (existing) {
+      const [res] = await db
+        .update(schema.hermesSettings)
+        .set({ ...update, updatedAt: new Date() })
+        .where(eq(schema.hermesSettings.userId, userId))
+        .returning();
+      row = res;
+    } else {
+      const [res] = await db
+        .insert(schema.hermesSettings)
+        .values({ userId, ...update })
+        .returning();
+      row = res;
+    }
+  } catch (err) {
+    console.warn('[Hermes Service] DB upsertHermesSettings fallback to disk:', err);
   }
+
+  if (!row) {
+    row = {
+      id: 'default-hermes-settings',
+      userId,
+      ...update,
+      updatedAt: new Date(),
+    };
+  }
+
+  _memoryHermesSettings[userId] = row;
+
+  // Persist to ~/.hermes/settings.json
+  try {
+    const hermesHome = process.env.HERMES_HOME || path.resolve(process.env.HOME || '/root', '.hermes');
+    if (!fs.existsSync(hermesHome)) fs.mkdirSync(hermesHome, { recursive: true });
+    fs.writeFileSync(path.join(hermesHome, 'settings.json'), JSON.stringify(row, null, 2), 'utf8');
+  } catch {}
+
+  return row;
 }
 
 /** Return settings with API key masked for safe client delivery. */

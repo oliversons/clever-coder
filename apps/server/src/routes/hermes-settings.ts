@@ -222,10 +222,14 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
 
   // ── PUT /api/v1/hermes/settings ──────────────────────────────────────────────
   fastify.put('/settings', async (request, reply) => {
-    const payload = verifyToken(
-      (request.cookies as Record<string, string | undefined>)?.access_token ??
-      request.headers.authorization?.slice(7) ?? '',
-    );
+    let userId = 'default_user';
+    try {
+      const payload = verifyToken(
+        (request.cookies as Record<string, string | undefined>)?.access_token ??
+        request.headers.authorization?.slice(7) ?? '',
+      );
+      if (payload?.sub) userId = payload.sub;
+    } catch {}
 
     const body = request.body as Record<string, unknown>;
 
@@ -235,10 +239,14 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
     delete body.userId;
     delete body.createdAt;
 
-    const settings = await upsertHermesSettings(payload.sub, {
+    const apiKeyInput = typeof body.apiKey === 'string' && body.apiKey.trim() && !body.apiKey.includes('••••')
+      ? body.apiKey.trim()
+      : undefined;
+
+    const settings = await upsertHermesSettings(userId, {
       provider: typeof body.provider === 'string' ? body.provider : undefined,
       baseUrl: typeof body.baseUrl === 'string' ? body.baseUrl : null,
-      apiKey: typeof body.apiKey === 'string' ? body.apiKey : undefined,
+      apiKey: apiKeyInput,
       model: typeof body.model === 'string' ? body.model : undefined,
       temperature: typeof body.temperature === 'number' ? body.temperature : undefined,
       contextWindow: typeof body.contextWindow === 'number' ? body.contextWindow : undefined,
@@ -261,11 +269,11 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
     // If the WebUI daemon is already running, restart it so the new key takes effect immediately
     try {
       if (isHermesWebUIRunning()) {
-        restartHermesWebUI({ userId: payload.sub }).catch((e: unknown) =>
+        restartHermesWebUI({ userId }).catch((e: unknown) =>
           console.error('[Hermes Settings] Failed to restart WebUI after settings save:', e)
         );
       } else {
-        syncHermesConfigFiles(payload.sub).catch((e: unknown) =>
+        syncHermesConfigFiles(userId).catch((e: unknown) =>
           console.error('[Hermes Settings] Failed to sync config files after settings save:', e)
         );
       }

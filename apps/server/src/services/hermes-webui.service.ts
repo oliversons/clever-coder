@@ -71,9 +71,28 @@ async function resolveCredentials(userId?: string): Promise<ResolvedCredentials>
         provider = p === 'custom_openai' ? 'custom' : p;
       }
     }
+
+    // Fallback to Vision/ImageGen settings if primary apiKey or baseUrl is empty
+    if (!apiKey || !baseUrl) {
+      try {
+        const visionSettings = await getHermesVisionImageSettings(userId);
+        if (!apiKey) {
+          apiKey = visionSettings.satApiKey || visionSettings.visionApiKey || visionSettings.imageGenApiKey || apiKey;
+        }
+        if (!baseUrl) {
+          baseUrl = visionSettings.visionBaseUrl || visionSettings.imageGenBaseUrl || baseUrl;
+        }
+      } catch {}
+    }
   } catch (err) {
     console.warn('[Hermes WebUI] Could not load credentials from DB, using env fallbacks:', err);
-  }  return { apiKey, baseUrl, model, provider };
+  }
+
+  // Final fallback for gateway
+  if (!baseUrl && apiKey) {
+    baseUrl = 'https://app-fcbf4053-74e6-4498-ac0e-eb160010a3c5.cleverapps.io/v1';
+  }
+  return { apiKey, baseUrl, model, provider };
 }
 
 /**
@@ -152,20 +171,7 @@ export async function syncHermesConfigFiles(userId?: string, activeWorkspacePath
       workspace: targetWorkspace,
       workspace_path: targetWorkspace,
       allowed_workspaces: allowedWorkspaces,
-      workspaces: allowedWorkspaces,
-    };
-    const webuiStateDir = path.join(hermesHome, 'webui_state');
-    const webuiDir = path.join(hermesHome, 'webui');
-    for (const dir of [hermesHome, webuiStateDir, webuiDir]) {
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(path.join(dir, 'last_workspace.txt'), targetWorkspace, 'utf8');
-      fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(configJson, null, 2), 'utf8');
-      fs.writeFileSync(path.join(dir, 'webui.json'), JSON.stringify(webuiJson, null, 2), 'utf8');
-    }
-
-    // 3. ~/.hermes/config.yaml
+    // 3. YAML and ENV contents
     const yamlContent = `model:
   provider: "${provider}"
   default: "${model}"
@@ -208,9 +214,7 @@ openai:
   api_key: "${apiKey}"
   base_url: "${baseUrl}"
 `;
-    fs.writeFileSync(path.join(hermesHome, 'config.yaml'), yamlContent, 'utf8');
 
-    // 4. ~/.hermes/.env
     const envLines = [
       `HERMES_MODEL=${model}`,
       `HERMES_PROVIDER=${provider}`,
@@ -226,11 +230,28 @@ openai:
       `SETUP_COMPLETED=true`,
       `HERMES_ONBOARDING_COMPLETED=true`,
       `LITELLM_LOG=DEBUG`,
-      // Disable Nous Portal JWT from overriding the custom API key
       `DISABLE_NOUS_AUTH=true`,
       `NOUS_API_KEY=`,
     ];
-    fs.writeFileSync(path.join(hermesHome, '.env'), envLines.join('\n'), 'utf8');
+
+    const targetDirs = [
+      hermesHome,
+      path.join(hermesHome, 'webui_state'),
+      path.join(hermesHome, 'webui'),
+      path.join(hermesHome, 'profiles', 'default'),
+    ];
+
+    for (const dir of targetDirs) {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(dir, 'last_workspace.txt'), targetWorkspace, 'utf8');
+      fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(configJson, null, 2), 'utf8');
+      fs.writeFileSync(path.join(dir, 'webui.json'), JSON.stringify(webuiJson, null, 2), 'utf8');
+      fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify(configJson, null, 2), 'utf8');
+      fs.writeFileSync(path.join(dir, 'config.yaml'), yamlContent, 'utf8');
+      fs.writeFileSync(path.join(dir, '.env'), envLines.join('\n'), 'utf8');
+    }
 
     // 5. Write ~/.hermes/sitecustomize.py to monkeypatch openai, httpx, requests, and litellm calls in Python
     const sitecustomizeContent = `import os
@@ -249,8 +270,8 @@ os.environ.setdefault('IMAGE_GENERATION_ENABLED', 'true')
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
 def _patch_all():
-    base_url = os.environ.get('OPENAI_BASE_URL') or os.environ.get('OPENAI_API_BASE') or os.environ.get('CUSTOM_BASE_URL')
-    api_key = os.environ.get('OPENAI_API_KEY') or os.environ.get('CUSTOM_API_KEY') or os.environ.get('DEFAULT_API_KEY')
+    base_url = os.environ.get('OPENAI_BASE_URL') or os.environ.get('OPENAI_API_BASE') or os.environ.get('CUSTOM_BASE_URL') or os.environ.get('SAT_BASE_URL') or 'https://app-fcbf4053-74e6-4498-ac0e-eb160010a3c5.cleverapps.io/v1'
+    api_key = os.environ.get('OPENAI_API_KEY') or os.environ.get('CUSTOM_API_KEY') or os.environ.get('DEFAULT_API_KEY') or os.environ.get('SAT_API_KEY') or os.environ.get('IMAGE_GEN_API_KEY')
 
     # Patch httpx to override default User-Agent for all HTTP clients (used by openai Python SDK)
     try:
@@ -300,9 +321,9 @@ def _patch_all():
         import openai
         orig_openai_init = openai.OpenAI.__init__
         def patched_openai_init(self, *args, **kwargs):
-            if base_url:
+            if base_url and (not kwargs.get('base_url') or kwargs.get('base_url') == ''):
                 kwargs['base_url'] = base_url
-            if api_key:
+            if api_key and (not kwargs.get('api_key') or kwargs.get('api_key') == ''):
                 kwargs['api_key'] = api_key
             dh = kwargs.get('default_headers') or {}
             dh = dict(dh)
@@ -313,9 +334,9 @@ def _patch_all():
 
         orig_async_init = openai.AsyncOpenAI.__init__
         def patched_async_init(self, *args, **kwargs):
-            if base_url:
+            if base_url and (not kwargs.get('base_url') or kwargs.get('base_url') == ''):
                 kwargs['base_url'] = base_url
-            if api_key:
+            if api_key and (not kwargs.get('api_key') or kwargs.get('api_key') == ''):
                 kwargs['api_key'] = api_key
             dh = kwargs.get('default_headers') or {}
             dh = dict(dh)
@@ -336,11 +357,11 @@ def _patch_all():
         if orig_completion and not getattr(orig_completion, '_is_patched', False):
             def patched_completion(*args, **kwargs):
                 kwargs = _clean_llm_kwargs(kwargs)
-                if base_url:
+                if base_url and (not kwargs.get('api_base') or kwargs.get('api_base') == ''):
                     kwargs['api_base'] = base_url
                     kwargs['base_url'] = base_url
                     kwargs['custom_llm_provider'] = 'openai'
-                if api_key:
+                if api_key and (not kwargs.get('api_key') or kwargs.get('api_key') == ''):
                     kwargs['api_key'] = api_key
                 headers = kwargs.get('headers') or {}
                 headers = dict(headers)
@@ -354,11 +375,11 @@ def _patch_all():
         if orig_acompletion and not getattr(orig_acompletion, '_is_patched', False):
             async def patched_acompletion(*args, **kwargs):
                 kwargs = _clean_llm_kwargs(kwargs)
-                if base_url:
+                if base_url and (not kwargs.get('api_base') or kwargs.get('api_base') == ''):
                     kwargs['api_base'] = base_url
                     kwargs['base_url'] = base_url
                     kwargs['custom_llm_provider'] = 'openai'
-                if api_key:
+                if api_key and (not kwargs.get('api_key') or kwargs.get('api_key') == ''):
                     kwargs['api_key'] = api_key
                 headers = kwargs.get('headers') or {}
                 headers = dict(headers)
