@@ -291,8 +291,8 @@ def _patch_all():
         if isinstance(extra_body, dict):
             extra_body.pop('reasoning', None)
         model = kwargs.get('model')
-        if model in ('gemini/gemini-3.5-flash-lite', 'gemini-3.5-flash-lite', 'sat-vision-v1', None, ''):
-            kwargs['model'] = os.environ.get('VISION_MODEL') or 'infron:google/gemini-3.1-flash-lite-preview'
+        if model in ('gemini/gemini-3.5-flash-lite', 'gemini-3.5-flash-lite', 'sat-vision-v1', 'infron:google/gemini-3.1-flash-lite-preview', 'google/gemini-2.0-flash', None, ''):
+            kwargs['model'] = os.environ.get('VISION_MODEL') or '@cf/meta/llama-3.2-11b-vision-instruct'
         return kwargs
 
     # Patch OpenAI Python SDK if imported

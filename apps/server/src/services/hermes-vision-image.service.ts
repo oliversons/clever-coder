@@ -36,13 +36,13 @@ export const DEFAULT_VISION_IMAGE_SETTINGS: HermesVisionImageSettingsInput = {
   satApiKey: '',
   satBaseUrl: 'https://api.sat.ai/v1',
 
-  visionProvider: 'sat',
-  defaultVisionModel: 'sat-vision-v1',
+  visionProvider: 'custom',
+  defaultVisionModel: '@cf/meta/llama-3.2-11b-vision-instruct',
   visionBaseUrl: '',
   visionApiKey: '',
 
-  imageGenProvider: 'sat',
-  defaultImageGenModel: 'sat-flux-1-schnell',
+  imageGenProvider: 'custom',
+  defaultImageGenModel: '@cf/black-forest-labs/flux-1-schnell',
   imageGenBaseUrl: '',
   imageGenApiKey: '',
   falApiKey: '',
