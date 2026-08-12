@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   RiImageEditLine,
   RiEyeLine,
@@ -19,7 +19,8 @@ import {
   RiSettings4Line,
   RiDownload2Line,
   RiEdit2Line,
-  RiSearchLine
+  RiSearchLine,
+  RiDatabase2Line
 } from 'react-icons/ri';
 import {
   api,
@@ -27,6 +28,8 @@ import {
   type SatDiscoveredModel,
   type SatModelDiscoveryResult
 } from '../../api/client';
+import { VisionImageSelect, type VisionImageSelectOption } from '../../components/hermes/VisionImageSelect';
+import { VisionImageModelTable } from '../../components/hermes/VisionImageModelTable';
 
 const FAL_MODELS = [
   { id: 'fal-ai/flux-2/klein/9b', name: 'FLUX 2 Klein 9B', speed: '<1s', strengths: 'Fast, crisp text, lowest cost', price: '$0.006/MP', recommended: true },
@@ -40,6 +43,20 @@ const FAL_MODELS = [
   { id: 'fal-ai/qwen-image', name: 'Qwen Image', speed: '~12s', strengths: 'LLM-based text rendering', price: '$0.02/MP' },
   { id: 'fal-ai/krea/v2/medium/text-to-image', name: 'Krea v2 Medium', speed: '~15-25s', strengths: 'Illustration, anime, painting styles', price: '$0.030/img' },
   { id: 'fal-ai/krea/v2/large/text-to-image', name: 'Krea v2 Large', speed: '~25-60s', strengths: 'Raw film textures, motion blur', price: '$0.060/img' },
+];
+
+const DEFAULT_POPULAR_MODELS: VisionImageSelectOption[] = [
+  { id: '@cf/zai-org/glm-4.2', name: 'GLM 4.2 Multimodal Vision', isVision: true, isImageGen: false },
+  { id: 'sat-vision-v1', name: 'SAT Vision v1 Reasoning', isVision: true, isImageGen: false },
+  { id: 'gpt-4o', name: 'OpenAI GPT-4o Omnimodal', isVision: true, isImageGen: false, contextLength: 128000 },
+  { id: 'gpt-4o-mini', name: 'OpenAI GPT-4o Mini', isVision: true, isImageGen: false, contextLength: 128000 },
+  { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet Vision', isVision: true, isImageGen: false, contextLength: 200000 },
+  { id: 'qwen/qwen-2.5-vl-72b-instruct', name: 'Qwen 2.5 VL 72B Instruct', isVision: true, isImageGen: false, contextLength: 32000 },
+  { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash Vision', isVision: true, isImageGen: false, contextLength: 1000000 },
+  { id: 'sat-flux-1-schnell', name: 'SAT FLUX.1 Schnell Turbo', isVision: false, isImageGen: true },
+  { id: 'dall-e-3', name: 'OpenAI DALL-E 3', isVision: false, isImageGen: true },
+  { id: 'fal-ai/flux-2-pro', name: 'FLUX 2 Pro Studio Photorealism', isVision: false, isImageGen: true },
+  { id: 'fal-ai/flux-2/klein/9b', name: 'FLUX 2 Klein 9B', isVision: false, isImageGen: true },
 ];
 
 const SAMPLE_IMAGES = [
@@ -225,6 +242,34 @@ export const VisionImageSettings: React.FC = () => {
       setTestingImageGen(false);
     }
   };
+  // Comprehensive options lists for Vision & Image Gen comboboxes
+  const allSelectableModels = useMemo<VisionImageSelectOption[]>(() => {
+    if (discoveredCatalog && discoveredCatalog.models.length > 0) {
+      return discoveredCatalog.models;
+    }
+    // Fallback: merge FAL models & popular defaults
+    const falAsOptions: VisionImageSelectOption[] = FAL_MODELS.map((f) => ({
+      id: f.id,
+      name: f.name,
+      description: `${f.strengths} (${f.speed} • ${f.price})`,
+      isVision: false,
+      isImageGen: true,
+    }));
+    return [...DEFAULT_POPULAR_MODELS, ...falAsOptions];
+  }, [discoveredCatalog]);
+
+  const imageGenOptions = useMemo<VisionImageSelectOption[]>(() => {
+    if (form.imageGenProvider === 'fal') {
+      return FAL_MODELS.map((f) => ({
+        id: f.id,
+        name: f.name,
+        description: `${f.strengths} (${f.speed} • ${f.price})`,
+        isVision: false,
+        isImageGen: true,
+      }));
+    }
+    return allSelectableModels;
+  }, [form.imageGenProvider, allSelectableModels]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%' }}>
@@ -403,53 +448,33 @@ export const VisionImageSettings: React.FC = () => {
           </div>
         </div>
 
-        {/* Discovery Results Overview */}
-        {discoveredCatalog && discoveredCatalog.success && (
-          <div
-            style={{
-              marginTop: 16,
-              padding: 14,
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <RiCheckLine size={18} style={{ color: 'var(--success, #10b981)' }} />
-                <strong style={{ fontSize: 13 }}>
-                  Discovered {discoveredCatalog.count} Available Models on {discoveredCatalog.baseUrl}
-                </strong>
-              </div>
-              <span className="badge badge-primary" style={{ fontSize: 11 }}>
-                Live Connection Active
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {discoveredCatalog.models.map((m) => (
-                <div
-                  key={m.id}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: 'var(--radius-sm)',
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)',
-                    fontSize: 11,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
-                  <span style={{ fontWeight: 600 }}>{m.id}</span>
-                  {m.isVision && <span className="badge badge-success" style={{ fontSize: 9 }}>Vision</span>}
-                  {m.isImageGen && <span className="badge badge-primary" style={{ fontSize: 9 }}>Image Gen</span>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </section>
+
+      {/* ── Discovered Models Giant Searchable Table Card ─────────────── */}
+      {discoveredCatalog && discoveredCatalog.success && discoveredCatalog.models.length > 0 && (
+        <VisionImageModelTable
+          models={discoveredCatalog.models}
+          baseUrl={discoveredCatalog.baseUrl}
+          defaultVisionModel={form.defaultVisionModel}
+          defaultImageGenModel={form.defaultImageGenModel}
+          onSetVisionDefault={(modelId) => {
+            setForm((prev) => ({ ...prev, defaultVisionModel: modelId }));
+            setMessage({
+              type: 'success',
+              text: `Updated Default Vision Model to "${modelId}". Remember to click "Save Vision & Image Settings" to sync.`,
+            });
+          }}
+          onSetImageGenDefault={(modelId) => {
+            setForm((prev) => ({ ...prev, defaultImageGenModel: modelId }));
+            setMessage({
+              type: 'success',
+              text: `Updated Default Image Model to "${modelId}". Remember to click "Save Vision & Image Settings" to sync.`,
+            });
+          }}
+          onRefresh={handleDiscoverModels}
+          isRefreshing={discovering}
+        />
+      )}
 
       {/* ── 2. Auxiliary Multimodal Vision (`auxiliary.vision`) ───────── */}
       <section className="glass-card" style={{ padding: 24 }}>
@@ -480,56 +505,19 @@ export const VisionImageSettings: React.FC = () => {
 
           <div>
             <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
-              Default Vision Model (Searchable Dropdown)
+              Default Vision Model (Advanced Searchable Selector)
             </label>
-            {discoveredCatalog && discoveredCatalog.models.length > 0 ? (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <select
-                  className="form-input"
-                  value={form.defaultVisionModel}
-                  onChange={(e) => setForm({ ...form, defaultVisionModel: e.target.value })}
-                  style={{ flexGrow: 1, fontFamily: 'var(--font-mono)' }}
-                >
-                  {discoveredCatalog.models.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.id} {m.isVision ? '👁️ [Vision Capable]' : ''}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ padding: '0 10px', fontSize: 11 }}
-                  onClick={() => {
-                    const custom = prompt('Enter custom vision model identifier:', form.defaultVisionModel);
-                    if (custom) setForm({ ...form, defaultVisionModel: custom });
-                  }}
-                >
-                  <RiEdit2Line size={13} style={{ marginRight: 4 }} /> Custom
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. @cf/zai-org/glm-4.2, sat-vision-v1, gpt-4o, qwen-vl-max"
-                  value={form.defaultVisionModel}
-                  onChange={(e) => setForm({ ...form, defaultVisionModel: e.target.value })}
-                  style={{ flexGrow: 1, fontFamily: 'var(--font-mono)' }}
-                />
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ padding: '0 10px', fontSize: 11 }}
-                  onClick={handleDiscoverModels}
-                >
-                  Load Models
-                </button>
-              </div>
-            )}
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              Click &quot;Discover Models&quot; to load all models available on your custom API endpoint
+            <VisionImageSelect
+              value={form.defaultVisionModel}
+              onChange={(modelId) => setForm({ ...form, defaultVisionModel: modelId })}
+              models={allSelectableModels}
+              mode="vision"
+              placeholder="Search or select vision model (e.g. @cf/zai-org/glm-4.2, gpt-4o, qwen-vl)..."
+              onDiscover={handleDiscoverModels}
+              loading={discovering}
+            />
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>
+              Select from discovered API models, filter by Vision/Image Gen capabilities, or input custom ID
             </span>
           </div>
         </div>
@@ -590,68 +578,19 @@ export const VisionImageSettings: React.FC = () => {
 
           <div>
             <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
-              Default Image Model (Select from API)
+              Default Image Model (Advanced Searchable Selector)
             </label>
-            {(form.imageGenProvider === 'custom' || form.imageGenProvider === 'sat') && discoveredCatalog && discoveredCatalog.models.length > 0 ? (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <select
-                  className="form-input"
-                  value={form.defaultImageGenModel}
-                  onChange={(e) => setForm({ ...form, defaultImageGenModel: e.target.value })}
-                  style={{ flexGrow: 1, fontFamily: 'var(--font-mono)' }}
-                >
-                  {discoveredCatalog.models.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.id} {m.isImageGen ? '🎨 [Image Gen Capable]' : ''}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ padding: '0 10px', fontSize: 11 }}
-                  onClick={() => {
-                    const custom = prompt('Enter custom image generation model identifier:', form.defaultImageGenModel);
-                    if (custom) setForm({ ...form, defaultImageGenModel: custom });
-                  }}
-                >
-                  <RiEdit2Line size={13} style={{ marginRight: 4 }} /> Custom
-                </button>
-              </div>
-            ) : form.imageGenProvider === 'fal' ? (
-              <select
-                className="form-input"
-                value={form.defaultImageGenModel}
-                onChange={(e) => setForm({ ...form, defaultImageGenModel: e.target.value })}
-              >
-                {FAL_MODELS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({m.speed} — {m.price})
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. sat-flux-1-schnell, dall-e-3, flux-pro"
-                  value={form.defaultImageGenModel}
-                  onChange={(e) => setForm({ ...form, defaultImageGenModel: e.target.value })}
-                  style={{ flexGrow: 1, fontFamily: 'var(--font-mono)' }}
-                />
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ padding: '0 10px', fontSize: 11 }}
-                  onClick={handleDiscoverModels}
-                >
-                  Load Models
-                </button>
-              </div>
-            )}
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              Discovered from your active API endpoint or chosen provider
+            <VisionImageSelect
+              value={form.defaultImageGenModel}
+              onChange={(modelId) => setForm({ ...form, defaultImageGenModel: modelId })}
+              models={imageGenOptions}
+              mode="image"
+              placeholder="Search or select image model (e.g. sat-flux-1-schnell, fal-ai/flux-2-pro, dall-e-3)..."
+              onDiscover={handleDiscoverModels}
+              loading={discovering}
+            />
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>
+              Discovered from your active API endpoint or chosen provider presets
             </span>
           </div>
         </div>
