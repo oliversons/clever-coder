@@ -663,7 +663,7 @@ export const MessagingGatewaySettings: React.FC = () => {
             {/* Telegram Credentials Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   Bot Token (<code>TELEGRAM_BOT_TOKEN</code>)
                 </label>
                 <div style={{ position: 'relative' }}>
@@ -674,6 +674,10 @@ export const MessagingGatewaySettings: React.FC = () => {
                     value={form.telegramBotToken || ''}
                     onChange={(e) => setForm({ ...form, telegramBotToken: e.target.value })}
                     style={{ paddingRight: 40 }}
+                    autoComplete="new-password"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                   />
                   <button
                     type="button"
@@ -692,13 +696,13 @@ export const MessagingGatewaySettings: React.FC = () => {
                     {showSecrets['telegramBotToken'] ? <RiEyeOffLine size={16} /> : <RiEyeLine size={16} />}
                   </button>
                 </div>
-                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>
                   {form.telegramBotTokenSet ? 'Token configured in database.' : 'Enter bot token issued by @BotFather'}
                 </span>
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   Allowed User IDs (<code>TELEGRAM_ALLOWED_USERS</code>)
                 </label>
                 <input
@@ -707,14 +711,18 @@ export const MessagingGatewaySettings: React.FC = () => {
                   placeholder="123456789, 987654321"
                   value={form.telegramAllowedUsers || ''}
                   onChange={(e) => setForm({ ...form, telegramAllowedUsers: e.target.value })}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
-                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>
                   Comma-separated numeric user IDs authorized to interact with the bot
                 </span>
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   Allowed Chat IDs (<code>TELEGRAM_ALLOWED_CHATS</code>)
                 </label>
                 <input
@@ -723,26 +731,31 @@ export const MessagingGatewaySettings: React.FC = () => {
                   placeholder="-1001234567890"
                   value={form.telegramAllowedChats || ''}
                   onChange={(e) => setForm({ ...form, telegramAllowedChats: e.target.value })}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
-                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>
                   Optional allowed chat IDs (use negative numbers for Telegram group chats)
                 </span>
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   Command Priority Mode (<code>command_menu.priority_mode</code>)
                 </label>
                 <select
                   className="form-input"
                   value={form.telegramCommandMenuPriorityMode || 'prepend'}
                   onChange={(e) => setForm({ ...form, telegramCommandMenuPriorityMode: e.target.value })}
+                  autoComplete="off"
                 >
                   <option value="prepend">prepend — custom commands first, then Hermes defaults</option>
                   <option value="append">append — Hermes defaults first, then custom</option>
                   <option value="replace">replace — custom commands only</option>
                 </select>
-                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>
                   Order of bot command menu suggestions in Telegram client
                 </span>
               </div>
@@ -833,21 +846,29 @@ export const MessagingGatewaySettings: React.FC = () => {
               {form.telegramStatusIndicator && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginTop: 14 }}>
                   <div>
-                    <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Online Status String</label>
+                    <label className="form-label">Online Status String</label>
                     <input
                       type="text"
                       className="form-input"
                       value={form.telegramStatusOnline || '🟢 Online'}
                       onChange={(e) => setForm({ ...form, telegramStatusOnline: e.target.value })}
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
                     />
                   </div>
                   <div>
-                    <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Offline Status String</label>
+                    <label className="form-label">Offline Status String</label>
                     <input
                       type="text"
                       className="form-input"
                       value={form.telegramStatusOffline || '🔴 Offline'}
                       onChange={(e) => setForm({ ...form, telegramStatusOffline: e.target.value })}
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
                     />
                   </div>
                 </div>
@@ -866,32 +887,41 @@ export const MessagingGatewaySettings: React.FC = () => {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
                 <div>
-                  <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Webhook URL</label>
+                  <label className="form-label">Webhook URL</label>
                   <input
                     type="text"
                     className="form-input"
                     placeholder="https://your-domain.com/telegram"
                     value={form.telegramWebhookUrl || ''}
                     onChange={(e) => setForm({ ...form, telegramWebhookUrl: e.target.value })}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                   />
                 </div>
                 <div>
-                  <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Webhook Secret Token</label>
+                  <label className="form-label">Webhook Secret Token</label>
                   <input
                     type="password"
                     className="form-input"
                     placeholder="Secret for request validation"
                     value={form.telegramWebhookSecret || ''}
                     onChange={(e) => setForm({ ...form, telegramWebhookSecret: e.target.value })}
+                    autoComplete="new-password"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                   />
                 </div>
                 <div>
-                  <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Webhook Listener Port</label>
+                  <label className="form-label">Webhook Listener Port</label>
                   <input
                     type="number"
                     className="form-input"
                     value={form.telegramWebhookPort || 8443}
                     onChange={(e) => setForm({ ...form, telegramWebhookPort: Number(e.target.value) })}
+                    autoComplete="off"
                   />
                 </div>
               </div>
@@ -927,7 +957,7 @@ export const MessagingGatewaySettings: React.FC = () => {
 
             {/* Webhook URL Copy Box */}
             <div style={{ padding: 14, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-              <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Your Public Meta Webhook Callback URL</label>
+              <label className="form-label">Your Public Meta Webhook Callback URL</label>
               <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                 <input
                   type="text"
@@ -935,6 +965,8 @@ export const MessagingGatewaySettings: React.FC = () => {
                   readOnly
                   value={webhookCallbackUrl}
                   style={{ fontFamily: 'monospace', fontSize: 12, background: 'var(--bg-card)' }}
+                  autoComplete="off"
+                  spellCheck={false}
                 />
                 <button
                   type="button"
@@ -951,7 +983,7 @@ export const MessagingGatewaySettings: React.FC = () => {
             {/* WhatsApp Credentials Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   Permanent Access Token (<code>WHATSAPP_CLOUD_ACCESS_TOKEN</code>)
                 </label>
                 <div style={{ position: 'relative' }}>
@@ -962,6 +994,10 @@ export const MessagingGatewaySettings: React.FC = () => {
                     value={form.whatsappAccessToken || ''}
                     onChange={(e) => setForm({ ...form, whatsappAccessToken: e.target.value })}
                     style={{ paddingRight: 40 }}
+                    autoComplete="new-password"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                   />
                   <button
                     type="button"
@@ -983,7 +1019,7 @@ export const MessagingGatewaySettings: React.FC = () => {
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   Phone Number ID (<code>WHATSAPP_CLOUD_PHONE_NUMBER_ID</code>)
                 </label>
                 <input
@@ -992,11 +1028,15 @@ export const MessagingGatewaySettings: React.FC = () => {
                   placeholder="100609321..."
                   value={form.whatsappPhoneNumberId || ''}
                   onChange={(e) => setForm({ ...form, whatsappPhoneNumberId: e.target.value })}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   WhatsApp Business Account ID (WABA ID)
                 </label>
                 <input
@@ -1005,11 +1045,15 @@ export const MessagingGatewaySettings: React.FC = () => {
                   placeholder="101509123..."
                   value={form.whatsappWabaId || ''}
                   onChange={(e) => setForm({ ...form, whatsappWabaId: e.target.value })}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   Webhook Verify Token (<code>WHATSAPP_CLOUD_VERIFY_TOKEN</code>)
                 </label>
                 <input
@@ -1018,11 +1062,15 @@ export const MessagingGatewaySettings: React.FC = () => {
                   placeholder="my_custom_webhook_secret"
                   value={form.whatsappVerifyToken || ''}
                   onChange={(e) => setForm({ ...form, whatsappVerifyToken: e.target.value })}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   Allowed Sender Numbers (E.164 without +)
                 </label>
                 <input
@@ -1031,11 +1079,15 @@ export const MessagingGatewaySettings: React.FC = () => {
                   placeholder="15551234567, 447911123456"
                   value={form.whatsappAllowedUsers || ''}
                   onChange={(e) => setForm({ ...form, whatsappAllowedUsers: e.target.value })}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   Text Batch Delay (Seconds)
                 </label>
                 <input
@@ -1043,6 +1095,7 @@ export const MessagingGatewaySettings: React.FC = () => {
                   className="form-input"
                   value={form.whatsappTextBatchDelay || 2}
                   onChange={(e) => setForm({ ...form, whatsappTextBatchDelay: Number(e.target.value) })}
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -1070,7 +1123,7 @@ export const MessagingGatewaySettings: React.FC = () => {
             {/* Email Credentials Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   Hermes Email Address (<code>EMAIL_ADDRESS</code>)
                 </label>
                 <input
@@ -1079,11 +1132,15 @@ export const MessagingGatewaySettings: React.FC = () => {
                   placeholder="hermes-agent@yourdomain.com"
                   value={form.emailAddress || ''}
                   onChange={(e) => setForm({ ...form, emailAddress: e.target.value })}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   App Password / SMTP Password (<code>EMAIL_PASSWORD</code>)
                 </label>
                 <div style={{ position: 'relative' }}>
@@ -1094,6 +1151,10 @@ export const MessagingGatewaySettings: React.FC = () => {
                     value={form.emailPassword || ''}
                     onChange={(e) => setForm({ ...form, emailPassword: e.target.value })}
                     style={{ paddingRight: 40 }}
+                    autoComplete="new-password"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                   />
                   <button
                     type="button"
@@ -1115,7 +1176,7 @@ export const MessagingGatewaySettings: React.FC = () => {
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   IMAP Host (Incoming Mail)
                 </label>
                 <input
@@ -1124,11 +1185,15 @@ export const MessagingGatewaySettings: React.FC = () => {
                   placeholder="imap.gmail.com"
                   value={form.emailImapHost || 'imap.gmail.com'}
                   onChange={(e) => setForm({ ...form, emailImapHost: e.target.value })}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   IMAP Port (Default: 993 SSL)
                 </label>
                 <input
@@ -1136,11 +1201,12 @@ export const MessagingGatewaySettings: React.FC = () => {
                   className="form-input"
                   value={form.emailImapPort || 993}
                   onChange={(e) => setForm({ ...form, emailImapPort: Number(e.target.value) })}
+                  autoComplete="off"
                 />
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   SMTP Host (Outgoing Mail)
                 </label>
                 <input
@@ -1149,11 +1215,15 @@ export const MessagingGatewaySettings: React.FC = () => {
                   placeholder="smtp.gmail.com"
                   value={form.emailSmtpHost || 'smtp.gmail.com'}
                   onChange={(e) => setForm({ ...form, emailSmtpHost: e.target.value })}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   SMTP Port (Default: 587 STARTTLS)
                 </label>
                 <input
@@ -1161,11 +1231,12 @@ export const MessagingGatewaySettings: React.FC = () => {
                   className="form-input"
                   value={form.emailSmtpPort || 587}
                   onChange={(e) => setForm({ ...form, emailSmtpPort: Number(e.target.value) })}
+                  autoComplete="off"
                 />
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   Poll Interval (Seconds)
                 </label>
                 <input
@@ -1173,11 +1244,12 @@ export const MessagingGatewaySettings: React.FC = () => {
                   className="form-input"
                   value={form.emailPollInterval || 15}
                   onChange={(e) => setForm({ ...form, emailPollInterval: Number(e.target.value) })}
+                  autoComplete="off"
                 />
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   Allowed Sender Email Addresses
                 </label>
                 <input
@@ -1186,6 +1258,10 @@ export const MessagingGatewaySettings: React.FC = () => {
                   placeholder="user@company.com, admin@org.com"
                   value={form.emailAllowedUsers || ''}
                   onChange={(e) => setForm({ ...form, emailAllowedUsers: e.target.value })}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
               </div>
             </div>
@@ -1197,7 +1273,7 @@ export const MessagingGatewaySettings: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   Webhook Server Port (<code>WEBHOOK_PORT</code>)
                 </label>
                 <input
@@ -1205,14 +1281,15 @@ export const MessagingGatewaySettings: React.FC = () => {
                   className="form-input"
                   value={form.webhookPort || 8644}
                   onChange={(e) => setForm({ ...form, webhookPort: Number(e.target.value) })}
+                  autoComplete="off"
                 />
-                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>
                   Internal TCP port for the Hermes webhook daemon listener
                 </span>
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                <label className="form-label">
                   Global HMAC Secret (<code>WEBHOOK_SECRET</code>)
                 </label>
                 <div style={{ position: 'relative' }}>
@@ -1223,6 +1300,10 @@ export const MessagingGatewaySettings: React.FC = () => {
                     value={form.webhookSecret || ''}
                     onChange={(e) => setForm({ ...form, webhookSecret: e.target.value })}
                     style={{ paddingRight: 40 }}
+                    autoComplete="new-password"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                   />
                   <button
                     type="button"
@@ -1241,6 +1322,9 @@ export const MessagingGatewaySettings: React.FC = () => {
                     {showSecrets['webhookSecret'] ? <RiEyeOffLine size={16} /> : <RiEyeLine size={16} />}
                   </button>
                 </div>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>
+                  Used to verify HMAC-SHA256 signature on inbound webhooks
+                </span>
               </div>
             </div>
 
@@ -1293,6 +1377,10 @@ export const MessagingGatewaySettings: React.FC = () => {
                           placeholder="github-events"
                           value={route.name}
                           onChange={(e) => updateWebhookRoute(idx, 'name', e.target.value)}
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck={false}
                         />
                       </div>
 
@@ -1304,6 +1392,10 @@ export const MessagingGatewaySettings: React.FC = () => {
                           placeholder="push, pull_request"
                           value={(route.events || []).join(', ')}
                           onChange={(e) => updateWebhookRoute(idx, 'events', e.target.value)}
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck={false}
                         />
                       </div>
 
@@ -1315,6 +1407,10 @@ export const MessagingGatewaySettings: React.FC = () => {
                           placeholder="Override secret"
                           value={route.secret || ''}
                           onChange={(e) => updateWebhookRoute(idx, 'secret', e.target.value)}
+                          autoComplete="new-password"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck={false}
                         />
                       </div>
 
@@ -1326,6 +1422,10 @@ export const MessagingGatewaySettings: React.FC = () => {
                           placeholder="devops"
                           value={route.profile || ''}
                           onChange={(e) => updateWebhookRoute(idx, 'profile', e.target.value)}
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck={false}
                         />
                       </div>
 

@@ -313,6 +313,10 @@ export const VisionImageModelTable: React.FC<VisionImageModelTableProps> = ({
                 fontSize: 13,
                 width: '100%',
               }}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
             />
             {searchQuery && (
               <button

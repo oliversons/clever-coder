@@ -661,6 +661,10 @@ export const WebSearchSettings: React.FC = () => {
                     placeholder="fc-..."
                     value={form.firecrawlApiKey || ''}
                     onChange={(e) => setForm({ ...form, firecrawlApiKey: e.target.value })}
+                    autoComplete="new-password"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                   />
                   <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Get free key at firecrawl.dev (500 credits/mo)</span>
                 </div>
@@ -675,6 +679,10 @@ export const WebSearchSettings: React.FC = () => {
                     placeholder="https://api.firecrawl.dev or http://localhost:3002"
                     value={form.firecrawlApiUrl || ''}
                     onChange={(e) => setForm({ ...form, firecrawlApiUrl: e.target.value })}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                   />
                   <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Leave default for Firecrawl Cloud API</span>
                 </div>
@@ -700,6 +708,10 @@ export const WebSearchSettings: React.FC = () => {
                   placeholder="http://localhost:8888 or https://searx.yourdomain.com"
                   value={form.searxngUrl || ''}
                   onChange={(e) => setForm({ ...form, searxngUrl: e.target.value })}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
                 <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '6px 0 0 0' }}>
                   Important: Ensure JSON format output is enabled in SearXNG&apos;s <code>settings.yml</code> under <code>search.formats: [html, json]</code>.
@@ -726,6 +738,10 @@ export const WebSearchSettings: React.FC = () => {
                   placeholder="BSA..."
                   value={form.braveSearchApiKey || ''}
                   onChange={(e) => setForm({ ...form, braveSearchApiKey: e.target.value })}
+                  autoComplete="new-password"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Includes 2,000 free queries/month from Brave API console</span>
               </div>
@@ -750,6 +766,10 @@ export const WebSearchSettings: React.FC = () => {
                   placeholder="tvly-..."
                   value={form.tavilyApiKey || ''}
                   onChange={(e) => setForm({ ...form, tavilyApiKey: e.target.value })}
+                  autoComplete="new-password"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Includes 1,000 free searches/month at app.tavily.com</span>
               </div>
@@ -774,6 +794,10 @@ export const WebSearchSettings: React.FC = () => {
                   placeholder="exa-..."
                   value={form.exaApiKey || ''}
                   onChange={(e) => setForm({ ...form, exaApiKey: e.target.value })}
+                  autoComplete="new-password"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Includes 1,000 free neural searches/month at exa.ai</span>
               </div>
@@ -798,6 +822,10 @@ export const WebSearchSettings: React.FC = () => {
                   placeholder="parallel-..."
                   value={form.parallelApiKey || ''}
                   onChange={(e) => setForm({ ...form, parallelApiKey: e.target.value })}
+                  autoComplete="new-password"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
               </div>
             </div>
@@ -822,6 +850,10 @@ export const WebSearchSettings: React.FC = () => {
                     placeholder="xai-..."
                     value={form.xaiApiKey || ''}
                     onChange={(e) => setForm({ ...form, xaiApiKey: e.target.value })}
+                    autoComplete="new-password"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                   />
                 </div>
 
@@ -835,6 +867,10 @@ export const WebSearchSettings: React.FC = () => {
                     placeholder="grok-build-0.1"
                     value={form.xaiModel || 'grok-build-0.1'}
                     onChange={(e) => setForm({ ...form, xaiModel: e.target.value })}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                   />
                 </div>
 
@@ -848,6 +884,7 @@ export const WebSearchSettings: React.FC = () => {
                     placeholder="90"
                     value={form.xaiTimeout || 90}
                     onChange={(e) => setForm({ ...form, xaiTimeout: Number(e.target.value) })}
+                    autoComplete="off"
                   />
                 </div>
 
@@ -861,6 +898,10 @@ export const WebSearchSettings: React.FC = () => {
                     placeholder="arxiv.org, github.com"
                     value={form.xaiAllowedDomains || ''}
                     onChange={(e) => setForm({ ...form, xaiAllowedDomains: e.target.value })}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                   />
                 </div>
               </div>
@@ -926,6 +967,10 @@ export const WebSearchSettings: React.FC = () => {
             onChange={(e) => setTestQuery(e.target.value)}
             placeholder="Type query to test search engine..."
             style={{ flexGrow: 1, minWidth: 260 }}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleTestSearch();
             }}

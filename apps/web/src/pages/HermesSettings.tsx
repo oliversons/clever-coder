@@ -1141,6 +1141,10 @@ export default function HermesSettings() {
                           onChange={(e) => setBrowserField('cdpUrl', e.target.value)}
                           placeholder="wss://kitesurf.cloudflare.app/devtools/browser"
                           style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck={false}
                         />
                       </div>
 
@@ -1155,6 +1159,10 @@ export default function HermesSettings() {
                             onChange={(e) => setBrowserField('kitesurfAccountToken', e.target.value)}
                             placeholder="Optional account token for browser-run"
                             style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                            autoComplete="new-password"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
                           />
                         </div>
 
@@ -1202,6 +1210,10 @@ export default function HermesSettings() {
                           onChange={(e) => setBrowserField('cdpUrl', e.target.value)}
                           placeholder="ws://127.0.0.1:9222 or wss://chrome.browserless.io?token=..."
                           style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck={false}
                         />
                       </div>
                       <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
@@ -1240,6 +1252,10 @@ export default function HermesSettings() {
                             onChange={(e) => setBrowserField('browserbaseApiKey', e.target.value)}
                             placeholder={browserForm.browserbaseApiKeySet ? '•••••••••••••••• (Saved)' : 'bb_...'}
                             style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                            autoComplete="new-password"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
                           />
                         </div>
 
@@ -1253,6 +1269,10 @@ export default function HermesSettings() {
                             onChange={(e) => setBrowserField('browserbaseProjectId', e.target.value)}
                             placeholder="e.g. prj_..."
                             style={inputStyle}
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
                           />
                         </div>
                       </div>
@@ -1310,6 +1330,10 @@ export default function HermesSettings() {
                             onChange={(e) => setBrowserField('browserUseApiKey', e.target.value)}
                             placeholder={browserForm.browserUseApiKeySet ? '•••••••••••••••• (Saved)' : 'bu_...'}
                             style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                            autoComplete="new-password"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
                           />
                         </div>
 
@@ -1321,6 +1345,7 @@ export default function HermesSettings() {
                             value={browserForm.backend || 'auto'}
                             onChange={(e) => setBrowserField('backend', e.target.value)}
                             style={selectStyle}
+                            autoComplete="off"
                           >
                             <option value="auto">Auto (Use browser-use CLI if installed)</option>
                             <option value="browser-use">Force Browser Use CLI 3.0 Harness</option>
@@ -1361,6 +1386,10 @@ export default function HermesSettings() {
                             onChange={(e) => setBrowserField('firecrawlApiKey', e.target.value)}
                             placeholder={browserForm.firecrawlApiKeySet ? '•••••••••••••••• (Saved)' : 'fc-...'}
                             style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                            autoComplete="new-password"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
                           />
                         </div>
 
@@ -1374,6 +1403,10 @@ export default function HermesSettings() {
                             onChange={(e) => setBrowserField('firecrawlApiUrl', e.target.value)}
                             placeholder="https://api.firecrawl.dev or http://localhost:3002"
                             style={inputStyle}
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
                           />
                         </div>
                       </div>
@@ -1410,6 +1443,10 @@ export default function HermesSettings() {
                             onChange={(e) => setBrowserField('camofoxUrl', e.target.value)}
                             placeholder="http://localhost:9377"
                             style={inputStyle}
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
                           />
                         </div>
 
@@ -1908,6 +1945,10 @@ export default function HermesSettings() {
                           onChange={(e) => setField('baseUrl', e.target.value)}
                           placeholder="https://app-fcbf4053-74e6-4498-ac0e-eb160010a3c5.cleverapps.io/v1"
                           style={inputStyle}
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck={false}
                         />
 
                         {/* Quick Preset Buttons */}
@@ -1979,6 +2020,10 @@ export default function HermesSettings() {
                             onChange={(e) => setField('apiKey', e.target.value)}
                             placeholder={hermesSettings?.apiKeySet ? '•••••••••••••••••••••••• (Saved in DB)' : 'Paste API Key (cag_... / sk-or-...) ...'}
                             style={{ ...inputStyle, paddingRight: 40, fontFamily: 'var(--font-mono)' }}
+                            autoComplete="new-password"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
                           />
                           <button
                             type="button"
@@ -2090,6 +2135,7 @@ export default function HermesSettings() {
                           value={form.contextWindow as number ?? 128000}
                           onChange={(e) => setField('contextWindow', Number(e.target.value))}
                           style={inputStyle}
+                          autoComplete="off"
                         />
                         <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                           {[32000, 64000, 128000, 200000].map((t) => (
@@ -2582,6 +2628,7 @@ export default function HermesSettings() {
                           value={form.timeoutSeconds as number ?? 300}
                           onChange={(e) => setField('timeoutSeconds', Number(e.target.value))}
                           style={inputStyle}
+                          autoComplete="off"
                         />
                         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0 0' }}>
                           Auto-kills runaway commands after deadline.
@@ -2980,6 +3027,7 @@ export default function HermesSettings() {
                         value={Number(form.webuiPort ?? 8787)}
                         onChange={(e) => setField('webuiPort', Number(e.target.value))}
                         style={inputStyle}
+                        autoComplete="off"
                       />
                       <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginTop: 6 }}>
                         Loopback port inside container (default: 8787). Proxied via <code style={{ fontFamily: 'var(--font-mono)' }}>/hermes-ui/*</code>.
@@ -2996,6 +3044,10 @@ export default function HermesSettings() {
                         onChange={(e) => setField('webuiPassword', e.target.value)}
                         placeholder="•••••••• (optional)"
                         style={inputStyle}
+                        autoComplete="new-password"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                       />
                       <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginTop: 6 }}>
                         Injected as <code style={{ fontFamily: 'var(--font-mono)' }}>HERMES_WEBUI_PASSWORD</code> for password protection.
@@ -3244,6 +3296,10 @@ export default function HermesSettings() {
                               onChange={(e) => setNewJob({ ...newJob, name: e.target.value })}
                               placeholder="e.g. Hourly Test Verification & Git Health"
                               style={inputStyle}
+                              autoComplete="off"
+                              autoCorrect="off"
+                              autoCapitalize="off"
+                              spellCheck={false}
                             />
                           </div>
 
@@ -3255,6 +3311,7 @@ export default function HermesSettings() {
                               value={newJob.preset}
                               onChange={(e) => setNewJob({ ...newJob, preset: e.target.value })}
                               style={selectStyle}
+                              autoComplete="off"
                             >
                               <option value="5min">⏱️ Every 5 Minutes (*/5 * * * *)</option>
                               <option value="hourly">🕒 Every Hour (0 * * * *)</option>
@@ -3277,6 +3334,10 @@ export default function HermesSettings() {
                               onChange={(e) => setNewJob({ ...newJob, customCron: e.target.value })}
                               placeholder="0 9 * * *"
                               style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                              autoComplete="off"
+                              autoCorrect="off"
+                              autoCapitalize="off"
+                              spellCheck={false}
                             />
                           </div>
                         )}
@@ -3625,6 +3686,10 @@ export default function HermesSettings() {
                             outline: 'none',
                             width: 140,
                           }}
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck={false}
                         />
                         <Search size={11} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                       </div>

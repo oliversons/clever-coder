@@ -420,6 +420,10 @@ export const VisionImageSelect: React.FC<VisionImageSelectProps> = ({
                   fontSize: 13,
                   width: '100%',
                 }}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && filteredModels.length > 0) {
                     handleSelect(filteredModels[0]);
@@ -486,6 +490,10 @@ export const VisionImageSelect: React.FC<VisionImageSelectProps> = ({
                   fontFamily: 'var(--font-mono)',
                   outline: 'none',
                 }}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleApplyCustom();
                 }}

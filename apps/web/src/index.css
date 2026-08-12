@@ -2191,7 +2191,18 @@ body::before {
 }
 
 /* ─── Form Inputs ───────────────────────────────────────────── */
-.input, .textarea, .select, input[type="text"], input[type="password"], input[type="email"], select, textarea {
+.input,
+.form-input,
+.textarea,
+.select,
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="number"],
+input[type="url"],
+input[type="search"],
+select,
+textarea {
   width: 100%;
   padding: var(--space-3) var(--space-4);
   background: var(--style-input-bg);
@@ -2199,19 +2210,49 @@ body::before {
   border-radius: var(--style-input-radius);
   box-shadow: var(--style-input-shadow);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 13px;
   font-family: var(--font-sans);
   outline: none;
+  box-sizing: border-box;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.input::placeholder, .textarea::placeholder, input::placeholder, textarea::placeholder {
+.input::placeholder,
+.form-input::placeholder,
+.textarea::placeholder,
+input::placeholder,
+textarea::placeholder {
   color: var(--text-muted);
 }
 
-.input:focus, .textarea:focus, .select:focus, input:focus, select:focus, textarea:focus {
+.input:focus,
+.form-input:focus,
+.textarea:focus,
+.select:focus,
+input:focus,
+select:focus,
+textarea:focus {
   border-color: var(--accent-1);
   box-shadow: var(--style-input-focus-ring);
+}
+
+/* Chrome / Safari / Edge Autofill Override */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+select:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px var(--style-input-bg, #161b27) inset !important;
+  -webkit-text-fill-color: var(--text-primary, #f0f4ff) !important;
+  transition: background-color 5000s ease-in-out 0s;
+  caret-color: var(--text-primary);
 }
 
 .input-group {
@@ -2220,12 +2261,15 @@ body::before {
   gap: var(--space-1);
 }
 
-.input-label {
+.input-label,
+.form-label {
+  display: block;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  margin-bottom: 6px;
 }
 
 /* ─── Badges ────────────────────────────────────────────────── */

@@ -409,6 +409,10 @@ export const VisionImageSettings: React.FC = () => {
               placeholder="https://app-fcbf4053-74e6-4498-ac0e-eb160010a3c5.cleverapps.io/v1"
               value={form.satBaseUrl}
               onChange={(e) => setForm({ ...form, satBaseUrl: e.target.value })}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
             />
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
               <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Presets:</span>
@@ -443,6 +447,10 @@ export const VisionImageSettings: React.FC = () => {
               placeholder="Bearer token (e.g. sk-... / sat_...)"
               value={form.satApiKey || ''}
               onChange={(e) => setForm({ ...form, satApiKey: e.target.value })}
+              autoComplete="new-password"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
             />
             <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
               Authorization key used for model discovery, multimodal inference, and image generation
@@ -497,6 +505,7 @@ export const VisionImageSettings: React.FC = () => {
               className="form-input"
               value={form.visionProvider}
               onChange={(e) => setForm({ ...form, visionProvider: e.target.value })}
+              autoComplete="off"
             >
               <option value="custom">Custom OpenAI-Compatible API (Default Endpoint)</option>
               <option value="sat">SAT AI API (/v1/chat/completions)</option>
@@ -534,6 +543,10 @@ export const VisionImageSettings: React.FC = () => {
                 placeholder="Leave blank to use main endpoint"
                 value={form.visionBaseUrl || ''}
                 onChange={(e) => setForm({ ...form, visionBaseUrl: e.target.value })}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
               />
             </div>
             <div>
@@ -544,6 +557,10 @@ export const VisionImageSettings: React.FC = () => {
                 placeholder="Leave blank to use main key"
                 value={form.visionApiKey || ''}
                 onChange={(e) => setForm({ ...form, visionApiKey: e.target.value })}
+                autoComplete="new-password"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
               />
             </div>
           </div>
@@ -569,6 +586,7 @@ export const VisionImageSettings: React.FC = () => {
               className="form-input"
               value={form.imageGenProvider}
               onChange={(e) => setForm({ ...form, imageGenProvider: e.target.value })}
+              autoComplete="off"
             >
               <option value="custom">Custom OpenAI-Compatible API (/v1/images/generations)</option>
               <option value="sat">SAT AI API (Custom FLUX / SD)</option>
@@ -609,6 +627,10 @@ export const VisionImageSettings: React.FC = () => {
               placeholder="fal_key_..."
               value={form.falApiKey || ''}
               onChange={(e) => setForm({ ...form, falApiKey: e.target.value })}
+              autoComplete="new-password"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
             />
             <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
               Direct access key for FAL.ai cloud inference (or leave blank if using Nous Subscription Gateway)
@@ -740,6 +762,10 @@ export const VisionImageSettings: React.FC = () => {
               placeholder="https://example.com/photo.jpg"
               value={visionTestImage}
               onChange={(e) => setVisionTestImage(e.target.value)}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
             />
           </div>
 
@@ -751,6 +777,10 @@ export const VisionImageSettings: React.FC = () => {
               placeholder="Describe this image in detail..."
               value={visionTestPrompt}
               onChange={(e) => setVisionTestPrompt(e.target.value)}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
             />
           </div>
         </div>
@@ -853,6 +883,10 @@ export const VisionImageSettings: React.FC = () => {
             value={imageGenPrompt}
             onChange={(e) => setImageGenPrompt(e.target.value)}
             style={{ width: '100%', resize: 'vertical' }}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
           />
         </div>
 

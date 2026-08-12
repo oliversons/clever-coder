@@ -362,6 +362,10 @@ export const VirtualModelPicker: React.FC<VirtualModelPickerProps> = ({
                 }}
                 placeholder={`Search ${models.length.toLocaleString()} models by ID, name, provider (e.g. glm, r1, claude, qwen, 4o)...`}
                 autoFocus
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -420,6 +424,10 @@ export const VirtualModelPicker: React.FC<VirtualModelPickerProps> = ({
                   fontSize: 12,
                   fontFamily: 'var(--font-mono)',
                 }}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleApplyManual();
                 }}
