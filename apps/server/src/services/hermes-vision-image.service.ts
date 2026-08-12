@@ -460,25 +460,39 @@ export async function testVisionAnalysis(
   }
 
   try {
+    let finalImageUrl = imageBase64OrUrl;
+    if (imageBase64OrUrl.startsWith('http://') || imageBase64OrUrl.startsWith('https://')) {
+      try {
+        const imgRes = await fetch(imageBase64OrUrl, { signal: AbortSignal.timeout(12000) });
+        if (imgRes.ok) {
+          const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+          const buffer = Buffer.from(await imgRes.arrayBuffer());
+          finalImageUrl = `data:${contentType};base64,${buffer.toString('base64')}`;
+        }
+      } catch (fetchErr) {
+        console.warn('[Hermes Vision] Could not inline remote image, sending URL directly:', fetchErr);
+      }
+    } else if (!imageBase64OrUrl.startsWith('data:')) {
+      finalImageUrl = `data:image/png;base64,${imageBase64OrUrl}`;
+    }
+
     const payload = {
       model,
       messages: [
         {
           role: 'user',
           content: [
-            { type: 'text', text: prompt || 'Describe what you see in this image in detail.' },
+            { type: 'text', text: prompt || 'Describe what you see in this image in detail and list all key visual elements.' },
             {
               type: 'image_url',
               image_url: {
-                url: imageBase64OrUrl.startsWith('http') || imageBase64OrUrl.startsWith('data:')
-                  ? imageBase64OrUrl
-                  : `data:image/png;base64,${imageBase64OrUrl}`,
+                url: finalImageUrl,
               },
             },
           ],
         },
       ],
-      max_tokens: 500,
+      max_tokens: 1000,
     };
 
     const res = await fetch(`${baseUrl}/chat/completions`, {
