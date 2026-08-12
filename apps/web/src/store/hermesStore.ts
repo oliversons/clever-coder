@@ -108,6 +108,16 @@ interface HermesState {
   loadSettings: () => Promise<void>;
   saveSettings: (data: Record<string, unknown>) => Promise<void>;
   testConnection: (data: Record<string, unknown>) => Promise<{ ok: boolean; message: string; latencyMs?: number }>;
+  testLlmPrompt: (data: Record<string, unknown>) => Promise<{
+    ok: boolean;
+    output?: string;
+    latencyMs?: number;
+    promptTokens?: number;
+    completionTokens?: number;
+    tokensPerSec?: number;
+    model?: string;
+    message?: string;
+  }>;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -402,6 +412,21 @@ export const useHermesStore = create<HermesState>()(
       },
       testConnection: async (data) => {
         return apiFetch<{ ok: boolean; message: string; latencyMs?: number }>('/settings/test', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        });
+      },
+      testLlmPrompt: async (data) => {
+        return apiFetch<{
+          ok: boolean;
+          output?: string;
+          latencyMs?: number;
+          promptTokens?: number;
+          completionTokens?: number;
+          tokensPerSec?: number;
+          model?: string;
+          message?: string;
+        }>('/settings/test-prompt', {
           method: 'POST',
           body: JSON.stringify(data),
         });

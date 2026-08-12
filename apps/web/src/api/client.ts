@@ -183,6 +183,20 @@ export const api = {
         `/hermes/models${str ? `?${str}` : ''}`
       );
     },
+    testLlmPrompt: (data: { provider?: string; baseUrl?: string; apiKey?: string; model?: string; prompt?: string; temperature?: number }) =>
+      request<{
+        ok: boolean;
+        output?: string;
+        latencyMs?: number;
+        promptTokens?: number;
+        completionTokens?: number;
+        tokensPerSec?: number;
+        model?: string;
+        message?: string;
+      }>('/hermes/settings/test-prompt', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     // ── Vision & Image Generation ──
     getVisionImageSettings: () =>
       request<HermesVisionImageSettings>('/hermes/vision-image'),

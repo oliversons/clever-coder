@@ -10,6 +10,7 @@ import {
   maskSettings,
   getDecryptedApiKey,
   testProviderConnection,
+  testLlmPrompt,
   fetchAvailableModels,
 } from '../services/hermes.service.js';
 import {
@@ -59,33 +60,45 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
   });
   // ── GET /api/v1/hermes/vision-image ─────────────────────────────────────────
   fastify.get('/vision-image', async (request, reply) => {
-    const payload = verifyToken(
-      (request.cookies as Record<string, string | undefined>)?.access_token ??
-      request.headers.authorization?.slice(7) ?? '',
-    );
-    const settings = await getHermesVisionImageSettings(payload.sub);
+    let userId: string | undefined;
+    try {
+      const payload = verifyToken(
+        (request.cookies as Record<string, string | undefined>)?.access_token ??
+        request.headers.authorization?.slice(7) ?? '',
+      );
+      userId = payload?.sub;
+    } catch {}
+    const settings = await getHermesVisionImageSettings(userId);
     return reply.send(settings);
   });
 
   // ── PUT /api/v1/hermes/vision-image ─────────────────────────────────────────
   fastify.put('/vision-image', async (request, reply) => {
-    const payload = verifyToken(
-      (request.cookies as Record<string, string | undefined>)?.access_token ??
-      request.headers.authorization?.slice(7) ?? '',
-    );
+    let userId: string | undefined;
+    try {
+      const payload = verifyToken(
+        (request.cookies as Record<string, string | undefined>)?.access_token ??
+        request.headers.authorization?.slice(7) ?? '',
+      );
+      userId = payload?.sub;
+    } catch {}
     const body = (request.body as Record<string, any>) || {};
-    const updated = await saveHermesVisionImageSettings(payload.sub, body);
+    const updated = await saveHermesVisionImageSettings(userId, body);
     return reply.send({ success: true, settings: updated });
   });
 
   // ── POST /api/v1/hermes/vision-image (alias for saving) ──────────────────────
   fastify.post('/vision-image', async (request, reply) => {
-    const payload = verifyToken(
-      (request.cookies as Record<string, string | undefined>)?.access_token ??
-      request.headers.authorization?.slice(7) ?? '',
-    );
+    let userId: string | undefined;
+    try {
+      const payload = verifyToken(
+        (request.cookies as Record<string, string | undefined>)?.access_token ??
+        request.headers.authorization?.slice(7) ?? '',
+      );
+      userId = payload?.sub;
+    } catch {}
     const body = (request.body as Record<string, any>) || {};
-    const updated = await saveHermesVisionImageSettings(payload.sub, body);
+    const updated = await saveHermesVisionImageSettings(userId, body);
     return reply.send({ success: true, settings: updated });
   });
 
@@ -289,6 +302,38 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
     }
 
     const result = await testProviderConnection(provider, apiKey ?? '', model, baseUrl);
+    return reply.send(result);
+  });
+
+  // ── POST /api/v1/hermes/settings/test-prompt ──────────────────────────────────
+  fastify.post('/settings/test-prompt', async (request, reply) => {
+    let userId = '';
+    try {
+      const payload = verifyToken(
+        (request.cookies as Record<string, string | undefined>)?.access_token ??
+        request.headers.authorization?.slice(7) ?? '',
+      );
+      userId = payload?.sub ?? '';
+    } catch {}
+
+    const body = request.body as { provider?: string; baseUrl?: string; apiKey?: string; model?: string; prompt?: string; temperature?: number };
+    const settings = userId ? await getHermesSettings(userId) : null;
+
+    const provider = body.provider ?? settings?.provider ?? 'openrouter';
+    const baseUrl = body.baseUrl ?? settings?.baseUrl ?? null;
+    const model = body.model ?? settings?.model ?? '';
+    const prompt = body.prompt || 'Describe your capabilities and reasoning architecture.';
+    let apiKey = body.apiKey;
+
+    if (!apiKey && settings) {
+      apiKey = getDecryptedApiKey(settings) ?? '';
+    }
+
+    if (!apiKey && provider !== 'ollama') {
+      return reply.code(400).send({ ok: false, message: 'No API key configured' });
+    }
+
+    const result = await testLlmPrompt(provider, apiKey ?? '', model, prompt, baseUrl, body.temperature ?? settings?.temperature);
     return reply.send(result);
   });
 

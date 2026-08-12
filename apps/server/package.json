@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/cluster.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --env-file=.env --env-file=../../.env src/index.ts",
     "build": "tsc -p tsconfig.json && cp -r src/db/migrations dist/db/",
     "start": "node dist/cluster.js",
     "start:single": "node dist/index.js",

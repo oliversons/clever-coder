@@ -27,6 +27,7 @@ import {
 } from '../services/hermes.service.js';
 import { readArtifact, getPresignedReadUrl, deleteArtifact } from '../services/s3.service.js';
 import { testWebSearchQuery } from '../services/hermes-search.service.js';
+import { getHermesVisionImageSettings, testImageGeneration, testVisionAnalysis } from '../services/hermes-vision-image.service.js';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { config } from '../config.js';
@@ -380,6 +381,50 @@ async function executeTool(
           return { output: `Web Search Results (${(result.backend || 'WEB').toUpperCase()}):\n\n${summary}` };
         } else {
           return { output: result.error || 'No search results found.' };
+        }
+      }
+
+      case 'generate_image': {
+        const { prompt: imgPrompt, outputPath } = toolCall.args as { prompt: string; outputPath?: string };
+        const visionImageSettings = await getHermesVisionImageSettings(context?.projectId);
+        const res = await testImageGeneration(imgPrompt, visionImageSettings);
+
+        if (res.success && res.imageUrl) {
+          let fileNotice = '';
+          if (context?.projectId) {
+            const filename = outputPath || `generated_image_${Date.now()}.png`;
+            const savePath = join(config.WORKSPACES_ROOT, context.projectId, filename);
+            try {
+              if (res.imageUrl.startsWith('data:image/')) {
+                const base64Data = res.imageUrl.split(',')[1];
+                await writeFile(savePath, Buffer.from(base64Data, 'base64'));
+                fileNotice = ` Saved to workspace: \`${filename}\``;
+              } else if (res.imageUrl.startsWith('http')) {
+                const fetchRes = await fetch(res.imageUrl);
+                if (fetchRes.ok) {
+                  const buf = Buffer.from(await fetchRes.arrayBuffer());
+                  await writeFile(savePath, buf);
+                  fileNotice = ` Saved to workspace: \`${filename}\``;
+                }
+              }
+            } catch (saveErr) {
+              fileNotice = ` (Could not auto-save to workspace path: ${(saveErr as Error)?.message})`;
+            }
+          }
+          return { output: `![Generated Image](${res.imageUrl})\n\nImage generated successfully using model \`${res.model}\` in ${res.latencyMs}ms.${fileNotice}` };
+        } else {
+          return { output: `Image generation failed: ${res.error || 'Unknown error'}`, error: 'image_gen_failed' };
+        }
+      }
+
+      case 'analyze_image': {
+        const { imageUrl, prompt: visionPrompt } = toolCall.args as { imageUrl: string; prompt?: string };
+        const visionImageSettings = await getHermesVisionImageSettings(context?.projectId);
+        const res = await testVisionAnalysis(imageUrl, visionPrompt || '', visionImageSettings);
+        if (res.success && res.analysis) {
+          return { output: `### Visual Analysis Result (${res.model}):\n\n${res.analysis}` };
+        } else {
+          return { output: `Vision analysis failed: ${res.error || 'Unknown error'}`, error: 'vision_failed' };
         }
       }
 

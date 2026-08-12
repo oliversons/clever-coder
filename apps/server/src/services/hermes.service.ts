@@ -15,6 +15,7 @@ import { encrypt, decrypt } from '../utils/crypto.js';
 import { autoOffload, artifactKey, uploadTrajectory } from './s3.service.js';
 import { randomUUID } from 'crypto';
 import os from 'node:os';
+import { getHermesVisionImageSettings } from './hermes-vision-image.service.js';
 
 /** Detect available logical CPU cores on host/container */
 export function getAvailableCpuCores(): number {
@@ -193,15 +194,19 @@ export async function* streamCompletion(
     settings.systemPrompt || 'You are Hermes, an expert AI co-developer embedded in CleverCoder IDE. You are precise, helpful, and execution-focused.',
   ];
 
-  if (context?.projectId) {
+  // Fetch vision & image generation settings
+  let visionImageSettings: Awaited<ReturnType<typeof getHermesVisionImageSettings>> | null = null;
+  try {
+    visionImageSettings = await getHermesVisionImageSettings(settings.userId);
+  } catch {}
+
+  if (visionImageSettings?.defaultImageGenModel) {
     systemParts.push(
-      `\n## Active Workspace Context`,
-      `- Project ID: ${context.projectId}`,
-      ...(context.projectName ? [`- Project: ${context.projectName}`] : []),
-      ...(context.workspaceRoot ? [`- Workspace Root: ${context.workspaceRoot}`] : []),
-      ...(context.activeFilePath ? [`- Active File: ${context.activeFilePath}`] : []),
-      ...(context.gitBranch ? [`- Git Branch: ${context.gitBranch}`] : []),
-      ...(context.selectedText ? [`\n## Selected Text\n\`\`\`\n${context.selectedText}\n\`\`\``] : []),
+      `\n## Active Image Generation Capabilities`,
+      `- Image Generation: ENABLED`,
+      `- Active Image Model: ${visionImageSettings.defaultImageGenModel}`,
+      `- Provider: ${visionImageSettings.imageGenProvider}`,
+      `- You HAVE the 'generate_image' tool available! When the user requests an image, photo, art, or wallpaper, ALWAYS call the 'generate_image' tool with a rich, detailed prompt to synthesize and save the image.`
     );
   }
 
@@ -213,7 +218,7 @@ export async function* streamCompletion(
   }));
 
   // Tools definition for structured tool call support
-  const tools = buildToolDefinitions(settings.enabledTools ?? []);
+  const tools = buildToolDefinitions(settings.enabledTools ?? [], visionImageSettings);
 
   const body: Record<string, unknown> = {
     model: settings.model,
@@ -331,7 +336,7 @@ export async function* streamCompletion(
 
 // ── Tool Definitions ───────────────────────────────────────────────────────────
 
-function buildToolDefinitions(enabledTools: string[]) {
+function buildToolDefinitions(enabledTools: string[], visionImageSettings?: any) {
   const tools = [];
 
   if (enabledTools.includes('shell')) {
@@ -403,6 +408,39 @@ function buildToolDefinitions(enabledTools: string[]) {
     });
   }
 
+  // Always enable generate_image tool if vision & image settings exist
+  tools.push({
+    type: 'function',
+    function: {
+      name: 'generate_image',
+      description: 'Generate or synthesize a high-resolution AI image, artwork, wallpaper, or photo based on a detailed text prompt.',
+      parameters: {
+        type: 'object',
+        properties: {
+          prompt: { type: 'string', description: 'Detailed creative prompt describing the visual scene to generate' },
+          outputPath: { type: 'string', description: 'Optional workspace filename to save the image (e.g. dubai_wallpaper.png)' },
+        },
+        required: ['prompt'],
+      },
+    },
+  });
+
+  tools.push({
+    type: 'function',
+    function: {
+      name: 'analyze_image',
+      description: 'Analyze an image URL or image file in workspace using the active multimodal vision AI model.',
+      parameters: {
+        type: 'object',
+        properties: {
+          imageUrl: { type: 'string', description: 'Image URL or base64 data string' },
+          prompt: { type: 'string', description: 'Optional question or focus area for the visual analysis' },
+        },
+        required: ['imageUrl'],
+      },
+    },
+  });
+
   return tools;
 }
 
@@ -465,7 +503,84 @@ export async function testProviderConnection(
   }
 }
 
+/**
+ * Execute a live test prompt against the configured model & provider
+ * and return benchmark latency, tokens, throughput (tokens/sec), and generated response.
+ */
+export async function testLlmPrompt(
+  provider: string,
+  apiKey: string,
+  model: string,
+  prompt: string,
+  baseUrl?: string | null,
+  temperature?: number,
+): Promise<{
+  ok: boolean;
+  output?: string;
+  latencyMs?: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  tokensPerSec?: number;
+  model?: string;
+  message?: string;
+}> {
+  const providerConfig = resolveProvider(provider, baseUrl);
+  const start = Date.now();
+
+  try {
+    const response = await fetch(`${providerConfig.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        ...providerConfig.authHeader(apiKey),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: model || 'gpt-3.5-turbo',
+        messages: [{ role: 'user', content: prompt || 'Describe your capabilities and reasoning architecture.' }],
+        max_tokens: 1024,
+        temperature: typeof temperature === 'number' ? temperature / 100 : 0.7,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    const latencyMs = Date.now() - start;
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => `HTTP ${response.status}`);
+      return {
+        ok: false,
+        message: `HTTP ${response.status}: ${errText.slice(0, 350)}`,
+        latencyMs,
+      };
+    }
+
+    const data: any = await response.json();
+    const output = data.choices?.[0]?.message?.content || data.choices?.[0]?.text || '';
+    const promptTokens = data.usage?.prompt_tokens ?? 0;
+    const completionTokens = data.usage?.completion_tokens ?? (output ? Math.round(output.length / 4) : 0);
+    const sec = Math.max(0.1, latencyMs / 1000);
+    const tokensPerSec = Number((completionTokens / sec).toFixed(1));
+
+    return {
+      ok: true,
+      output: output.trim(),
+      latencyMs,
+      promptTokens,
+      completionTokens,
+      tokensPerSec,
+      model: model || 'default',
+    };
+  } catch (err: any) {
+    return {
+      ok: false,
+      message: err?.message || 'Failed to execute prompt benchmark',
+      latencyMs: Date.now() - start,
+    };
+  }
+}
+
 // ── Message Persistence with S3 Auto-Offload ──────────────────────────────────
+
 
 export async function persistMessage(
   sessionId: string,

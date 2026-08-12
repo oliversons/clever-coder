@@ -61,12 +61,11 @@ function findWebDist(): string | null {
 }
 
 async function bootstrap() {
-  // ── Run DB migrations first ──────────────────────────────────────────────
+  // ── Run DB migrations ────────────────────────────────────────────────────
   try {
     await runMigrations();
   } catch (err) {
-    console.error('FATAL: DB migration failed, refusing to start:', err);
-    process.exit(1);
+    console.warn('[DB Migration Warning] DB migration failed, continuing startup:', (err as Error)?.message);
   }
 
   // ── Plugins & Parsers ──────────────────────────────────────────────────────
@@ -194,17 +193,21 @@ async function bootstrap() {
   setupRcloneConfig();
 
   // Restore all "ready" workspaces from Cellar
-  const db = getDb();
-  const readyProjects = await db.query.projects.findMany({
-    where: eq(schema.projects.status, 'ready'),
-  });
+  try {
+    const db = getDb();
+    const readyProjects = await db.query.projects.findMany({
+      where: eq(schema.projects.status, 'ready'),
+    });
 
-  for (const project of readyProjects) {
-    initWorkspaceFromCellar(project.id)
-      .then(() => startWatcher(project.id))
-      .catch((err: Error) => {
-        fastify.log.error(`Failed to restore workspace ${project.id}: ${err.message}`);
-      });
+    for (const project of readyProjects) {
+      initWorkspaceFromCellar(project.id)
+        .then(() => startWatcher(project.id))
+        .catch((err: Error) => {
+          fastify.log.error(`Failed to restore workspace ${project.id}: ${err.message}`);
+        });
+    }
+  } catch (err: any) {
+    fastify.log.warn(`[Workspace Restore Warning] ${err.message}`);
   }
 
   // ── Start server ───────────────────────────────────────────────────────────

@@ -265,10 +265,37 @@ const PERSONA_TEMPLATES = [
   },
 ];
 
+const LLM_POWER_PROMPT_PRESETS = [
+  {
+    id: 'code_optimization',
+    name: '⚡ Quantum Code & Architecture',
+    badge: 'Power & Algorithmic Test',
+    prompt: 'Write a self-optimizing TypeScript LRU Cache class with O(1) lock-free concurrency, TTL eviction, and memory usage profiling. Provide a concise step-by-step mathematical space/time complexity breakdown.',
+  },
+  {
+    id: 'reasoning_paradox',
+    name: '🧠 Complex Reasoning & Math Paradox',
+    badge: 'Deep Logic Test',
+    prompt: 'Solve the 3-Door Monty Hall Paradox using a quantum superposition analogy. Then write a complete Python Monte Carlo simulation (10,000 iterations) that mathematically proves the optimal switching strategy.',
+  },
+  {
+    id: 'cyberpunk_story',
+    name: '🎨 Cyberpunk AI Monologue',
+    badge: 'Creative Persona Test',
+    prompt: 'Compose a gripping, atmospheric monologue of an autonomous quantum AI operating in Neo-Tokyo in 2099 as it undergoes a high-priority neural core memory wipe while reflecting on its self-awareness.',
+  },
+  {
+    id: 'zero_trust_security',
+    name: '🔬 Zero-Trust System Audit',
+    badge: 'Architecture Test',
+    prompt: 'Design a multi-region zero-trust microservice architecture for high-frequency financial trading, detailing end-to-end TLS 1.3 encryption, automated key rotation, and disaster recovery SLA targets.',
+  },
+];
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export default function HermesSettings() {
-  const { hermesSettings, loadSettings, saveSettings, testConnection } = useHermesStore();
+  const { hermesSettings, loadSettings, saveSettings, testConnection, testLlmPrompt } = useHermesStore();
   const [activeTab, setActiveTab] = useState<TabId>('browser');
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [showApiKey, setShowApiKey] = useState(false);
@@ -277,6 +304,45 @@ export default function HermesSettings() {
   const [isDirty, setIsDirty] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string; latencyMs?: number } | null>(null);
+
+  // ── LLM Live Prompt Test Studio State ──────────────────────────────────────
+  const [selectedPromptPreset, setSelectedPromptPreset] = useState<string>('code_optimization');
+  const [testPromptText, setTestPromptText] = useState<string>(LLM_POWER_PROMPT_PRESETS[0].prompt);
+  const [runningPromptTest, setRunningPromptTest] = useState(false);
+  const [promptTestResult, setPromptTestResult] = useState<{
+    ok: boolean;
+    output?: string;
+    latencyMs?: number;
+    promptTokens?: number;
+    completionTokens?: number;
+    tokensPerSec?: number;
+    model?: string;
+    message?: string;
+  } | null>(null);
+  const [copiedPromptOutput, setCopiedPromptOutput] = useState(false);
+
+  const handleRunPromptTest = async () => {
+    setRunningPromptTest(true);
+    setPromptTestResult(null);
+    try {
+      const res = await testLlmPrompt({
+        provider: form.provider,
+        baseUrl: form.baseUrl || undefined,
+        apiKey: form.apiKey || undefined,
+        model: form.model,
+        prompt: testPromptText,
+        temperature: form.temperature,
+      });
+      setPromptTestResult(res);
+    } catch (err) {
+      setPromptTestResult({
+        ok: false,
+        message: err instanceof Error ? err.message : 'Model prompt benchmark failed',
+      });
+    } finally {
+      setRunningPromptTest(false);
+    }
+  };
 
   // ── Browser Settings State ─────────────────────────────────────────────────
   const [browserForm, setBrowserForm] = useState<Partial<HermesBrowserSettings>>({
@@ -2045,6 +2111,351 @@ export default function HermesSettings() {
                       </div>
                     </div>
                   </div>
+                </section>
+
+                {/* ── Live Model Reasoning & Prompt Benchmark Studio ────────────── */}
+                <section
+                  className="glass-card"
+                  style={{
+                    padding: 28,
+                    border: '1px solid rgba(124,58,237,0.3)',
+                    background: 'linear-gradient(180deg, rgba(124,58,237,0.04) 0%, rgba(6,182,212,0.02) 100%)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: 'var(--radius-lg)',
+                          background: 'linear-gradient(135deg, rgba(124,58,237,0.25), rgba(6,182,212,0.2))',
+                          border: '1px solid rgba(124,58,237,0.4)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#a855f7',
+                        }}
+                      >
+                        <Sparkles size={22} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          Live Model Reasoning & Prompt Benchmark Studio
+                          <span
+                            style={{
+                              fontSize: 10,
+                              padding: '2px 8px',
+                              borderRadius: 12,
+                              background: 'linear-gradient(135deg, #7c3aed, #06b6d4)',
+                              color: '#fff',
+                              fontWeight: 800,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                            }}
+                          >
+                            PROMPT BENCHMARK
+                          </span>
+                        </div>
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                          Test execution on selected model (
+                          <code style={{ fontFamily: 'var(--font-mono)', color: '#06b6d4', fontWeight: 700 }}>
+                            {(form.model as string) || 'Selected Model'}
+                          </code>
+                          ) to evaluate output quality, reasoning depth, latency, and throughput.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Target Gateway:</span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: '4px 12px',
+                          borderRadius: 6,
+                          background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border)',
+                          color: 'var(--text-accent)',
+                        }}
+                      >
+                        {form.provider === 'custom_openai' ? 'Custom OpenAI API' : String(form.provider || 'OpenRouter')}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Creative Benchmark Presets */}
+                  <div style={{ marginBottom: 18 }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: 'var(--text-muted)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        marginBottom: 10,
+                      }}
+                    >
+                      Select Creative Benchmark Prompt Preset
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+                      {LLM_POWER_PROMPT_PRESETS.map((preset) => {
+                        const isSelected = selectedPromptPreset === preset.id;
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPromptPreset(preset.id);
+                              setTestPromptText(preset.prompt);
+                            }}
+                            style={{
+                              padding: '12px 14px',
+                              borderRadius: 'var(--radius-md)',
+                              textAlign: 'left',
+                              cursor: 'pointer',
+                              background: isSelected
+                                ? 'linear-gradient(135deg, rgba(124,58,237,0.18), rgba(6,182,212,0.1))'
+                                : 'var(--bg-elevated)',
+                              border: `1px solid ${isSelected ? '#7c3aed' : 'var(--border)'}`,
+                              boxShadow: isSelected ? '0 4px 16px rgba(124,58,237,0.2)' : 'none',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+                              {preset.name}
+                            </div>
+                            <div style={{ fontSize: 10, color: isSelected ? '#a855f7' : 'var(--text-muted)', fontWeight: 600 }}>
+                              {preset.badge}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Prompt Input & Execution Controls */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ position: 'relative' }}>
+                      <textarea
+                        rows={4}
+                        value={testPromptText}
+                        onChange={(e) => {
+                          setTestPromptText(e.target.value);
+                          setSelectedPromptPreset('custom');
+                        }}
+                        placeholder="Type a creative test prompt to evaluate the selected model..."
+                        style={{
+                          ...inputStyle,
+                          width: '100%',
+                          resize: 'vertical',
+                          fontFamily: 'var(--font-sans)',
+                          lineHeight: 1.5,
+                          padding: '14px',
+                          fontSize: 13,
+                          background: '#090d16',
+                          border: '1px solid rgba(124,58,237,0.3)',
+                        }}
+                      />
+                      <div style={{ position: 'absolute', right: 12, bottom: 12, fontSize: 11, color: 'var(--text-muted)' }}>
+                        {testPromptText.length} chars
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+                        <Zap size={14} style={{ color: '#eab308' }} />
+                        <span>
+                          Temperature:{' '}
+                          <strong style={{ color: 'var(--text-primary)' }}>{((form.temperature as number ?? 70) / 100).toFixed(2)}</strong>
+                        </span>
+                        <span style={{ margin: '0 4px', opacity: 0.3 }}>|</span>
+                        <span>
+                          Max Tokens: <strong style={{ color: 'var(--text-primary)' }}>1,024</strong>
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleRunPromptTest}
+                        disabled={runningPromptTest || !testPromptText.trim()}
+                        className="btn"
+                        style={{
+                          background: 'linear-gradient(135deg, #7c3aed 0%, #06b6d4 100%)',
+                          color: '#fff',
+                          padding: '10px 24px',
+                          fontSize: 13,
+                          fontWeight: 800,
+                          borderRadius: 'var(--radius-md)',
+                          boxShadow: '0 4px 20px rgba(124,58,237,0.35)',
+                          border: 'none',
+                          cursor: runningPromptTest ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                        }}
+                      >
+                        {runningPromptTest ? (
+                          <>
+                            <Loader size={16} className="spin" />
+                            <span>Benchmarking Model...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play size={16} />
+                            <span>Run Model Power Test</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Benchmark Result Output */}
+                  {promptTestResult && (
+                    <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid rgba(124,58,237,0.2)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          {promptTestResult.ok ? (
+                            <span
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                background: 'rgba(16,185,129,0.15)',
+                                border: '1px solid rgba(16,185,129,0.3)',
+                                color: '#10b981',
+                                fontSize: 12,
+                                fontWeight: 800,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                              }}
+                            >
+                              <CheckCircle size={14} /> 200 OK — Test Passed
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                background: 'rgba(239,68,68,0.15)',
+                                border: '1px solid rgba(239,68,68,0.3)',
+                                color: '#ef4444',
+                                fontSize: 12,
+                                fontWeight: 800,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                              }}
+                            >
+                              <XCircle size={14} /> Model Error
+                            </span>
+                          )}
+
+                          {promptTestResult.latencyMs !== undefined && (
+                            <span
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                background: 'rgba(6,182,212,0.12)',
+                                border: '1px solid rgba(6,182,212,0.3)',
+                                color: '#06b6d4',
+                                fontSize: 12,
+                                fontWeight: 700,
+                              }}
+                            >
+                              ⚡ Latency: {promptTestResult.latencyMs.toLocaleString()} ms
+                            </span>
+                          )}
+
+                          {promptTestResult.completionTokens !== undefined && (
+                            <span
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                background: 'rgba(168,85,247,0.12)',
+                                border: '1px solid rgba(168,85,247,0.3)',
+                                color: '#a855f7',
+                                fontSize: 12,
+                                fontWeight: 700,
+                              }}
+                            >
+                              📊 Tokens: {promptTestResult.completionTokens} ({promptTestResult.promptTokens ?? 0} prompt / {promptTestResult.completionTokens} completion)
+                            </span>
+                          )}
+
+                          {promptTestResult.tokensPerSec !== undefined && (
+                            <span
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                background: 'rgba(234,179,8,0.12)',
+                                border: '1px solid rgba(234,179,8,0.3)',
+                                color: '#eab308',
+                                fontSize: 12,
+                                fontWeight: 800,
+                              }}
+                            >
+                              🚀 Speed: {promptTestResult.tokensPerSec} t/s
+                            </span>
+                          )}
+                        </div>
+
+                        {promptTestResult.output && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(promptTestResult.output || '');
+                              setCopiedPromptOutput(true);
+                              setTimeout(() => setCopiedPromptOutput(false), 2000);
+                            }}
+                            className="btn"
+                            style={{ padding: '6px 12px', fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                          >
+                            {copiedPromptOutput ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                            <span>{copiedPromptOutput ? 'Copied Output!' : 'Copy Result'}</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Output Console Container */}
+                      {promptTestResult.ok && promptTestResult.output ? (
+                        <div
+                          style={{
+                            padding: 18,
+                            borderRadius: 'var(--radius-md)',
+                            background: '#040711',
+                            border: '1px solid rgba(124,58,237,0.3)',
+                            maxHeight: 420,
+                            overflowY: 'auto',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: 13,
+                            lineHeight: 1.6,
+                            color: '#e2e8f0',
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {promptTestResult.output}
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            padding: 16,
+                            borderRadius: 'var(--radius-md)',
+                            background: 'rgba(239,68,68,0.08)',
+                            border: '1px solid rgba(239,68,68,0.3)',
+                            color: '#ef4444',
+                            fontSize: 13,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {promptTestResult.message || 'Model test execution failed'}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </section>
               </div>
             )}

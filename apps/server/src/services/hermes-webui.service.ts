@@ -13,6 +13,7 @@ import { desc } from 'drizzle-orm';
 import { getDb, schema } from '../db/index.js';
 import { getAvailableCpuCores, buildMultiCoreEnv, getHermesSettings, getDecryptedApiKey } from './hermes.service.js';
 import { getHermesBrowserSettings, syncBrowserConfigToYamlAndEnv, DEFAULT_BROWSER_SETTINGS } from './hermes-browser.service.js';
+import { getHermesVisionImageSettings, syncVisionImageConfigToYamlAndEnv } from './hermes-vision-image.service.js';
 
 let webuiProcess: ChildProcess | null = null;
 let currentPort = 8787;
@@ -358,7 +359,7 @@ _patch_all()
 `;
     fs.writeFileSync(path.join(hermesHome, 'sitecustomize.py'), sitecustomizeContent, 'utf8');
 
-    // Also sync Hermes Browser automation settings (Kitesurf, CDP, local, cloud providers)
+    // Sync Hermes Browser automation settings
     try {
       const browserSettings = (userId ? await getHermesBrowserSettings(userId) : null) || DEFAULT_BROWSER_SETTINGS;
       await syncBrowserConfigToYamlAndEnv(browserSettings);
@@ -366,7 +367,15 @@ _patch_all()
       console.warn('[Hermes WebUI] Notice: Browser config sync non-critical warning:', browserErr);
     }
 
-    console.log(`✅ [Hermes WebUI] Config, browser automation & sitecustomize.py synced to ${hermesHome} (provider=${provider}, model=${model}, apiKey=${apiKey ? '***' : 'MISSING'})`);
+    // Sync Hermes Vision & Image Generation settings
+    try {
+      const visionImageSettings = await getHermesVisionImageSettings(userId);
+      await syncVisionImageConfigToYamlAndEnv(visionImageSettings);
+    } catch (visionImageErr) {
+      console.warn('[Hermes WebUI] Notice: Vision & Image config sync warning:', visionImageErr);
+    }
+
+    console.log(`✅ [Hermes WebUI] Config, browser, vision & image settings synced to ${hermesHome} (provider=${provider}, model=${model})`);
   } catch (err) {
     console.error('[Hermes WebUI] Failed to write Hermes config files:', err);
   }

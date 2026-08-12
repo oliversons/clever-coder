@@ -8,8 +8,9 @@ const RCLONE_CONF_PATH = '/app/rclone.conf';
 const RCLONE_CACHE_DIR = '/app/rclone-cache';
 
 export function setupRcloneConfig(): void {
-  const host = config.CELLAR_ADDON_HOST.replace(/^https?:\/\//, '');
-  const conf = `[cellar]
+  try {
+    const host = config.CELLAR_ADDON_HOST.replace(/^https?:\/\//, '');
+    const conf = `[cellar]
 type = s3
 provider = Other
 env_auth = false
@@ -22,9 +23,12 @@ force_path_style = ${config.S3_FORCE_PATH_STYLE}
 no_check_bucket = false
 `;
 
-  mkdirSync(RCLONE_CACHE_DIR, { recursive: true });
-  writeFileSync(RCLONE_CONF_PATH, conf, { mode: 0o600 });
-  console.log('[rclone] Config written to', RCLONE_CONF_PATH);
+    mkdirSync(RCLONE_CACHE_DIR, { recursive: true });
+    writeFileSync(RCLONE_CONF_PATH, conf, { mode: 0o600 });
+    console.log('[rclone] Config written to', RCLONE_CONF_PATH);
+  } catch (err: any) {
+    console.warn('[rclone] Could not write /app/rclone.conf (non-critical in local dev):', err.message);
+  }
 }
 
 function getRcloneRemote(projectId: string): string {

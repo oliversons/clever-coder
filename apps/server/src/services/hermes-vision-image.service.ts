@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { getDb, schema } from '../db/index.js';
+import { isHermesWebUIRunning, restartHermesWebUI } from './hermes-webui.service.js';
 
 export interface HermesVisionImageSettingsInput {
   satApiKey?: string | null;
@@ -212,6 +213,13 @@ export async function saveHermesVisionImageSettings(
   // Atomically sync config files & environment
   await syncVisionImageConfigToYamlAndEnv(input);
 
+  // If Hermes WebUI process is active, restart it with updated environment
+  if (isHermesWebUIRunning()) {
+    restartHermesWebUI({ userId }).catch((err) => {
+      console.warn('[Hermes Vision/Image] Non-critical warning: WebUI restart after save failed:', err);
+    });
+  }
+
   return saved || { ...DEFAULT_VISION_IMAGE_SETTINGS, ...input };
 }
 
@@ -251,38 +259,39 @@ export async function syncVisionImageConfigToYamlAndEnv(settings: HermesVisionIm
     } catch {}
   }
 
-  // Strip existing auxiliary.vision and image_gen sections
+  // Strip existing auxiliary.vision, image_gen, and vision sections
   currentYaml = currentYaml
     .replace(/auxiliary:\s*\n\s*vision:[\s\S]*?(?=\n\s*[a-z0-9_]+:|\n[a-z0-9_]+:|$)/gi, '')
     .replace(/image_gen:[\s\S]*?(?=\n[a-z0-9_]+:|$)/gi, '')
+    .replace(/vision:[\s\S]*?(?=\n[a-z0-9_]+:|$)/gi, '')
     .trim();
 
   // Construct auxiliary.vision block
   let resolvedVisionBaseUrl = satBaseUrl;
-  let resolvedVisionApiKey = '${SAT_API_KEY}';
+  let resolvedVisionApiKey = satApiKey || '${SAT_API_KEY}';
   if (visionProvider === 'openai') {
     resolvedVisionBaseUrl = 'https://api.openai.com/v1';
-    resolvedVisionApiKey = '${OPENAI_API_KEY}';
+    resolvedVisionApiKey = settings.openaiImageApiKey || '${OPENAI_API_KEY}';
   } else if (visionProvider === 'openrouter') {
     resolvedVisionBaseUrl = 'https://openrouter.ai/api/v1';
-    resolvedVisionApiKey = '${OPENROUTER_API_KEY}';
+    resolvedVisionApiKey = settings.visionApiKey || satApiKey || '${OPENROUTER_API_KEY}';
   } else if (visionProvider === 'custom' && settings.visionBaseUrl) {
     resolvedVisionBaseUrl = settings.visionBaseUrl;
-    resolvedVisionApiKey = settings.visionApiKey || '${SAT_API_KEY}';
+    resolvedVisionApiKey = settings.visionApiKey || satApiKey || '${SAT_API_KEY}';
   }
 
   // Construct image_gen block
   let resolvedImageBaseUrl = satBaseUrl;
-  let resolvedImageApiKey = '${SAT_API_KEY}';
+  let resolvedImageApiKey = satApiKey || '${SAT_API_KEY}';
   if (imageGenProvider === 'fal') {
     resolvedImageBaseUrl = 'https://fal.run';
-    resolvedImageApiKey = '${FAL_KEY}';
+    resolvedImageApiKey = settings.falApiKey || '${FAL_KEY}';
   } else if (imageGenProvider === 'openai') {
     resolvedImageBaseUrl = 'https://api.openai.com/v1';
-    resolvedImageApiKey = '${OPENAI_API_KEY}';
+    resolvedImageApiKey = settings.openaiImageApiKey || '${OPENAI_API_KEY}';
   } else if (imageGenProvider === 'custom' && settings.imageGenBaseUrl) {
     resolvedImageBaseUrl = settings.imageGenBaseUrl;
-    resolvedImageApiKey = settings.imageGenApiKey || '${SAT_API_KEY}';
+    resolvedImageApiKey = settings.imageGenApiKey || satApiKey || '${SAT_API_KEY}';
   }
 
   const visionImageYamlSection = `
@@ -294,6 +303,7 @@ auxiliary:
     api_key: "${resolvedVisionApiKey}"
 
 image_gen:
+  enabled: true
   provider: "${imageGenProvider}"
   model: "${defaultImageGenModel}"
   base_url: "${resolvedImageBaseUrl}"
@@ -301,6 +311,13 @@ image_gen:
   max_parallel_requests: ${maxParallelRequests}
   upscale: ${autoUpscale}
   use_gateway: ${useGateway}
+
+vision:
+  enabled: true
+  provider: "${visionProvider}"
+  model: "${defaultVisionModel}"
+  base_url: "${resolvedVisionBaseUrl}"
+  api_key: "${resolvedVisionApiKey}"
 `;
 
   const finalYaml = `${currentYaml}\n${visionImageYamlSection}`.trim() + '\n';
@@ -322,13 +339,20 @@ image_gen:
 
   const envVarsToSync: Record<string, string> = {
     SAT_BASE_URL: satBaseUrl,
+    SAT_API_KEY: satApiKey,
+    VISION_ENABLED: 'true',
+    VISION_PROVIDER: visionProvider,
     VISION_MODEL: defaultVisionModel,
+    VISION_BASE_URL: resolvedVisionBaseUrl,
+    VISION_API_KEY: resolvedVisionApiKey,
+    IMAGE_GEN_ENABLED: 'true',
+    IMAGE_GEN_PROVIDER: imageGenProvider,
     IMAGE_GEN_MODEL: defaultImageGenModel,
+    IMAGE_GEN_BASE_URL: resolvedImageBaseUrl,
+    IMAGE_GEN_API_KEY: resolvedImageApiKey,
+    FAL_KEY: settings.falApiKey || '',
+    OPENAI_IMAGE_API_KEY: settings.openaiImageApiKey || '',
   };
-
-  if (satApiKey) envVarsToSync.SAT_API_KEY = satApiKey;
-  if (settings.falApiKey) envVarsToSync.FAL_KEY = settings.falApiKey;
-  if (settings.openaiImageApiKey) envVarsToSync.OPENAI_API_KEY = settings.openaiImageApiKey;
 
   const envLines = currentEnv.split('\n').filter((line) => {
     const key = line.split('=')[0]?.trim();
@@ -346,7 +370,34 @@ image_gen:
   fs.writeFileSync(envPath, finalEnv, 'utf8');
   fs.writeFileSync(path.join(defaultProfileHome, '.env'), finalEnv, 'utf8');
 
-  console.log(`✅ [Hermes Vision/Image] Synced (visionModel=${defaultVisionModel}, imageModel=${defaultImageGenModel}, satUrl=${satBaseUrl})`);
+  // ── 3. Update json state files to include image_gen & vision in toolsets ─────
+  const toolsetList = [
+    'browser', 'web', 'terminal', 'file', 'code_execution',
+    'clarify', 'cronjob', 'delegation', 'image_gen', 'vision',
+    'memory', 'session_search', 'skills', 'todo', 'webhook', 'mcp'
+  ];
+
+  for (const targetFile of ['config.json', 'webui.json', 'settings.json']) {
+    for (const d of [hermesHome, webuiDir, webuiStateDir]) {
+      const p = path.join(d, targetFile);
+      if (fs.existsSync(p)) {
+        try {
+          const content = JSON.parse(fs.readFileSync(p, 'utf8'));
+          content.image_gen_enabled = true;
+          content.vision_enabled = true;
+          content.image_gen_model = defaultImageGenModel;
+          content.image_gen_provider = imageGenProvider;
+          content.image_gen_base_url = resolvedImageBaseUrl;
+          content.image_gen_api_key = resolvedImageApiKey;
+          content.toolsets = toolsetList;
+          content.enabled_toolsets = toolsetList;
+          fs.writeFileSync(p, JSON.stringify(content, null, 2), 'utf8');
+        } catch {}
+      }
+    }
+  }
+
+  console.log(`✅ [Hermes Vision/Image] Synced to config.yaml, .env, json (visionModel=${defaultVisionModel}, imageModel=${defaultImageGenModel}, imageGenUrl=${resolvedImageBaseUrl})`);
 }
 
 /**
