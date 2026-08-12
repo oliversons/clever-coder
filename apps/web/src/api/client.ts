@@ -275,6 +275,33 @@ export const api = {
       request<{ success: boolean; status: HermesSyncStatus }>('/hermes/browser/sync-now', {
         method: 'POST',
       }),
+    // ── Messaging Gateway ──
+    getMessagingSettings: () =>
+      request<HermesMessagingSettings>('/hermes/messaging'),
+    saveMessagingSettings: (data: Partial<HermesMessagingSettings>) =>
+      request<{ success: boolean; message: string; settings: HermesMessagingSettings }>('/hermes/messaging', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    testTelegramToken: (token: string) =>
+      request<{ ok: boolean; botUsername?: string; botName?: string; botId?: number; message: string; latencyMs?: number }>(
+        '/hermes/messaging/test-telegram',
+        { method: 'POST', body: JSON.stringify({ token }) },
+      ),
+    testWhatsAppCredentials: (accessToken: string, phoneNumberId: string) =>
+      request<{ ok: boolean; message: string; latencyMs?: number; displayPhoneNumber?: string }>(
+        '/hermes/messaging/test-whatsapp',
+        { method: 'POST', body: JSON.stringify({ accessToken, phoneNumberId }) },
+      ),
+    testEmailConnection: (imapHost: string, imapPort: number) =>
+      request<{ ok: boolean; message: string; latencyMs?: number }>(
+        '/hermes/messaging/test-email',
+        { method: 'POST', body: JSON.stringify({ imapHost, imapPort }) },
+      ),
+    getMessagingStatus: () =>
+      request<{ configured: { telegram: boolean; whatsapp: boolean; email: boolean; webhooks: boolean } }>(
+        '/hermes/messaging/status',
+      ),
   },
 };
 
@@ -572,4 +599,59 @@ export function createProjectSSE(
 
     reject(new Error('Stream ended unexpectedly'));
   });
+}
+
+export interface HermesMessagingSettings {
+  id?: string;
+  // Telegram
+  telegramEnabled: boolean;
+  telegramBotToken?: string;
+  telegramBotTokenSet?: boolean;
+  telegramAllowedUsers?: string;
+  telegramAllowedChats?: string;
+  telegramGroupAllowedChats?: string;
+  telegramRequireMention: boolean;
+  telegramStatusIndicator: boolean;
+  telegramStatusOnline?: string;
+  telegramStatusOffline?: string;
+  telegramCommandMenuMax?: number;
+  telegramCommandMenuPriorityMode?: string;
+  telegramObserveUnmentioned: boolean;
+  telegramWebhookUrl?: string;
+  telegramWebhookSecret?: string;
+  telegramWebhookSecretSet?: boolean;
+  telegramWebhookPort?: number;
+  // WhatsApp Cloud API
+  whatsappEnabled: boolean;
+  whatsappAccessToken?: string;
+  whatsappAccessTokenSet?: boolean;
+  whatsappPhoneNumberId?: string;
+  whatsappWabaId?: string;
+  whatsappVerifyToken?: string;
+  whatsappAllowedUsers?: string;
+  whatsappTextBatchDelay?: number;
+  // Email
+  emailEnabled: boolean;
+  emailAddress?: string;
+  emailPassword?: string;
+  emailPasswordSet?: boolean;
+  emailImapHost?: string;
+  emailSmtpHost?: string;
+  emailImapPort?: number;
+  emailSmtpPort?: number;
+  emailPollInterval?: number;
+  emailAllowedUsers?: string;
+  // Webhooks
+  webhookEnabled: boolean;
+  webhookPort?: number;
+  webhookSecret?: string;
+  webhookSecretSet?: boolean;
+  webhookRoutes?: Array<{ name: string; events: string[]; secret?: string; profile?: string }>;
+  // Computed
+  configured?: {
+    telegram: boolean;
+    whatsapp: boolean;
+    email: boolean;
+    webhooks: boolean;
+  };
 }

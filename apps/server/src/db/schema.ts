@@ -322,3 +322,69 @@ export const hermesVisionImageSettings = pgTable('hermes_vision_image_settings',
 export type HermesVisionImageSettings = typeof hermesVisionImageSettings.$inferSelect;
 export type NewHermesVisionImageSettings = typeof hermesVisionImageSettings.$inferInsert;
 
+/**
+ * Hermes Messaging Gateway Settings Table
+ * Manages credentials and behavior configuration for Telegram, WhatsApp Cloud API,
+ * Email (IMAP/SMTP), and Webhooks gateways. Data is synced to ~/.hermes/.env
+ * and ~/.hermes/config.yaml by the messaging service on save.
+ */
+export const hermesMessagingSettings = pgTable('hermes_messaging_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+
+  // ── Telegram ──────────────────────────────────────────────────────────────
+  telegramEnabled: boolean('telegram_enabled').notNull().default(false),
+  telegramBotToken: text('telegram_bot_token'),
+  telegramAllowedUsers: text('telegram_allowed_users'),       // comma-separated user IDs
+  telegramAllowedChats: text('telegram_allowed_chats'),       // comma-separated chat IDs
+  telegramGroupAllowedChats: text('telegram_group_allowed_chats'),
+  telegramRequireMention: boolean('telegram_require_mention').notNull().default(true),
+  telegramStatusIndicator: boolean('telegram_status_indicator').notNull().default(true),
+  telegramStatusOnline: text('telegram_status_online').default('🟢 Online'),
+  telegramStatusOffline: text('telegram_status_offline').default('🔴 Offline'),
+  telegramCommandMenuMax: integer('telegram_command_menu_max').default(60),
+  telegramCommandMenuPriorityMode: text('telegram_command_menu_priority_mode').default('prepend'),
+  telegramObserveUnmentioned: boolean('telegram_observe_unmentioned').notNull().default(false),
+  // Optional webhook mode (alternative to long-polling for cloud deployments)
+  telegramWebhookUrl: text('telegram_webhook_url'),
+  telegramWebhookSecret: text('telegram_webhook_secret'),
+  telegramWebhookPort: integer('telegram_webhook_port').default(8443),
+
+  // ── WhatsApp Cloud API ───────────────────────────────────────────────────
+  whatsappEnabled: boolean('whatsapp_enabled').notNull().default(false),
+  whatsappAccessToken: text('whatsapp_access_token'),         // Permanent system user token
+  whatsappPhoneNumberId: text('whatsapp_phone_number_id'),   // Numeric phone number ID
+  whatsappWabaId: text('whatsapp_waba_id'),                  // WhatsApp Business Account ID
+  whatsappVerifyToken: text('whatsapp_verify_token'),         // Custom webhook verify secret
+  whatsappAllowedUsers: text('whatsapp_allowed_users'),       // E.164 numbers, comma-separated
+  whatsappTextBatchDelay: integer('whatsapp_text_batch_delay').default(2), // seconds
+
+  // ── Email (IMAP / SMTP) ──────────────────────────────────────────────────
+  emailEnabled: boolean('email_enabled').notNull().default(false),
+  emailAddress: text('email_address'),
+  emailPassword: text('email_password'),                      // App password (not account password)
+  emailImapHost: text('email_imap_host').default('imap.gmail.com'),
+  emailSmtpHost: text('email_smtp_host').default('smtp.gmail.com'),
+  emailImapPort: integer('email_imap_port').default(993),
+  emailSmtpPort: integer('email_smtp_port').default(587),
+  emailPollInterval: integer('email_poll_interval').default(15), // seconds
+  emailAllowedUsers: text('email_allowed_users'),             // comma-separated sender emails
+
+  // ── Webhooks ─────────────────────────────────────────────────────────────
+  webhookEnabled: boolean('webhook_enabled').notNull().default(false),
+  webhookPort: integer('webhook_port').default(8644),
+  webhookSecret: text('webhook_secret'),                      // Global HMAC secret
+  webhookRoutes: jsonb('webhook_routes')
+    .$type<Array<{ name: string; events: string[]; secret?: string; profile?: string }>>()
+    .default([]),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export type HermesMessagingSettings = typeof hermesMessagingSettings.$inferSelect;
+export type NewHermesMessagingSettings = typeof hermesMessagingSettings.$inferInsert;
+

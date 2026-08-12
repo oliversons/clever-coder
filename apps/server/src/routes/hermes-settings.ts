@@ -34,6 +34,16 @@ import {
   testImageGeneration,
 } from '../services/hermes-vision-image.service.js';
 import { isHermesWebUIRunning, syncHermesConfigFiles, restartHermesWebUI } from '../services/hermes-webui.service.js';
+import {
+  getMessagingSettings,
+  upsertMessagingSettings,
+  maskMessagingSettings,
+  syncMessagingConfigToFiles,
+  testTelegramToken,
+  testWhatsAppCredentials,
+  testEmailConnection,
+  getConfiguredGateways,
+} from '../services/hermes-messaging.service.js';
 
 export async function hermesSettingsRoutes(fastify: FastifyInstance) {
   // ── GET /api/v1/hermes/models ───────────────────────────────────────────────
@@ -547,5 +557,142 @@ export async function hermesSettingsRoutes(fastify: FastifyInstance) {
     const { runCronJobNow } = await import('../services/hermes-gateway.service.js');
     const result = await runCronJobNow(id);
     return reply.send(result);
+  });
+
+  // ── GET /api/v1/hermes/messaging ────────────────────────────────────────────
+  fastify.get('/messaging', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const settings = await getMessagingSettings(payload.sub);
+    if (!settings) {
+      // Return safe defaults — row will be created on first save
+      return reply.send({
+        telegramEnabled: false, telegramBotToken: '', telegramBotTokenSet: false,
+        telegramAllowedUsers: '', telegramAllowedChats: '', telegramGroupAllowedChats: '',
+        telegramRequireMention: true, telegramStatusIndicator: true,
+        telegramStatusOnline: '🟢 Online', telegramStatusOffline: '🔴 Offline',
+        telegramCommandMenuMax: 60, telegramCommandMenuPriorityMode: 'prepend',
+        telegramObserveUnmentioned: false,
+        telegramWebhookUrl: '', telegramWebhookSecret: '', telegramWebhookSecretSet: false, telegramWebhookPort: 8443,
+        whatsappEnabled: false, whatsappAccessToken: '', whatsappAccessTokenSet: false,
+        whatsappPhoneNumberId: '', whatsappWabaId: '', whatsappVerifyToken: '',
+        whatsappAllowedUsers: '', whatsappTextBatchDelay: 2,
+        emailEnabled: false, emailAddress: '', emailPassword: '', emailPasswordSet: false,
+        emailImapHost: 'imap.gmail.com', emailSmtpHost: 'smtp.gmail.com',
+        emailImapPort: 993, emailSmtpPort: 587, emailPollInterval: 15, emailAllowedUsers: '',
+        webhookEnabled: false, webhookPort: 8644, webhookSecret: '', webhookSecretSet: false, webhookRoutes: [],
+        configured: { telegram: false, whatsapp: false, email: false, webhooks: false },
+      });
+    }
+    return reply.send({
+      ...maskMessagingSettings(settings),
+      configured: getConfiguredGateways(settings),
+    });
+  });
+
+  // ── PUT /api/v1/hermes/messaging ────────────────────────────────────────────
+  fastify.put('/messaging', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const body = (request.body as Record<string, any>) ?? {};
+
+    // Strip read-only and masked fields
+    delete body.id;
+    delete body.userId;
+    delete body.createdAt;
+    delete body.updatedAt;
+    delete body.configured;
+    delete body.telegramBotTokenSet;
+    delete body.whatsappAccessTokenSet;
+    delete body.emailPasswordSet;
+    delete body.webhookSecretSet;
+    delete body.telegramWebhookSecretSet;
+
+    // Don't overwrite secrets with mask placeholders
+    const existing = await getMessagingSettings(payload.sub);
+    if (body.telegramBotToken?.includes('••••')) body.telegramBotToken = existing?.telegramBotToken ?? '';
+    if (body.whatsappAccessToken?.includes('••••')) body.whatsappAccessToken = existing?.whatsappAccessToken ?? '';
+    if (body.emailPassword?.includes('••••')) body.emailPassword = existing?.emailPassword ?? '';
+    if (body.webhookSecret?.includes('••••')) body.webhookSecret = existing?.webhookSecret ?? '';
+    if (body.telegramWebhookSecret?.includes('••••')) body.telegramWebhookSecret = existing?.telegramWebhookSecret ?? '';
+
+    const saved = await upsertMessagingSettings(payload.sub, body);
+
+    // Sync to disk and restart the gateway daemon to pick up changes
+    try {
+      await syncMessagingConfigToFiles(saved);
+    } catch (syncErr) {
+      console.warn('[Hermes Messaging] Config file sync warning:', syncErr);
+    }
+
+    try {
+      const { restartGateway } = await import('../services/hermes-gateway.service.js');
+      restartGateway(payload.sub).catch((e: unknown) =>
+        console.warn('[Hermes Messaging] Gateway restart notice:', e)
+      );
+    } catch {
+      // non-critical
+    }
+
+    return reply.send({
+      success: true,
+      message: 'Messaging gateway settings saved and gateway daemon restarting.',
+      settings: {
+        ...maskMessagingSettings(saved),
+        configured: getConfiguredGateways(saved),
+      },
+    });
+  });
+
+  // ── POST /api/v1/hermes/messaging/test-telegram ──────────────────────────────
+  fastify.post('/messaging/test-telegram', async (request, reply) => {
+    verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const body = (request.body as { token?: string }) ?? {};
+    const result = await testTelegramToken(body.token || '');
+    return reply.send(result);
+  });
+
+  // ── POST /api/v1/hermes/messaging/test-whatsapp ──────────────────────────────
+  fastify.post('/messaging/test-whatsapp', async (request, reply) => {
+    verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const body = (request.body as { accessToken?: string; phoneNumberId?: string }) ?? {};
+    const result = await testWhatsAppCredentials(body.accessToken || '', body.phoneNumberId || '');
+    return reply.send(result);
+  });
+
+  // ── POST /api/v1/hermes/messaging/test-email ────────────────────────────────
+  fastify.post('/messaging/test-email', async (request, reply) => {
+    verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const body = (request.body as { imapHost?: string; imapPort?: number }) ?? {};
+    const result = await testEmailConnection(
+      body.imapHost || 'imap.gmail.com',
+      body.imapPort || 993,
+    );
+    return reply.send(result);
+  });
+
+  // ── GET /api/v1/hermes/messaging/status ─────────────────────────────────────
+  fastify.get('/messaging/status', async (request, reply) => {
+    const payload = verifyToken(
+      (request.cookies as Record<string, string | undefined>)?.access_token ??
+      request.headers.authorization?.slice(7) ?? '',
+    );
+    const settings = await getMessagingSettings(payload.sub);
+    return reply.send({
+      configured: getConfiguredGateways(settings),
+    });
   });
 }

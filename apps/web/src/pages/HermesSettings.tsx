@@ -50,10 +50,12 @@ import {
   RiInformationLine,
   RiSparklingLine,
   RiSearchEyeLine,
-  RiImageEditLine
+  RiImageEditLine,
+  RiMessengerLine
 } from 'react-icons/ri';
 import { WebSearchSettings } from './settings/WebSearchSettings';
 import { VisionImageSettings } from './settings/VisionImageSettings';
+import { MessagingGatewaySettings } from './settings/MessagingGatewaySettings';
 import { VirtualModelPicker } from '../components/hermes/VirtualModelPicker';
 import { useHermesStore } from '../store/hermesStore';
 import {
@@ -67,7 +69,7 @@ import {
 
 // ── Types & Constants ──────────────────────────────────────────────────────────
 
-type TabId = 'browser' | 'search' | 'vision_image' | 'model' | 'execution' | 'memory' | 'tools' | 's3' | 'webui' | 'scheduler';
+type TabId = 'browser' | 'search' | 'vision_image' | 'model' | 'execution' | 'memory' | 'tools' | 's3' | 'webui' | 'scheduler' | 'messaging';
 
 interface TabItem {
   id: TabId;
@@ -88,6 +90,7 @@ const TABS: TabItem[] = [
   { id: 's3', label: 'S3 & Storage', icon: RiDatabase2Line, description: 'Cellar S3 archiving & exports' },
   { id: 'webui', label: 'Hermes WebUI', icon: RiWindow2Line, description: 'Standalone 3-panel chat interface' },
   { id: 'scheduler', label: 'Job Scheduler', icon: RiTimeLine, description: 'Cron daemon & automated tasks' },
+  { id: 'messaging', label: 'Messaging Gateways', icon: RiMessengerLine, description: 'Telegram, WhatsApp, Email & Webhooks', badge: 'New' },
 ];
 
 const BROWSER_PROVIDERS = [
@@ -3692,6 +3695,57 @@ export default function HermesSettings() {
                 </section>
               </div>
             )}
+
+            {/* ══════════════════════════════════════════════════════════════
+               TAB 9: MESSAGING GATEWAYS
+              ══════════════════════════════════════════════════════════════ */}
+            {activeTab === 'messaging' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0, paddingBottom: 80 }}>
+                {/* Header */}
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(124,58,237,0.12) 0%, rgba(6,182,212,0.08) 100%)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: '20px 24px',
+                    marginBottom: 24,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 16,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 46,
+                      height: 46,
+                      borderRadius: 'var(--radius-lg)',
+                      background: 'linear-gradient(135deg, #7c3aed 0%, #2AABEE 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      flexShrink: 0,
+                      boxShadow: '0 4px 16px rgba(124,58,237,0.4)',
+                      fontSize: 20,
+                    }}
+                  >
+                    💬
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+                      Messaging Gateways
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
+                      Connect Hermes to Telegram, WhatsApp Cloud API, Email (IMAP/SMTP), and Webhooks.
+                      Credentials are written to <code style={{ fontFamily: 'monospace', background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: 3 }}>~/.hermes/.env</code> and{' '}
+                      <code style={{ fontFamily: 'monospace', background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: 3 }}>~/.hermes/config.yaml</code> on save.
+                    </div>
+                  </div>
+                </div>
+                <MessagingGatewaySettings />
+              </div>
+            )}
+
           </motion.div>
         </div>
       </div>
