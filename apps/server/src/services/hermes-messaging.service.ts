@@ -128,37 +128,130 @@ function readHermesFiles(dir: string): { env: Record<string, string>; configRaw:
 
 // ── DB Access ─────────────────────────────────────────────────────────────────
 
+let _messagingTableEnsured = false;
+
+/**
+ * Ensures that the hermes_messaging_settings table exists in PostgreSQL.
+ * Self-heals automatically if migration has not run yet.
+ */
+export async function ensureMessagingSettingsTable(): Promise<void> {
+  if (_messagingTableEnsured) return;
+  const db = getDb();
+  try {
+    const { sql } = await import('drizzle-orm');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS "hermes_messaging_settings" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "user_id" uuid NOT NULL,
+        "telegram_enabled" boolean DEFAULT false NOT NULL,
+        "telegram_bot_token" text,
+        "telegram_allowed_users" text,
+        "telegram_allowed_chats" text,
+        "telegram_group_allowed_chats" text,
+        "telegram_require_mention" boolean DEFAULT true NOT NULL,
+        "telegram_status_indicator" boolean DEFAULT true NOT NULL,
+        "telegram_status_online" text DEFAULT '🟢 Online',
+        "telegram_status_offline" text DEFAULT '🔴 Offline',
+        "telegram_command_menu_max" integer DEFAULT 60,
+        "telegram_command_menu_priority_mode" text DEFAULT 'prepend',
+        "telegram_observe_unmentioned" boolean DEFAULT false NOT NULL,
+        "telegram_webhook_url" text,
+        "telegram_webhook_secret" text,
+        "telegram_webhook_port" integer DEFAULT 8443,
+        "whatsapp_enabled" boolean DEFAULT false NOT NULL,
+        "whatsapp_access_token" text,
+        "whatsapp_phone_number_id" text,
+        "whatsapp_waba_id" text,
+        "whatsapp_verify_token" text,
+        "whatsapp_allowed_users" text,
+        "whatsapp_text_batch_delay" integer DEFAULT 2,
+        "email_enabled" boolean DEFAULT false NOT NULL,
+        "email_address" text,
+        "email_password" text,
+        "email_imap_host" text DEFAULT 'imap.gmail.com',
+        "email_smtp_host" text DEFAULT 'smtp.gmail.com',
+        "email_imap_port" integer DEFAULT 993,
+        "email_smtp_port" integer DEFAULT 587,
+        "email_poll_interval" integer DEFAULT 15,
+        "email_allowed_users" text,
+        "webhook_enabled" boolean DEFAULT false NOT NULL,
+        "webhook_port" integer DEFAULT 8644,
+        "webhook_secret" text,
+        "webhook_routes" jsonb DEFAULT '[]'::jsonb,
+        "created_at" timestamp DEFAULT now() NOT NULL,
+        "updated_at" timestamp DEFAULT now() NOT NULL,
+        CONSTRAINT "hermes_messaging_settings_user_id_unique" UNIQUE("user_id")
+      );
+    `);
+    _messagingTableEnsured = true;
+  } catch (err: any) {
+    console.warn('[Hermes Messaging] ensureMessagingSettingsTable notice:', err?.message);
+  }
+}
+
 export async function getMessagingSettings(userId?: string): Promise<HermesMessagingSettings | null> {
   if (!userId) return null;
+  await ensureMessagingSettingsTable();
   const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.hermesMessagingSettings)
-    .where(eq(schema.hermesMessagingSettings.userId, userId))
-    .limit(1);
-  return rows[0] ?? null;
+  try {
+    const rows = await db
+      .select()
+      .from(schema.hermesMessagingSettings)
+      .where(eq(schema.hermesMessagingSettings.userId, userId))
+      .limit(1);
+    return rows[0] ?? null;
+  } catch (err: any) {
+    if (err?.code === '42P01') {
+      _messagingTableEnsured = false;
+      await ensureMessagingSettingsTable();
+      try {
+        const rows = await db
+          .select()
+          .from(schema.hermesMessagingSettings)
+          .where(eq(schema.hermesMessagingSettings.userId, userId))
+          .limit(1);
+        return rows[0] ?? null;
+      } catch {}
+    }
+    console.warn('[Hermes Messaging] Failed to query messaging settings:', err?.message);
+    return null;
+  }
 }
 
 export async function upsertMessagingSettings(
   userId: string,
   data: Partial<Omit<NewHermesMessagingSettings, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>,
 ): Promise<HermesMessagingSettings> {
+  await ensureMessagingSettingsTable();
   const db = getDb();
   const existing = await getMessagingSettings(userId);
 
-  if (existing) {
-    const [updated] = await db
-      .update(schema.hermesMessagingSettings)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(schema.hermesMessagingSettings.userId, userId))
-      .returning();
-    return updated;
-  } else {
-    const [created] = await db
-      .insert(schema.hermesMessagingSettings)
-      .values({ userId, ...data })
-      .returning();
-    return created;
+  try {
+    if (existing) {
+      const [updated] = await db
+        .update(schema.hermesMessagingSettings)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(schema.hermesMessagingSettings.userId, userId))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(schema.hermesMessagingSettings)
+        .values({ userId, ...data })
+        .returning();
+      return created;
+    }
+  } catch (err: any) {
+    if (err?.code === '42P01') {
+      _messagingTableEnsured = false;
+      await ensureMessagingSettingsTable();
+      const [created] = await db
+        .insert(schema.hermesMessagingSettings)
+        .values({ userId, ...data })
+        .returning();
+      return created;
+    }
+    throw err;
   }
 }
 

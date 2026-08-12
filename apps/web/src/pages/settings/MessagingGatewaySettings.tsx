@@ -1,482 +1,214 @@
-/**
- * MessagingGatewaySettings — Advanced step-by-step setup wizard for Hermes messaging gateways.
- *
- * Supports: Telegram Bot, WhatsApp Cloud API, Email (IMAP/SMTP), Webhooks
- * Credentials are written to ~/.hermes/.env and ~/.hermes/config.yaml on save.
- */
-
-import { useEffect, useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
-  MessageSquare, Mail, Webhook, Send, CheckCircle2, XCircle,
-  Loader2, Eye, EyeOff, Plus, Trash2, RefreshCw, ExternalLink,
-  ChevronRight, ChevronDown, Copy, Check, AlertTriangle, Info,
-  Save, Zap, Settings2, Globe, Shield, Clock, Hash,
-} from 'lucide-react';
+  RiTelegramLine,
+  RiWhatsappLine,
+  RiMailLine,
+  RiWebhookLine,
+  RiSendPlane2Line,
+  RiCheckLine,
+  RiAlertLine,
+  RiRefreshLine,
+  RiKeyLine,
+  RiSettings4Line,
+  RiInformationLine,
+  RiExternalLinkLine,
+  RiTimeLine,
+  RiShieldCheckLine,
+  RiGlobalLine,
+  RiTerminalBoxLine,
+  RiStackLine,
+  RiCpuLine,
+  RiDatabase2Line,
+  RiLockLine,
+  RiAddLine,
+  RiDeleteBin6Line,
+  RiEyeLine,
+  RiEyeOffLine,
+  RiMessengerLine,
+  RiFileCopyLine,
+  RiFlashlightLine,
+} from 'react-icons/ri';
 import { api, type HermesMessagingSettings } from '../../api/client';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 type GatewayId = 'telegram' | 'whatsapp' | 'email' | 'webhooks';
 
-interface TestResult {
-  ok: boolean;
-  message: string;
-  latencyMs?: number;
-  detail?: string;
+interface GatewayMeta {
+  id: GatewayId;
+  name: string;
+  badge: string;
+  badgeType: 'free' | 'freemium' | 'paid' | 'selfhosted';
+  description: string;
+  icon: React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>;
+  channelType: string;
 }
 
-// ── Default State ─────────────────────────────────────────────────────────────
-
-const DEFAULT_FORM: HermesMessagingSettings = {
-  telegramEnabled: false,
-  telegramBotToken: '',
-  telegramAllowedUsers: '',
-  telegramAllowedChats: '',
-  telegramGroupAllowedChats: '',
-  telegramRequireMention: true,
-  telegramStatusIndicator: true,
-  telegramStatusOnline: '🟢 Online',
-  telegramStatusOffline: '🔴 Offline',
-  telegramCommandMenuMax: 60,
-  telegramCommandMenuPriorityMode: 'prepend',
-  telegramObserveUnmentioned: false,
-  telegramWebhookUrl: '',
-  telegramWebhookSecret: '',
-  telegramWebhookPort: 8443,
-  whatsappEnabled: false,
-  whatsappAccessToken: '',
-  whatsappPhoneNumberId: '',
-  whatsappWabaId: '',
-  whatsappVerifyToken: '',
-  whatsappAllowedUsers: '',
-  whatsappTextBatchDelay: 2,
-  emailEnabled: false,
-  emailAddress: '',
-  emailPassword: '',
-  emailImapHost: 'imap.gmail.com',
-  emailSmtpHost: 'smtp.gmail.com',
-  emailImapPort: 993,
-  emailSmtpPort: 587,
-  emailPollInterval: 15,
-  emailAllowedUsers: '',
-  webhookEnabled: false,
-  webhookPort: 8644,
-  webhookSecret: '',
-  webhookRoutes: [],
-};
-
-// ── Email Presets ─────────────────────────────────────────────────────────────
-
-const EMAIL_PRESETS = [
-  { id: 'gmail', label: '📧 Gmail', imapHost: 'imap.gmail.com', smtpHost: 'smtp.gmail.com', imapPort: 993, smtpPort: 587 },
-  { id: 'outlook', label: '📘 Outlook', imapHost: 'outlook.office365.com', smtpHost: 'smtp.office365.com', imapPort: 993, smtpPort: 587 },
-  { id: 'yahoo', label: '🟣 Yahoo', imapHost: 'imap.mail.yahoo.com', smtpHost: 'smtp.mail.yahoo.com', imapPort: 993, smtpPort: 587 },
-  { id: 'icloud', label: '🍎 iCloud', imapHost: 'imap.mail.me.com', smtpHost: 'smtp.mail.me.com', imapPort: 993, smtpPort: 587 },
-  { id: 'proton', label: '🔒 Proton Bridge', imapHost: '127.0.0.1', smtpHost: '127.0.0.1', imapPort: 1143, smtpPort: 1025 },
-  { id: 'custom', label: '⚙️ Custom IMAP', imapHost: '', smtpHost: '', imapPort: 993, smtpPort: 587 },
+const GATEWAY_PROVIDERS: GatewayMeta[] = [
+  {
+    id: 'telegram',
+    name: 'Telegram Bot Gateway',
+    badge: 'Long-Polling & Webhooks',
+    badgeType: 'free',
+    description: 'Direct bi-directional chat via Telegram Bot API. Supports direct messages, group chats with @mention, and rich formatting.',
+    icon: RiTelegramLine,
+    channelType: 'python-telegram-bot',
+  },
+  {
+    id: 'whatsapp',
+    name: 'WhatsApp Cloud API',
+    badge: 'Meta Graph API',
+    badgeType: 'freemium',
+    description: 'Official WhatsApp Business Cloud integration with webhook event ingestion and text message batching.',
+    icon: RiWhatsappLine,
+    channelType: 'Meta Graph API v18+',
+  },
+  {
+    id: 'email',
+    name: 'Email (IMAP / SMTP)',
+    badge: 'Standard Mail Protocols',
+    badgeType: 'selfhosted',
+    description: 'Autonomous inbox polling via IMAP with automatic AI response dispatching through authenticated SMTP transport.',
+    icon: RiMailLine,
+    channelType: 'IMAP (993) / SMTP (587)',
+  },
+  {
+    id: 'webhooks',
+    name: 'Webhook Event Server',
+    badge: 'HTTP Ingestion Server',
+    badgeType: 'paid',
+    description: 'Dedicated HTTP daemon listening for GitHub, GitLab, and custom webhook payloads with HMAC validation and routing.',
+    icon: RiWebhookLine,
+    channelType: 'HTTP Daemon (Port 8644)',
+  },
 ];
 
-// ── Reusable Subcomponents ────────────────────────────────────────────────────
+const EMAIL_PRESETS = [
+  { id: 'gmail', label: 'Gmail', imapHost: 'imap.gmail.com', smtpHost: 'smtp.gmail.com', imapPort: 993, smtpPort: 587 },
+  { id: 'outlook', label: 'Outlook / 365', imapHost: 'outlook.office365.com', smtpHost: 'smtp.office365.com', imapPort: 993, smtpPort: 587 },
+  { id: 'yahoo', label: 'Yahoo Mail', imapHost: 'imap.mail.yahoo.com', smtpHost: 'smtp.mail.yahoo.com', imapPort: 993, smtpPort: 587 },
+  { id: 'icloud', label: 'Apple iCloud', imapHost: 'imap.mail.me.com', smtpHost: 'smtp.mail.me.com', imapPort: 993, smtpPort: 587 },
+  { id: 'proton', label: 'Proton Bridge', imapHost: '127.0.0.1', smtpHost: '127.0.0.1', imapPort: 1143, smtpPort: 1025 },
+];
 
-function SectionCard({ children, glow }: { children: React.ReactNode; glow?: string }) {
-  return (
-    <div
-      style={{
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '24px',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      {glow && (
-        <div
-          style={{
-            position: 'absolute',
-            top: -40,
-            right: -40,
-            width: 160,
-            height: 160,
-            background: `radial-gradient(circle, ${glow}22 0%, transparent 70%)`,
-            pointerEvents: 'none',
-            filter: 'blur(20px)',
-          }}
-        />
-      )}
-      <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
-    </div>
-  );
-}
-
-function FieldLabel({ children, hint }: { children: React.ReactNode; hint?: string }) {
-  return (
-    <div style={{ marginBottom: 6 }}>
-      <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        {children}
-      </label>
-      {hint && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{hint}</p>}
-    </div>
-  );
-}
-
-function InputField({
-  value, onChange, placeholder, type = 'text', prefix, suffix, mono,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  type?: string;
-  prefix?: React.ReactNode;
-  suffix?: React.ReactNode;
-  mono?: boolean;
-}) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', overflow: 'hidden' }}>
-      {prefix && (
-        <div style={{ padding: '0 10px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', borderRight: '1px solid var(--border-subtle)', background: 'var(--bg-subtle)' }}>
-          {prefix}
-        </div>
-      )}
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        style={{
-          flex: 1,
-          padding: '9px 12px',
-          background: 'transparent',
-          border: 'none',
-          outline: 'none',
-          color: 'var(--text-primary)',
-          fontSize: 13,
-          fontFamily: mono ? 'monospace' : 'inherit',
-        }}
-      />
-      {suffix && (
-        <div style={{ padding: '0 10px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', borderLeft: '1px solid var(--border-subtle)' }}>
-          {suffix}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function NumberField({ value, onChange, min, max }: { value: number; onChange: (v: number) => void; min?: number; max?: number }) {
-  return (
-    <input
-      type="number"
-      value={value}
-      onChange={(e) => onChange(Number(e.target.value))}
-      min={min}
-      max={max}
-      style={{
-        width: '100%',
-        padding: '9px 12px',
-        background: 'var(--bg-elevated)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-md)',
-        color: 'var(--text-primary)',
-        fontSize: 13,
-        outline: 'none',
-      }}
-    />
-  );
-}
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      style={{
-        width: 44,
-        height: 24,
-        borderRadius: 12,
-        background: checked ? 'var(--accent-primary)' : 'var(--bg-elevated)',
-        border: `2px solid ${checked ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-        position: 'relative',
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-        flexShrink: 0,
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          top: 2,
-          left: checked ? 20 : 2,
-          width: 16,
-          height: 16,
-          borderRadius: '50%',
-          background: '#fff',
-          transition: 'left 0.2s ease',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
-        }}
-      />
-    </button>
-  );
-}
-
-function ToggleRow({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid var(--border-subtle)' }}>
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{label}</div>
-        {hint && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{hint}</div>}
-      </div>
-      <Toggle checked={checked} onChange={onChange} />
-    </div>
-  );
-}
-
-function SecretField({
-  value, onChange, placeholder, isSet,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  isSet?: boolean;
-}) {
-  const [show, setShow] = useState(false);
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', overflow: 'hidden' }}>
-      <input
-        type={show ? 'text' : 'password'}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={isSet && !value ? '••••••••  (stored — clear to reset)' : placeholder}
-        style={{ flex: 1, padding: '9px 12px', background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 13, fontFamily: 'monospace' }}
-      />
-      {isSet && !value && (
-        <span style={{ fontSize: 10, color: 'var(--text-accent)', padding: '0 8px', fontWeight: 600, whiteSpace: 'nowrap' }}>SET</span>
-      )}
-      <button
-        type="button"
-        onClick={() => setShow((s) => !s)}
-        style={{ padding: '0 10px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', height: '100%', display: 'flex', alignItems: 'center' }}
-      >
-        {show ? <EyeOff size={14} /> : <Eye size={14} />}
-      </button>
-    </div>
-  );
-}
-
-function InstructionStep({ number, children }: { number: number; children: React.ReactNode }) {
-  return (
-    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 10 }}>
-      <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--accent-primary)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-        {number}
-      </div>
-      <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{children}</div>
-    </div>
-  );
-}
-
-function TestResultBadge({ result }: { result: TestResult | null }) {
-  if (!result) return null;
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -4 }}
-      animate={{ opacity: 1, y: 0 }}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '8px 12px',
-        borderRadius: 'var(--radius-md)',
-        background: result.ok ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-        border: `1px solid ${result.ok ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
-        fontSize: 12,
-        color: result.ok ? '#10b981' : '#ef4444',
-      }}
-    >
-      {result.ok ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
-      <span style={{ flex: 1 }}>{result.message}</span>
-      {result.latencyMs && <span style={{ opacity: 0.7 }}>{result.latencyMs}ms</span>}
-    </motion.div>
-  );
-}
-
-function CodeBlock({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false);
-  const copyCode = () => {
-    navigator.clipboard.writeText(code).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
-  return (
-    <div style={{ position: 'relative', background: 'var(--bg-deep)', borderRadius: 'var(--radius-md)', padding: '10px 14px', fontFamily: 'monospace', fontSize: 12, color: 'var(--text-accent)', border: '1px solid var(--border-subtle)', marginTop: 6 }}>
-      <code style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{code}</code>
-      <button
-        onClick={copyCode}
-        style={{ position: 'absolute', top: 8, right: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', color: 'var(--text-muted)' }}
-      >
-        {copied ? <Check size={12} /> : <Copy size={12} />}
-      </button>
-    </div>
-  );
-}
-
-function InfoBox({ children, variant = 'info' }: { children: React.ReactNode; variant?: 'info' | 'warning' | 'tip' }) {
-  const colors = {
-    info: { bg: 'rgba(59,130,246,0.08)', border: 'rgba(59,130,246,0.25)', text: '#3b82f6' },
-    warning: { bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)', text: '#f59e0b' },
-    tip: { bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.25)', text: '#10b981' },
-  };
-  const c = colors[variant];
-  return (
-    <div style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--radius-md)', padding: '10px 14px', fontSize: 12, color: 'var(--text-secondary)', display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 16 }}>
-      <Info size={14} style={{ color: c.text, flexShrink: 0, marginTop: 1 }} />
-      <div style={{ lineHeight: 1.6 }}>{children}</div>
-    </div>
-  );
-}
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12, marginTop: 20, paddingBottom: 6, borderBottom: '1px solid var(--border-subtle)' }}>
-      {children}
-    </div>
-  );
-}
-
-// ── Gateway Status Badge ──────────────────────────────────────────────────────
-
-function GatewayCard({
-  id, icon, label, desc, color, isActive, isConfigured, isSelected, onClick,
-}: {
-  id: GatewayId;
-  icon: React.ReactNode;
-  label: string;
-  desc: string;
-  color: string;
-  isActive: boolean;
-  isConfigured: boolean;
-  isSelected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        flex: '1 1 200px',
-        minWidth: 160,
-        background: isSelected ? `${color}15` : 'var(--bg-card)',
-        border: `2px solid ${isSelected ? color : 'var(--border-subtle)'}`,
-        borderRadius: 'var(--radius-lg)',
-        padding: '16px',
-        cursor: 'pointer',
-        textAlign: 'left',
-        transition: 'all 0.2s ease',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      {isSelected && (
-        <div
-          style={{ position: 'absolute', top: -20, right: -20, width: 80, height: 80, background: `radial-gradient(circle, ${color}30, transparent 70%)`, pointerEvents: 'none' }}
-        />
-      )}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 10, background: `${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', color }}>
-          {icon}
-        </div>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            padding: '3px 8px',
-            borderRadius: 999,
-            background: isConfigured ? 'rgba(16,185,129,0.15)' : 'var(--bg-elevated)',
-            color: isConfigured ? '#10b981' : 'var(--text-muted)',
-            border: `1px solid ${isConfigured ? 'rgba(16,185,129,0.3)' : 'var(--border-subtle)'}`,
-          }}
-        >
-          {isConfigured ? '✅ Configured' : '○ Not set'}
-        </span>
-      </div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 3 }}>{label}</div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>{desc}</div>
-    </button>
-  );
-}
-
-// ── Accordion ─────────────────────────────────────────────────────────────────
-
-function Accordion({ title, children }: { title: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginTop: 12 }}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-elevated)', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600 }}
-      >
-        {title}
-        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            style={{ overflow: 'hidden' }}
-          >
-            <div style={{ padding: '14px', borderTop: '1px solid var(--border-subtle)' }}>{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-// ── Main Component ─────────────────────────────────────────────────────────────
-
-export function MessagingGatewaySettings() {
-  const [form, setForm] = useState<HermesMessagingSettings>(DEFAULT_FORM);
-  const [activeGateway, setActiveGateway] = useState<GatewayId>('telegram');
-  const [loading, setLoading] = useState(true);
+export const MessagingGatewaySettings: React.FC = () => {
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [activeGateway, setActiveGateway] = useState<GatewayId>('telegram');
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Form State
+  const [form, setForm] = useState<HermesMessagingSettings>({
+    telegramEnabled: false,
+    telegramBotToken: '',
+    telegramAllowedUsers: '',
+    telegramAllowedChats: '',
+    telegramGroupAllowedChats: '',
+    telegramRequireMention: true,
+    telegramStatusIndicator: true,
+    telegramStatusOnline: '🟢 Online',
+    telegramStatusOffline: '🔴 Offline',
+    telegramCommandMenuMax: 60,
+    telegramCommandMenuPriorityMode: 'prepend',
+    telegramObserveUnmentioned: false,
+    telegramWebhookUrl: '',
+    telegramWebhookSecret: '',
+    telegramWebhookPort: 8443,
+    whatsappEnabled: false,
+    whatsappAccessToken: '',
+    whatsappPhoneNumberId: '',
+    whatsappWabaId: '',
+    whatsappVerifyToken: '',
+    whatsappAllowedUsers: '',
+    whatsappTextBatchDelay: 2,
+    emailEnabled: false,
+    emailAddress: '',
+    emailPassword: '',
+    emailImapHost: 'imap.gmail.com',
+    emailSmtpHost: 'smtp.gmail.com',
+    emailImapPort: 993,
+    emailSmtpPort: 587,
+    emailPollInterval: 15,
+    emailAllowedUsers: '',
+    webhookEnabled: false,
+    webhookPort: 8644,
+    webhookSecret: '',
+    webhookRoutes: [],
+  });
+
+  // Sensitive Field Visibility State
+  const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
 
   // Per-platform test states
   const [testingTelegram, setTestingTelegram] = useState(false);
-  const [telegramTestResult, setTelegramTestResult] = useState<TestResult | null>(null);
+  const [telegramTestResult, setTelegramTestResult] = useState<{
+    ok: boolean;
+    botUsername?: string;
+    botName?: string;
+    botId?: number;
+    message: string;
+    latencyMs?: number;
+  } | null>(null);
+
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
-  const [whatsappTestResult, setWhatsappTestResult] = useState<TestResult | null>(null);
+  const [whatsappTestResult, setWhatsappTestResult] = useState<{
+    ok: boolean;
+    message: string;
+    latencyMs?: number;
+    displayPhoneNumber?: string;
+  } | null>(null);
+
   const [testingEmail, setTestingEmail] = useState(false);
-  const [emailTestResult, setEmailTestResult] = useState<TestResult | null>(null);
+  const [emailTestResult, setEmailTestResult] = useState<{
+    ok: boolean;
+    message: string;
+    latencyMs?: number;
+  } | null>(null);
 
-  const set = useCallback(<K extends keyof HermesMessagingSettings>(key: K, value: HermesMessagingSettings[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    setSaveMsg(null);
-  }, []);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
 
-  // Load settings on mount
   useEffect(() => {
-    api.hermes.getMessagingSettings()
-      .then((data) => {
-        if (data) setForm((prev) => ({ ...prev, ...data }));
-      })
-      .catch((err) => console.warn('Failed to load messaging settings:', err))
-      .finally(() => setLoading(false));
+    fetchSettings();
   }, []);
+
+  const fetchSettings = async () => {
+    setLoading(true);
+    try {
+      const data = await api.hermes.getMessagingSettings();
+      if (data) {
+        setForm((prev) => ({
+          ...prev,
+          ...data,
+          telegramCommandMenuMax: data.telegramCommandMenuMax || 60,
+          telegramCommandMenuPriorityMode: data.telegramCommandMenuPriorityMode || 'prepend',
+          emailPollInterval: data.emailPollInterval || 15,
+          whatsappTextBatchDelay: data.whatsappTextBatchDelay || 2,
+          webhookPort: data.webhookPort || 8644,
+          webhookRoutes: data.webhookRoutes || [],
+        }));
+      }
+    } catch (err: any) {
+      console.error('Failed to load messaging gateway settings:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
-    setSaveMsg(null);
+    setMessage(null);
     try {
       const res = await api.hermes.saveMessagingSettings(form);
-      if (res?.settings) setForm((prev) => ({ ...prev, ...res.settings }));
-      setSaveMsg({ type: 'success', text: '✅ Settings saved — gateway daemon restarting with new configuration.' });
+      if (res.success && res.settings) {
+        setForm((prev) => ({ ...prev, ...res.settings }));
+      }
+      setMessage({
+        type: 'success',
+        text: 'Messaging gateway settings saved and synchronized to ~/.hermes/config.yaml and .env! Gateway supervisor restarting...',
+      });
     } catch (err: any) {
-      setSaveMsg({ type: 'error', text: `❌ ${err?.message || 'Failed to save settings'}` });
+      setMessage({
+        type: 'error',
+        text: err?.message || 'Failed to save messaging settings',
+      });
     } finally {
       setSaving(false);
     }
@@ -487,9 +219,12 @@ export function MessagingGatewaySettings() {
     setTelegramTestResult(null);
     try {
       const res = await api.hermes.testTelegramToken(form.telegramBotToken || '');
-      setTelegramTestResult({ ok: res.ok, message: res.message, latencyMs: res.latencyMs });
+      setTelegramTestResult(res);
     } catch (err: any) {
-      setTelegramTestResult({ ok: false, message: err?.message || 'Test failed' });
+      setTelegramTestResult({
+        ok: false,
+        message: err?.message || 'Telegram bot verification failed',
+      });
     } finally {
       setTestingTelegram(false);
     }
@@ -503,9 +238,12 @@ export function MessagingGatewaySettings() {
         form.whatsappAccessToken || '',
         form.whatsappPhoneNumberId || '',
       );
-      setWhatsappTestResult({ ok: res.ok, message: res.message, latencyMs: res.latencyMs });
+      setWhatsappTestResult(res);
     } catch (err: any) {
-      setWhatsappTestResult({ ok: false, message: err?.message || 'Test failed' });
+      setWhatsappTestResult({
+        ok: false,
+        message: err?.message || 'WhatsApp Cloud credentials verification failed',
+      });
     } finally {
       setTestingWhatsApp(false);
     }
@@ -519,12 +257,21 @@ export function MessagingGatewaySettings() {
         form.emailImapHost || 'imap.gmail.com',
         form.emailImapPort || 993,
       );
-      setEmailTestResult({ ok: res.ok, message: res.message, latencyMs: res.latencyMs });
+      setEmailTestResult(res);
     } catch (err: any) {
-      setEmailTestResult({ ok: false, message: err?.message || 'Test failed' });
+      setEmailTestResult({
+        ok: false,
+        message: err?.message || 'IMAP connection verification failed',
+      });
     } finally {
       setTestingEmail(false);
     }
+  };
+
+  const handleCopy = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(label);
+    setTimeout(() => setCopiedText(null), 2000);
   };
 
   const applyEmailPreset = (presetId: string) => {
@@ -542,832 +289,1261 @@ export function MessagingGatewaySettings() {
   const addWebhookRoute = () => {
     setForm((prev) => ({
       ...prev,
-      webhookRoutes: [...(prev.webhookRoutes || []), { name: '', events: ['push'], secret: '' }],
+      webhookRoutes: [...(prev.webhookRoutes || []), { name: '', events: ['push', 'pull_request'], secret: '', profile: '' }],
     }));
   };
 
-  const removeWebhookRoute = (idx: number) => {
+  const removeWebhookRoute = (index: number) => {
     setForm((prev) => ({
       ...prev,
-      webhookRoutes: (prev.webhookRoutes || []).filter((_, i) => i !== idx),
+      webhookRoutes: (prev.webhookRoutes || []).filter((_, i) => i !== index),
     }));
   };
 
-  const updateWebhookRoute = (idx: number, field: string, value: string) => {
+  const updateWebhookRoute = (index: number, field: string, value: any) => {
     setForm((prev) => {
       const routes = [...(prev.webhookRoutes || [])];
-      routes[idx] = { ...routes[idx], [field]: field === 'events' ? value.split(',').map((s) => s.trim()).filter(Boolean) : value };
+      routes[index] = {
+        ...routes[index],
+        [field]: field === 'events' && typeof value === 'string' ? value.split(',').map((s) => s.trim()).filter(Boolean) : value,
+      };
       return { ...prev, webhookRoutes: routes };
     });
   };
 
-  const configured = form.configured || {
-    telegram: !!(form.telegramEnabled && form.telegramBotToken),
-    whatsapp: !!(form.whatsappEnabled && form.whatsappAccessToken),
-    email: !!(form.emailEnabled && form.emailAddress),
-    webhooks: !!form.webhookEnabled,
+  const toggleSecret = (field: string) => {
+    setShowSecrets((prev) => ({ ...prev, [field]: !prev[field] }));
   };
+
+  const activeMeta = GATEWAY_PROVIDERS.find((g) => g.id === activeGateway) || GATEWAY_PROVIDERS[0];
 
   const webhookCallbackUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/api/v1/hermes/messaging/whatsapp-webhook`
     : 'https://your-domain.com/api/v1/hermes/messaging/whatsapp-webhook';
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 80, color: 'var(--text-muted)' }}>
-        <Loader2 size={24} className="spin" />
-        <span style={{ marginLeft: 12 }}>Loading messaging settings…</span>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* ── Gateway Selector ──────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-        <GatewayCard
-          id="telegram"
-          icon={<Send size={18} />}
-          label="Telegram Bot"
-          desc="Long-polling / webhook via python-telegram-bot"
-          color="#2AABEE"
-          isActive={configured.telegram}
-          isConfigured={configured.telegram}
-          isSelected={activeGateway === 'telegram'}
-          onClick={() => setActiveGateway('telegram')}
-        />
-        <GatewayCard
-          id="whatsapp"
-          icon={<MessageSquare size={18} />}
-          label="WhatsApp Cloud API"
-          desc="Meta Graph API & webhooks for Business accounts"
-          color="#25D366"
-          isActive={configured.whatsapp}
-          isConfigured={configured.whatsapp}
-          isSelected={activeGateway === 'whatsapp'}
-          onClick={() => setActiveGateway('whatsapp')}
-        />
-        <GatewayCard
-          id="email"
-          icon={<Mail size={18} />}
-          label="Email (IMAP/SMTP)"
-          desc="Receive & reply via standard email protocols"
-          color="#f59e0b"
-          isActive={configured.email}
-          isConfigured={configured.email}
-          isSelected={activeGateway === 'email'}
-          onClick={() => setActiveGateway('email')}
-        />
-        <GatewayCard
-          id="webhooks"
-          icon={<Webhook size={18} />}
-          label="Webhooks"
-          desc="GitHub, GitLab & custom HTTP event triggers"
-          color="#7c3aed"
-          isActive={configured.webhooks}
-          isConfigured={configured.webhooks}
-          isSelected={activeGateway === 'webhooks'}
-          onClick={() => setActiveGateway('webhooks')}
-        />
-      </div>
-
-      {/* ── Telegram Panel ────────────────────────────────────────────────── */}
-      <AnimatePresence mode="wait">
-        {activeGateway === 'telegram' && (
-          <motion.div key="telegram" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-            {/* Enable toggle */}
-            <SectionCard glow="#2AABEE">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Send size={18} style={{ color: '#2AABEE' }} /> Telegram Gateway
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Uses long-polling by default — switches to webhook mode when TELEGRAM_WEBHOOK_URL is set
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{form.telegramEnabled ? 'Enabled' : 'Disabled'}</span>
-                  <Toggle checked={!!form.telegramEnabled} onChange={(v) => set('telegramEnabled', v)} />
-                </div>
-              </div>
-            </SectionCard>
-
-            {/* Step 1 – BotFather */}
-            <SectionCard>
-              <SectionHeader>Step 1 — Create a Telegram Bot</SectionHeader>
-              <InstructionStep number={1}>
-                Open Telegram and search for <strong>@BotFather</strong>{' '}
-                <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" style={{ color: '#2AABEE', textDecoration: 'none' }}>→ t.me/BotFather <ExternalLink size={10} style={{ verticalAlign: 'middle' }} /></a>
-              </InstructionStep>
-              <InstructionStep number={2}>
-                Send the command <code style={{ background: 'var(--bg-elevated)', padding: '1px 6px', borderRadius: 4, fontFamily: 'monospace' }}>/newbot</code>, choose a display name, then a unique username ending in <code style={{ background: 'var(--bg-elevated)', padding: '1px 6px', borderRadius: 4, fontFamily: 'monospace' }}>bot</code> (e.g. <em>my_hermes_bot</em>)
-              </InstructionStep>
-              <InstructionStep number={3}>
-                Copy the <strong>HTTP API token</strong> BotFather gives you — it looks like:<br />
-                <code style={{ fontFamily: 'monospace', fontSize: 12 }}>123456789:ABCdefGHIjklMNOpqrSTUvwxYZ</code>
-              </InstructionStep>
-
-              <div style={{ marginTop: 20 }}>
-                <FieldLabel hint="Keep this secret — anyone with this token controls your bot">
-                  Bot Token (TELEGRAM_BOT_TOKEN)
-                </FieldLabel>
-                <SecretField
-                  value={form.telegramBotToken || ''}
-                  onChange={(v) => set('telegramBotToken', v)}
-                  placeholder="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ"
-                  isSet={!!form.telegramBotTokenSet}
-                />
-                <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={handleTestTelegram}
-                    disabled={testingTelegram || !form.telegramBotToken}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', background: '#2AABEE20', border: '1px solid #2AABEE50', borderRadius: 'var(--radius-md)', color: '#2AABEE', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: testingTelegram || !form.telegramBotToken ? 0.5 : 1 }}
-                  >
-                    {testingTelegram ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}
-                    Test Token
-                  </button>
-                </div>
-                {telegramTestResult && <div style={{ marginTop: 8 }}><TestResultBadge result={telegramTestResult} /></div>}
-              </div>
-            </SectionCard>
-
-            {/* Step 2 – User IDs */}
-            <SectionCard>
-              <SectionHeader>Step 2 — Find Your User ID & Set Access</SectionHeader>
-              <InfoBox variant="tip">
-                Hermes uses numeric Telegram User IDs for access control. Your ID is a number like <strong>123456789</strong> — not your @username.
-                Message <a href="https://t.me/userinfobot" target="_blank" rel="noopener" style={{ color: '#10b981' }}>@userinfobot</a> to get yours instantly.
-              </InfoBox>
-
-              <FieldLabel hint="Comma-separated numeric user IDs that can interact with the bot">
-                Allowed User IDs (TELEGRAM_ALLOWED_USERS)
-              </FieldLabel>
-              <InputField
-                value={form.telegramAllowedUsers || ''}
-                onChange={(v) => set('telegramAllowedUsers', v)}
-                placeholder="123456789, 987654321"
-                prefix={<Hash size={12} />}
-              />
-
-              <div style={{ marginTop: 14 }}>
-                <FieldLabel hint="Comma-separated chat IDs (use negative IDs for groups)">
-                  Allowed Chat IDs (TELEGRAM_ALLOWED_CHATS) — optional
-                </FieldLabel>
-                <InputField
-                  value={form.telegramAllowedChats || ''}
-                  onChange={(v) => set('telegramAllowedChats', v)}
-                  placeholder="-1001234567890"
-                  prefix={<Hash size={12} />}
-                />
-              </div>
-            </SectionCard>
-
-            {/* Step 3 – Group behavior */}
-            <SectionCard>
-              <SectionHeader>Step 3 — Group Chat Behavior</SectionHeader>
-              <InfoBox variant="warning">
-                By default Telegram bots in groups only see messages starting with <code>/</code> (privacy mode).
-                Disable privacy in <a href="https://t.me/BotFather" target="_blank" rel="noopener" style={{ color: '#f59e0b' }}>@BotFather → Bot Settings → Group Privacy → Turn Off</a>, then remove and re-add the bot from any affected groups.
-              </InfoBox>
-
-              <ToggleRow
-                label="Require @mention in groups"
-                hint="Bot only replies in group chats when directly @mentioned — prevents unwanted spam"
-                checked={!!form.telegramRequireMention}
-                onChange={(v) => set('telegramRequireMention', v)}
-              />
-              <ToggleRow
-                label="Observe unmentioned group messages"
-                hint="Append group messages to context without triggering the agent — enables Yuanbao-style group awareness"
-                checked={!!form.telegramObserveUnmentioned}
-                onChange={(v) => set('telegramObserveUnmentioned', v)}
-              />
-              {form.telegramObserveUnmentioned && (
-                <div style={{ marginTop: 10 }}>
-                  <FieldLabel hint="Same IDs as Allowed Chat IDs for observe mode">
-                    Group Allowed Chats (TELEGRAM_GROUP_ALLOWED_CHATS)
-                  </FieldLabel>
-                  <InputField
-                    value={form.telegramGroupAllowedChats || ''}
-                    onChange={(v) => set('telegramGroupAllowedChats', v)}
-                    placeholder="-1001234567890"
-                    prefix={<Hash size={12} />}
-                  />
-                </div>
-              )}
-            </SectionCard>
-
-            {/* Step 4 – Advanced */}
-            <SectionCard>
-              <SectionHeader>Step 4 — Advanced Options</SectionHeader>
-
-              <ToggleRow
-                label="Status indicator"
-                hint="Updates bot's short description to 🟢 Online / 🔴 Offline on gateway connect / shutdown"
-                checked={!!form.telegramStatusIndicator}
-                onChange={(v) => set('telegramStatusIndicator', v)}
-              />
-
-              {form.telegramStatusIndicator && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
-                  <div>
-                    <FieldLabel>Online Status Text</FieldLabel>
-                    <InputField value={form.telegramStatusOnline || '🟢 Online'} onChange={(v) => set('telegramStatusOnline', v)} />
-                  </div>
-                  <div>
-                    <FieldLabel>Offline Status Text</FieldLabel>
-                    <InputField value={form.telegramStatusOffline || '🔴 Offline'} onChange={(v) => set('telegramStatusOffline', v)} />
-                  </div>
-                </div>
-              )}
-
-              <div style={{ marginTop: 16 }}>
-                <FieldLabel hint="Telegram allows max 100 commands, Hermes defaults to 60 for reliability">
-                  Command Menu Max Commands
-                </FieldLabel>
-                <NumberField value={form.telegramCommandMenuMax ?? 60} onChange={(v) => set('telegramCommandMenuMax', v)} min={1} max={100} />
-              </div>
-
-              <div style={{ marginTop: 14 }}>
-                <FieldLabel hint="How your priority commands are combined with Hermes built-ins">
-                  Command Priority Mode
-                </FieldLabel>
-                <select
-                  value={form.telegramCommandMenuPriorityMode || 'prepend'}
-                  onChange={(e) => set('telegramCommandMenuPriorityMode', e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: 13 }}
-                >
-                  <option value="prepend">prepend — your commands first, then Hermes defaults</option>
-                  <option value="append">append — Hermes defaults first, then your commands</option>
-                  <option value="replace">replace — use only your list for ordering</option>
-                </select>
-              </div>
-
-              {/* Webhook mode section */}
-              <Accordion title="☁️ Webhook Mode (for cloud deployments — Fly.io, Railway, Render)">
-                <InfoBox variant="info">
-                  Webhook mode lets Telegram push updates to your HTTPS URL instead of the bot polling. Required for sleep-when-idle cloud deployments where outbound polling prevents sleeping.
-                  When <code>TELEGRAM_WEBHOOK_URL</code> is set, the gateway starts an HTTP webhook server instead of polling.
-                </InfoBox>
-                <FieldLabel hint="Your public HTTPS URL — must be accessible from the internet">
-                  Webhook URL (TELEGRAM_WEBHOOK_URL)
-                </FieldLabel>
-                <InputField
-                  value={form.telegramWebhookUrl || ''}
-                  onChange={(v) => set('telegramWebhookUrl', v)}
-                  placeholder="https://my-app.fly.dev/telegram"
-                  prefix={<Globe size={12} />}
-                />
-                <div style={{ marginTop: 12 }}>
-                  <FieldLabel hint="Required secret for validating Telegram requests — generate with: openssl rand -hex 32">
-                    Webhook Secret (TELEGRAM_WEBHOOK_SECRET)
-                  </FieldLabel>
-                  <SecretField
-                    value={form.telegramWebhookSecret || ''}
-                    onChange={(v) => set('telegramWebhookSecret', v)}
-                    placeholder="random hex secret"
-                    isSet={!!form.telegramWebhookSecretSet}
-                  />
-                </div>
-                <div style={{ marginTop: 12 }}>
-                  <FieldLabel>Webhook Port (TELEGRAM_WEBHOOK_PORT)</FieldLabel>
-                  <NumberField value={form.telegramWebhookPort ?? 8443} onChange={(v) => set('telegramWebhookPort', v)} min={1024} max={65535} />
-                </div>
-              </Accordion>
-            </SectionCard>
-
-          </motion.div>
-        )}
-
-        {/* ── WhatsApp Panel ──────────────────────────────────────────────── */}
-        {activeGateway === 'whatsapp' && (
-          <motion.div key="whatsapp" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-            <SectionCard glow="#25D366">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <MessageSquare size={18} style={{ color: '#25D366' }} /> WhatsApp Business Cloud API
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Uses Meta Graph API & webhooks — requires a WhatsApp Business Account
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{form.whatsappEnabled ? 'Enabled' : 'Disabled'}</span>
-                  <Toggle checked={!!form.whatsappEnabled} onChange={(v) => set('whatsappEnabled', v)} />
-                </div>
-              </div>
-            </SectionCard>
-
-            {/* Step 1 – Meta Developer Setup */}
-            <SectionCard>
-              <SectionHeader>Step 1 — Meta Developer App Setup</SectionHeader>
-              <InstructionStep number={1}>
-                Go to <a href="https://developers.facebook.com" target="_blank" rel="noopener" style={{ color: '#25D366' }}>developers.facebook.com <ExternalLink size={10} style={{ verticalAlign: 'middle' }} /></a> → Create App → Business type → Add WhatsApp product
-              </InstructionStep>
-              <InstructionStep number={2}>
-                Navigate to <strong>Meta Business Settings → Users → System Users</strong> → Create a System User → Assign it the <em>WhatsApp</em> asset with <strong>Full Control</strong>
-              </InstructionStep>
-              <InstructionStep number={3}>
-                Generate a <strong>Permanent System User Token</strong> (never expires) by clicking Generate Token on the System User page. Select your app and the <code>whatsapp_business_messaging</code> + <code>whatsapp_business_management</code> permissions.
-              </InstructionStep>
-              <InstructionStep number={4}>
-                In the Meta App Dashboard, navigate to <strong>WhatsApp → Configuration</strong> and set the Webhook Callback URL:
-              </InstructionStep>
-              <FieldLabel>Your Webhook Callback URL</FieldLabel>
-              <CodeBlock code={webhookCallbackUrl} />
-            </SectionCard>
-
-            {/* Step 2 – Credentials */}
-            <SectionCard>
-              <SectionHeader>Step 2 — Enter API Credentials</SectionHeader>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div>
-                  <FieldLabel hint="Permanent System User Access Token (starts with EAAG...)">
-                    Access Token (WHATSAPP_CLOUD_ACCESS_TOKEN)
-                  </FieldLabel>
-                  <SecretField
-                    value={form.whatsappAccessToken || ''}
-                    onChange={(v) => set('whatsappAccessToken', v)}
-                    placeholder="EAAG..."
-                    isSet={!!form.whatsappAccessTokenSet}
-                  />
-                </div>
-                <div>
-                  <FieldLabel hint="Numeric Phone Number ID from Meta Dashboard (not the phone number itself)">
-                    Phone Number ID (WHATSAPP_CLOUD_PHONE_NUMBER_ID)
-                  </FieldLabel>
-                  <InputField
-                    value={form.whatsappPhoneNumberId || ''}
-                    onChange={(v) => set('whatsappPhoneNumberId', v)}
-                    placeholder="100609321..."
-                    mono
-                  />
-                </div>
-                <div>
-                  <FieldLabel hint="WhatsApp Business Account ID (WABA ID) from Meta Dashboard">
-                    WABA ID (WHATSAPP_CLOUD_WABA_ID)
-                  </FieldLabel>
-                  <InputField
-                    value={form.whatsappWabaId || ''}
-                    onChange={(v) => set('whatsappWabaId', v)}
-                    placeholder="101509123..."
-                    mono
-                  />
-                </div>
-                <div>
-                  <FieldLabel hint="Your custom secret string for validating Meta webhook subscriptions">
-                    Webhook Verify Token (WHATSAPP_CLOUD_VERIFY_TOKEN)
-                  </FieldLabel>
-                  <InputField
-                    value={form.whatsappVerifyToken || ''}
-                    onChange={(v) => set('whatsappVerifyToken', v)}
-                    placeholder="my_custom_verify_secret"
-                    mono
-                  />
-                </div>
-              </div>
-
-              <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={handleTestWhatsApp}
-                  disabled={testingWhatsApp || !form.whatsappAccessToken || !form.whatsappPhoneNumberId}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', background: '#25D36620', border: '1px solid #25D36650', borderRadius: 'var(--radius-md)', color: '#25D366', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: testingWhatsApp || !form.whatsappAccessToken ? 0.5 : 1 }}
-                >
-                  {testingWhatsApp ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}
-                  Verify Credentials
-                </button>
-              </div>
-              {whatsappTestResult && <div style={{ marginTop: 8 }}><TestResultBadge result={whatsappTestResult} /></div>}
-            </SectionCard>
-
-            {/* Step 3 – Access control + behavior */}
-            <SectionCard>
-              <SectionHeader>Step 3 — Access Control & Behavior</SectionHeader>
-
-              <FieldLabel hint="Comma-separated E.164 phone numbers (with country code, no +) — e.g. 15551234567">
-                Allowed Sender Phone Numbers (WHATSAPP_CLOUD_ALLOWED_USERS)
-              </FieldLabel>
-              <InputField
-                value={form.whatsappAllowedUsers || ''}
-                onChange={(v) => set('whatsappAllowedUsers', v)}
-                placeholder="15551234567, 447911123456"
-                prefix={<Hash size={12} />}
-              />
-
-              <div style={{ marginTop: 14 }}>
-                <FieldLabel hint="Seconds to wait before sending a text reply (batches multiple sends)">
-                  Text Batch Delay Seconds
-                </FieldLabel>
-                <NumberField value={form.whatsappTextBatchDelay ?? 2} onChange={(v) => set('whatsappTextBatchDelay', v)} min={0} max={30} />
-              </div>
-            </SectionCard>
-
-          </motion.div>
-        )}
-
-        {/* ── Email Panel ────────────────────────────────────────────────────── */}
-        {activeGateway === 'email' && (
-          <motion.div key="email" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-            <SectionCard glow="#f59e0b">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Mail size={18} style={{ color: '#f59e0b' }} /> Email Gateway (IMAP / SMTP)
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Hermes polls the mailbox every {form.emailPollInterval || 15}s via IMAP and replies via SMTP
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{form.emailEnabled ? 'Enabled' : 'Disabled'}</span>
-                  <Toggle checked={!!form.emailEnabled} onChange={(v) => set('emailEnabled', v)} />
-                </div>
-              </div>
-            </SectionCard>
-
-            {/* Provider presets */}
-            <SectionCard>
-              <SectionHeader>Quick Setup — Email Provider Presets</SectionHeader>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                {EMAIL_PRESETS.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => applyEmailPreset(p.id)}
-                    style={{ padding: '6px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, transition: 'all 0.15s ease' }}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div>
-                  <FieldLabel hint="The email address Hermes will use as its inbox (EMAIL_ADDRESS)">
-                    Agent Email Address
-                  </FieldLabel>
-                  <InputField
-                    value={form.emailAddress || ''}
-                    onChange={(v) => set('emailAddress', v)}
-                    placeholder="hermes@gmail.com"
-                    type="email"
-                    prefix={<Mail size={12} />}
-                  />
-                </div>
-                <div>
-                  <FieldLabel hint="Use an App Password (NOT your account password) — required for Gmail, Yahoo, Outlook">
-                    App Password (EMAIL_PASSWORD)
-                  </FieldLabel>
-                  <SecretField
-                    value={form.emailPassword || ''}
-                    onChange={(v) => set('emailPassword', v)}
-                    placeholder="xxxx xxxx xxxx xxxx"
-                    isSet={!!form.emailPasswordSet}
-                  />
-                </div>
-              </div>
-
-              {/* IMAP */}
-              <div style={{ marginTop: 16 }}>
-                <SectionHeader>IMAP (Incoming)</SectionHeader>
-                <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 10 }}>
-                  <div>
-                    <FieldLabel>IMAP Host (EMAIL_IMAP_HOST)</FieldLabel>
-                    <InputField value={form.emailImapHost || 'imap.gmail.com'} onChange={(v) => set('emailImapHost', v)} placeholder="imap.gmail.com" mono />
-                  </div>
-                  <div>
-                    <FieldLabel>Port (EMAIL_IMAP_PORT)</FieldLabel>
-                    <NumberField value={form.emailImapPort ?? 993} onChange={(v) => set('emailImapPort', v)} min={1} max={65535} />
-                  </div>
-                </div>
-              </div>
-
-              {/* SMTP */}
-              <div style={{ marginTop: 14 }}>
-                <SectionHeader>SMTP (Outgoing)</SectionHeader>
-                <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 10 }}>
-                  <div>
-                    <FieldLabel>SMTP Host (EMAIL_SMTP_HOST)</FieldLabel>
-                    <InputField value={form.emailSmtpHost || 'smtp.gmail.com'} onChange={(v) => set('emailSmtpHost', v)} placeholder="smtp.gmail.com" mono />
-                  </div>
-                  <div>
-                    <FieldLabel>Port (EMAIL_SMTP_PORT)</FieldLabel>
-                    <NumberField value={form.emailSmtpPort ?? 587} onChange={(v) => set('emailSmtpPort', v)} min={1} max={65535} />
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={handleTestEmail}
-                  disabled={testingEmail || !form.emailImapHost}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', background: '#f59e0b20', border: '1px solid #f59e0b50', borderRadius: 'var(--radius-md)', color: '#f59e0b', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: testingEmail || !form.emailImapHost ? 0.5 : 1 }}
-                >
-                  {testingEmail ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}
-                  Test IMAP Connection
-                </button>
-              </div>
-              {emailTestResult && <div style={{ marginTop: 8 }}><TestResultBadge result={emailTestResult} /></div>}
-            </SectionCard>
-
-            {/* Access control + polling */}
-            <SectionCard>
-              <SectionHeader>Access Control & Polling</SectionHeader>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div>
-                  <FieldLabel hint="How often Hermes checks for new emails (in seconds)">
-                    Poll Interval (EMAIL_POLL_INTERVAL) — seconds
-                  </FieldLabel>
-                  <NumberField value={form.emailPollInterval ?? 15} onChange={(v) => set('emailPollInterval', v)} min={5} max={3600} />
-                </div>
-                <div>
-                  <FieldLabel hint="Comma-separated email addresses that can send tasks to Hermes">
-                    Allowed Senders (EMAIL_ALLOWED_USERS)
-                  </FieldLabel>
-                  <InputField
-                    value={form.emailAllowedUsers || ''}
-                    onChange={(v) => set('emailAllowedUsers', v)}
-                    placeholder="user@company.com, boss@corp.com"
-                    prefix={<Mail size={12} />}
-                  />
-                </div>
-              </div>
-            </SectionCard>
-
-            {/* Gmail App Password guide */}
-            <Accordion title="📋 How to create a Gmail App Password">
-              <InstructionStep number={1}>
-                Go to <a href="https://myaccount.google.com/security" target="_blank" rel="noopener" style={{ color: '#f59e0b' }}>myaccount.google.com/security</a> and enable <strong>2-Step Verification</strong> if not already on
-              </InstructionStep>
-              <InstructionStep number={2}>
-                Search for <strong>"App Passwords"</strong> in your Google Account or visit <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener" style={{ color: '#f59e0b' }}>myaccount.google.com/apppasswords</a>
-              </InstructionStep>
-              <InstructionStep number={3}>
-                Click <strong>Create</strong>, choose "Mail" and "Other (Custom name)", name it "Hermes" — copy the 16-character code
-              </InstructionStep>
-              <InstructionStep number={4}>
-                Paste the 16-character App Password (without spaces) in the <em>App Password</em> field above
-              </InstructionStep>
-            </Accordion>
-
-          </motion.div>
-        )}
-
-        {/* ── Webhooks Panel ────────────────────────────────────────────────── */}
-        {activeGateway === 'webhooks' && (
-          <motion.div key="webhooks" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-            <SectionCard glow="#7c3aed">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Webhook size={18} style={{ color: '#7c3aed' }} /> Webhook Event Server
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                    HTTP server listening on port {form.webhookPort || 8644} — receives GitHub, GitLab and custom events
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{form.webhookEnabled ? 'Enabled' : 'Disabled'}</span>
-                  <Toggle checked={!!form.webhookEnabled} onChange={(v) => set('webhookEnabled', v)} />
-                </div>
-              </div>
-            </SectionCard>
-
-            <SectionCard>
-              <SectionHeader>Server Configuration</SectionHeader>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div>
-                  <FieldLabel hint="TCP port the webhook HTTP server listens on (WEBHOOK_PORT)">
-                    Listener Port
-                  </FieldLabel>
-                  <NumberField value={form.webhookPort ?? 8644} onChange={(v) => set('webhookPort', v)} min={1024} max={65535} />
-                </div>
-                <div>
-                  <FieldLabel hint="Global HMAC-SHA256 secret for validating all incoming webhook payloads (WEBHOOK_SECRET)">
-                    Global HMAC Secret (WEBHOOK_SECRET)
-                  </FieldLabel>
-                  <SecretField
-                    value={form.webhookSecret || ''}
-                    onChange={(v) => set('webhookSecret', v)}
-                    placeholder="global_hmac_secret"
-                    isSet={!!form.webhookSecretSet}
-                  />
-                </div>
-              </div>
-
-              <div style={{ marginTop: 16 }}>
-                <FieldLabel>Your Webhook Base URL</FieldLabel>
-                <CodeBlock code={`${typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}:${form.webhookPort || 8644}`} />
-              </div>
-            </SectionCard>
-
-            {/* Route Configurator */}
-            <SectionCard>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <div>
-                  <SectionHeader>Webhook Routes</SectionHeader>
-                </div>
-                <button
-                  type="button"
-                  onClick={addWebhookRoute}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: '#7c3aed20', border: '1px solid #7c3aed50', borderRadius: 'var(--radius-md)', cursor: 'pointer', color: '#7c3aed', fontSize: 12, fontWeight: 600 }}
-                >
-                  <Plus size={13} /> Add Route
-                </button>
-              </div>
-
-              <InfoBox variant="info">
-                Each route tells Hermes which events from a specific integration (e.g. GitHub) should trigger the agent.
-                The route name becomes the URL path: <code>/your-route-name</code>.
-                Per-route secrets override the global HMAC secret for that integration.
-              </InfoBox>
-
-              {(form.webhookRoutes || []).length === 0 && (
-                <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 13 }}>
-                  <Webhook size={28} style={{ opacity: 0.3, marginBottom: 10, display: 'block', margin: '0 auto 10px' }} />
-                  No routes configured yet. Click <strong>Add Route</strong> to create one.
-                </div>
-              )}
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {(form.webhookRoutes || []).map((route, idx) => (
-                  <motion.div
-                    key={idx}
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '14px', position: 'relative' }}
-                  >
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                      <div>
-                        <FieldLabel>Route Name (URL path segment)</FieldLabel>
-                        <InputField
-                          value={route.name}
-                          onChange={(v) => updateWebhookRoute(idx, 'name', v)}
-                          placeholder="github-events"
-                          prefix={<span style={{ fontSize: 11 }}>/</span>}
-                        />
-                      </div>
-                      <div>
-                        <FieldLabel hint="Comma-separated — e.g. push, pull_request, issues">
-                          Event Types to Handle
-                        </FieldLabel>
-                        <InputField
-                          value={(route.events || []).join(', ')}
-                          onChange={(v) => updateWebhookRoute(idx, 'events', v)}
-                          placeholder="push, pull_request, issues"
-                        />
-                      </div>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                      <div>
-                        <FieldLabel hint="Per-route HMAC secret — overrides global secret for this integration">
-                          Per-Route Secret (optional)
-                        </FieldLabel>
-                        <InputField
-                          value={route.secret || ''}
-                          onChange={(v) => updateWebhookRoute(idx, 'secret', v)}
-                          placeholder="per_route_secret"
-                          type="password"
-                        />
-                      </div>
-                      <div>
-                        <FieldLabel hint="Agent profile or skill set to activate for this route">
-                          Agent Profile (optional)
-                        </FieldLabel>
-                        <InputField
-                          value={route.profile || ''}
-                          onChange={(v) => updateWebhookRoute(idx, 'profile', v)}
-                          placeholder="devops-agent"
-                        />
-                      </div>
-                    </div>
-
-                    {route.name && (
-                      <div style={{ marginTop: 10 }}>
-                        <FieldLabel>Webhook URL for this route</FieldLabel>
-                        <CodeBlock code={`${typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}:${form.webhookPort || 8644}/${route.name}`} />
-                      </div>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => removeWebhookRoute(idx)}
-                      style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', color: '#ef4444' }}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </motion.div>
-                ))}
-              </div>
-
-              <Accordion title="🔑 Supported event types by platform">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>GitHub</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 2, fontFamily: 'monospace' }}>
-                      push · pull_request · issues · issue_comment<br />
-                      create · delete · release · workflow_run<br />
-                      check_run · check_suite · deployment<br />
-                      deployment_status · status · star
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>GitLab</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 2, fontFamily: 'monospace' }}>
-                      push · merge_request · issues · note<br />
-                      confidential_issues · confidential_note<br />
-                      tag_push · pipeline · job · wiki_page<br />
-                      deployment · release · feature_flag
-                    </div>
-                  </div>
-                </div>
-              </Accordion>
-            </SectionCard>
-
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Save Bar ─────────────────────────────────────────────────────────── */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%' }}>
+      {/* ── Top Status Overview Banner ─────────────────────────────────── */}
       <div
+        className="glass-card"
         style={{
-          position: 'sticky',
-          bottom: 0,
+          padding: '20px 24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: 14,
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-lg)',
-          padding: '14px 20px',
-          boxShadow: '0 -4px 24px rgba(0,0,0,0.15)',
-          zIndex: 10,
+          flexWrap: 'wrap',
+          gap: 16,
+          borderLeft: '4px solid var(--primary)',
         }}
       >
-        <div style={{ flex: 1 }}>
-          <AnimatePresence>
-            {saveMsg && (
-              <motion.div
-                key="savemsg"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
-                style={{
-                  fontSize: 13,
-                  color: saveMsg.type === 'success' ? '#10b981' : '#ef4444',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                {saveMsg.type === 'success' ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
-                {saveMsg.text}
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--primary)',
+            }}
+          >
+            <RiMessengerLine size={24} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Messaging Gateways &amp; Webhooks</h2>
+              <span className="badge badge-primary">Gateway Daemon</span>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+              Configure multi-channel communication (<code>hermes gateway</code>) for Telegram, WhatsApp, Email, and Webhooks
+            </p>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              padding: '6px 12px',
+              background: 'var(--bg-elevated)',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span style={{ color: 'var(--text-secondary)' }}>Telegram:</span>
+            <strong style={{ color: form.telegramEnabled ? 'var(--success, #10b981)' : 'var(--text-muted)' }}>
+              {form.telegramEnabled ? (form.telegramBotTokenSet || form.telegramBotToken ? '🟢 Active' : '🟡 Token Missing') : '⚪ Off'}
+            </strong>
+          </div>
+
+          <div
+            style={{
+              padding: '6px 12px',
+              background: 'var(--bg-elevated)',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span style={{ color: 'var(--text-secondary)' }}>WhatsApp:</span>
+            <strong style={{ color: form.whatsappEnabled ? 'var(--success, #10b981)' : 'var(--text-muted)' }}>
+              {form.whatsappEnabled ? '🟢 Active' : '⚪ Off'}
+            </strong>
+          </div>
+
+          <div
+            style={{
+              padding: '6px 12px',
+              background: 'var(--bg-elevated)',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span style={{ color: 'var(--text-secondary)' }}>Email:</span>
+            <strong style={{ color: form.emailEnabled ? 'var(--success, #10b981)' : 'var(--text-muted)' }}>
+              {form.emailEnabled ? '🟢 IMAP:993' : '⚪ Off'}
+            </strong>
+          </div>
+
+          <div
+            style={{
+              padding: '6px 12px',
+              background: 'var(--bg-elevated)',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span style={{ color: 'var(--text-secondary)' }}>Webhooks:</span>
+            <strong style={{ color: form.webhookEnabled ? 'var(--success, #10b981)' : 'var(--text-muted)' }}>
+              {form.webhookEnabled ? `🟢 Port ${form.webhookPort || 8644}` : '⚪ Off'}
+            </strong>
+          </div>
+        </div>
+      </div>
+
+      {message && (
+        <div className={`alert alert-${message.type}`} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {message.type === 'success' ? <RiCheckLine size={18} /> : <RiAlertLine size={18} />}
+          <span>{message.text}</span>
+        </div>
+      )}
+
+      {/* ── 1. Gateway Channel Selection Grid ──────────────────────────── */}
+      <section className="glass-card" style={{ padding: 24 }}>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <RiStackLine size={18} style={{ color: 'var(--primary)' }} />
+            <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Messaging Platform Gateways</h3>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+            Select a communication channel below to configure authentication tokens, access control, and behavior parameters
+          </p>
+        </div>
+
+        <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '10px 24px',
-            background: saving ? 'var(--bg-elevated)' : 'linear-gradient(135deg, #7c3aed, #06b6d4)',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            color: '#fff',
-            cursor: saving ? 'not-allowed' : 'pointer',
-            fontSize: 14,
-            fontWeight: 700,
-            letterSpacing: '-0.01em',
-            transition: 'all 0.2s ease',
-            opacity: saving ? 0.6 : 1,
-            boxShadow: saving ? 'none' : '0 4px 16px rgba(124,58,237,0.35)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: 14,
           }}
         >
-          {saving ? (
-            <><Loader2 size={16} className="spin" /> Applying…</>
-          ) : (
-            <><Save size={16} /> Save & Apply Gateway Settings</>
+          {GATEWAY_PROVIDERS.map((provider) => {
+            const isSelected = activeGateway === provider.id;
+            const Icon = provider.icon;
+            let isEnabled = false;
+            if (provider.id === 'telegram') isEnabled = !!form.telegramEnabled;
+            if (provider.id === 'whatsapp') isEnabled = !!form.whatsappEnabled;
+            if (provider.id === 'email') isEnabled = !!form.emailEnabled;
+            if (provider.id === 'webhooks') isEnabled = !!form.webhookEnabled;
+
+            return (
+              <div
+                key={provider.id}
+                onClick={() => setActiveGateway(provider.id)}
+                style={{
+                  padding: 16,
+                  borderRadius: 'var(--radius-md)',
+                  background: isSelected ? 'var(--bg-elevated)' : 'var(--bg-card)',
+                  border: `2px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                  boxShadow: isSelected ? '0 4px 18px rgba(124, 58, 237, 0.15)' : 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 'var(--radius-sm)',
+                        background: isSelected ? 'var(--primary)' : 'var(--bg-elevated)',
+                        color: isSelected ? '#ffffff' : 'var(--primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Icon size={18} />
+                    </div>
+                    <div>
+                      <h4 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>{provider.name}</h4>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: isEnabled ? 'var(--success, #10b981)' : 'var(--text-secondary)',
+                        }}
+                      >
+                        {isEnabled ? '● Active Channel' : '○ Disabled'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {isSelected && (
+                    <div
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: '50%',
+                        background: 'var(--primary)',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <RiCheckLine size={14} />
+                    </div>
+                  )}
+                </div>
+
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4, flexGrow: 1 }}>
+                  {provider.description}
+                </p>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingTop: 8,
+                    borderTop: '1px solid var(--border)',
+                    fontSize: 11,
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  <span>Protocol: {provider.channelType}</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-accent)' }}>
+                    {provider.badge}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ── 2. Active Gateway Configuration Studio ─────────────────────── */}
+      <section className="glass-card" style={{ padding: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {activeGateway === 'telegram' && <RiTelegramLine size={22} style={{ color: '#2AABEE' }} />}
+            {activeGateway === 'whatsapp' && <RiWhatsappLine size={22} style={{ color: '#25D366' }} />}
+            {activeGateway === 'email' && <RiMailLine size={22} style={{ color: '#f59e0b' }} />}
+            {activeGateway === 'webhooks' && <RiWebhookLine size={22} style={{ color: '#7c3aed' }} />}
+            <div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>
+                {activeMeta.name} Configuration
+              </h3>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
+                Manage authentication credentials, ACLs, and runtime behavior parameters
+              </p>
+            </div>
+          </div>
+
+          {/* Master Enable/Disable Button */}
+          {activeGateway === 'telegram' && (
+            <button
+              type="button"
+              className={form.telegramEnabled ? 'btn btn-primary' : 'btn btn-secondary'}
+              onClick={() => setForm({ ...form, telegramEnabled: !form.telegramEnabled })}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <RiCheckLine size={16} />
+              {form.telegramEnabled ? 'Telegram Gateway Enabled' : 'Enable Telegram Gateway'}
+            </button>
           )}
-        </button>
+
+          {activeGateway === 'whatsapp' && (
+            <button
+              type="button"
+              className={form.whatsappEnabled ? 'btn btn-primary' : 'btn btn-secondary'}
+              onClick={() => setForm({ ...form, whatsappEnabled: !form.whatsappEnabled })}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <RiCheckLine size={16} />
+              {form.whatsappEnabled ? 'WhatsApp Cloud Enabled' : 'Enable WhatsApp Cloud'}
+            </button>
+          )}
+
+          {activeGateway === 'email' && (
+            <button
+              type="button"
+              className={form.emailEnabled ? 'btn btn-primary' : 'btn btn-secondary'}
+              onClick={() => setForm({ ...form, emailEnabled: !form.emailEnabled })}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <RiCheckLine size={16} />
+              {form.emailEnabled ? 'Email Gateway Enabled' : 'Enable Email Gateway'}
+            </button>
+          )}
+
+          {activeGateway === 'webhooks' && (
+            <button
+              type="button"
+              className={form.webhookEnabled ? 'btn btn-primary' : 'btn btn-secondary'}
+              onClick={() => setForm({ ...form, webhookEnabled: !form.webhookEnabled })}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <RiCheckLine size={16} />
+              {form.webhookEnabled ? 'Webhook Server Enabled' : 'Enable Webhook Server'}
+            </button>
+          )}
+        </div>
+
+        {/* ── TELEGRAM PANEL ────────────────────────────────────────── */}
+        {activeGateway === 'telegram' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* BotFather Quick Setup Guide */}
+            <div
+              style={{
+                padding: 16,
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 12,
+              }}
+            >
+              <RiInformationLine size={22} style={{ color: '#2AABEE', flexShrink: 0, marginTop: 2 }} />
+              <div style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                <strong style={{ color: 'var(--text-primary)' }}>Quick Telegram Setup via @BotFather:</strong>
+                <ol style={{ margin: '6px 0 0 16px', padding: 0 }}>
+                  <li>Open Telegram and message <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" style={{ color: '#2AABEE', textDecoration: 'none', fontWeight: 600 }}>@BotFather <RiExternalLinkLine style={{ verticalAlign: 'middle' }} /></a>.</li>
+                  <li>Send <code>/newbot</code>, choose a bot name, and a unique username ending with <code>bot</code>.</li>
+                  <li>Paste the resulting <strong>HTTP API Token</strong> into the field below and click <strong>Verify Token</strong>.</li>
+                  <li>To find your user ID for access control, send any message to <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" style={{ color: '#2AABEE', textDecoration: 'none', fontWeight: 600 }}>@userinfobot <RiExternalLinkLine style={{ verticalAlign: 'middle' }} /></a>.</li>
+                </ol>
+              </div>
+            </div>
+
+            {/* Telegram Credentials Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  Bot Token (<code>TELEGRAM_BOT_TOKEN</code>)
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showSecrets['telegramBotToken'] ? 'text' : 'password'}
+                    className="form-input"
+                    placeholder={form.telegramBotTokenSet && !form.telegramBotToken ? '•••••••• (Stored Securely)' : '123456789:ABCdefGHIjklMNOpqrSTUvwxYZ'}
+                    value={form.telegramBotToken || ''}
+                    onChange={(e) => setForm({ ...form, telegramBotToken: e.target.value })}
+                    style={{ paddingRight: 40 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleSecret('telegramBotToken')}
+                    style={{
+                      position: 'absolute',
+                      right: 10,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {showSecrets['telegramBotToken'] ? <RiEyeOffLine size={16} /> : <RiEyeLine size={16} />}
+                  </button>
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                  {form.telegramBotTokenSet ? 'Token configured in database.' : 'Enter bot token issued by @BotFather'}
+                </span>
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  Allowed User IDs (<code>TELEGRAM_ALLOWED_USERS</code>)
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="123456789, 987654321"
+                  value={form.telegramAllowedUsers || ''}
+                  onChange={(e) => setForm({ ...form, telegramAllowedUsers: e.target.value })}
+                />
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                  Comma-separated numeric user IDs authorized to interact with the bot
+                </span>
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  Allowed Chat IDs (<code>TELEGRAM_ALLOWED_CHATS</code>)
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="-1001234567890"
+                  value={form.telegramAllowedChats || ''}
+                  onChange={(e) => setForm({ ...form, telegramAllowedChats: e.target.value })}
+                />
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                  Optional allowed chat IDs (use negative numbers for Telegram group chats)
+                </span>
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  Command Priority Mode (<code>command_menu.priority_mode</code>)
+                </label>
+                <select
+                  className="form-input"
+                  value={form.telegramCommandMenuPriorityMode || 'prepend'}
+                  onChange={(e) => setForm({ ...form, telegramCommandMenuPriorityMode: e.target.value })}
+                >
+                  <option value="prepend">prepend — custom commands first, then Hermes defaults</option>
+                  <option value="append">append — Hermes defaults first, then custom</option>
+                  <option value="replace">replace — custom commands only</option>
+                </select>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                  Order of bot command menu suggestions in Telegram client
+                </span>
+              </div>
+            </div>
+
+            {/* Telegram Behavior & Group Options */}
+            <div style={{ padding: 18, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+              <h4 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px 0' }}>Group Chat &amp; Status Behavior</h4>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>Require @Mention in Groups</span>
+                    <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
+                      Bot only responds when directly tagged in group conversations
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={form.telegramRequireMention}
+                    onChange={(e) => setForm({ ...form, telegramRequireMention: e.target.checked })}
+                  />
+                </label>
+
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>Status Indicator in Bio</span>
+                    <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
+                      Updates short description to 🟢 Online / 🔴 Offline automatically
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={form.telegramStatusIndicator}
+                    onChange={(e) => setForm({ ...form, telegramStatusIndicator: e.target.checked })}
+                  />
+                </label>
+
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>Observe Unmentioned Group Messages</span>
+                    <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
+                      Captures group context silently without triggering responses
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={form.telegramObserveUnmentioned}
+                    onChange={(e) => setForm({ ...form, telegramObserveUnmentioned: e.target.checked })}
+                  />
+                </label>
+              </div>
+
+              {/* Status String Customization */}
+              {form.telegramStatusIndicator && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginTop: 14 }}>
+                  <div>
+                    <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Online Status String</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={form.telegramStatusOnline || '🟢 Online'}
+                      onChange={(e) => setForm({ ...form, telegramStatusOnline: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Offline Status String</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={form.telegramStatusOffline || '🔴 Offline'}
+                      onChange={(e) => setForm({ ...form, telegramStatusOffline: e.target.value })}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Optional Webhook Mode Accordion */}
+            <div style={{ padding: 18, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <RiGlobalLine size={18} style={{ color: 'var(--primary)' }} />
+                <h4 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>Webhook Mode (Optional for Cloud / Serverless Deployments)</h4>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 14px 0' }}>
+                When <code>TELEGRAM_WEBHOOK_URL</code> is set, the gateway transitions from outbound long-polling to an inbound HTTPS webhook listener.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Webhook URL</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="https://your-domain.com/telegram"
+                    value={form.telegramWebhookUrl || ''}
+                    onChange={(e) => setForm({ ...form, telegramWebhookUrl: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Webhook Secret Token</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="Secret for request validation"
+                    value={form.telegramWebhookSecret || ''}
+                    onChange={(e) => setForm({ ...form, telegramWebhookSecret: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Webhook Listener Port</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={form.telegramWebhookPort || 8443}
+                    onChange={(e) => setForm({ ...form, telegramWebhookPort: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── WHATSAPP CLOUD PANEL ──────────────────────────────────── */}
+        {activeGateway === 'whatsapp' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Meta Developer Setup Guide */}
+            <div
+              style={{
+                padding: 16,
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 12,
+              }}
+            >
+              <RiInformationLine size={22} style={{ color: '#25D366', flexShrink: 0, marginTop: 2 }} />
+              <div style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                <strong style={{ color: 'var(--text-primary)' }}>WhatsApp Business Cloud Setup:</strong>
+                <ol style={{ margin: '6px 0 0 16px', padding: 0 }}>
+                  <li>Create a Business App on <a href="https://developers.facebook.com" target="_blank" rel="noopener noreferrer" style={{ color: '#25D366', textDecoration: 'none', fontWeight: 600 }}>developers.facebook.com <RiExternalLinkLine style={{ verticalAlign: 'middle' }} /></a> and add the WhatsApp product.</li>
+                  <li>In Meta Business Settings &rarr; System Users, generate a <strong>Permanent System User Token</strong> with <code>whatsapp_business_messaging</code>.</li>
+                  <li>In Meta WhatsApp &rarr; Configuration, set the Webhook URL to: <code>{webhookCallbackUrl}</code></li>
+                </ol>
+              </div>
+            </div>
+
+            {/* Webhook URL Copy Box */}
+            <div style={{ padding: 14, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+              <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Your Public Meta Webhook Callback URL</label>
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  readOnly
+                  value={webhookCallbackUrl}
+                  style={{ fontFamily: 'monospace', fontSize: 12, background: 'var(--bg-card)' }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => handleCopy(webhookCallbackUrl, 'whatsapp_webhook')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  {copiedText === 'whatsapp_webhook' ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
+                  {copiedText === 'whatsapp_webhook' ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            </div>
+
+            {/* WhatsApp Credentials Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  Permanent Access Token (<code>WHATSAPP_CLOUD_ACCESS_TOKEN</code>)
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showSecrets['whatsappAccessToken'] ? 'text' : 'password'}
+                    className="form-input"
+                    placeholder={form.whatsappAccessTokenSet && !form.whatsappAccessToken ? '•••••••• (Stored Securely)' : 'EAAG...'}
+                    value={form.whatsappAccessToken || ''}
+                    onChange={(e) => setForm({ ...form, whatsappAccessToken: e.target.value })}
+                    style={{ paddingRight: 40 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleSecret('whatsappAccessToken')}
+                    style={{
+                      position: 'absolute',
+                      right: 10,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {showSecrets['whatsappAccessToken'] ? <RiEyeOffLine size={16} /> : <RiEyeLine size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  Phone Number ID (<code>WHATSAPP_CLOUD_PHONE_NUMBER_ID</code>)
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="100609321..."
+                  value={form.whatsappPhoneNumberId || ''}
+                  onChange={(e) => setForm({ ...form, whatsappPhoneNumberId: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  WhatsApp Business Account ID (WABA ID)
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="101509123..."
+                  value={form.whatsappWabaId || ''}
+                  onChange={(e) => setForm({ ...form, whatsappWabaId: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  Webhook Verify Token (<code>WHATSAPP_CLOUD_VERIFY_TOKEN</code>)
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="my_custom_webhook_secret"
+                  value={form.whatsappVerifyToken || ''}
+                  onChange={(e) => setForm({ ...form, whatsappVerifyToken: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  Allowed Sender Numbers (E.164 without +)
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="15551234567, 447911123456"
+                  value={form.whatsappAllowedUsers || ''}
+                  onChange={(e) => setForm({ ...form, whatsappAllowedUsers: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  Text Batch Delay (Seconds)
+                </label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={form.whatsappTextBatchDelay || 2}
+                  onChange={(e) => setForm({ ...form, whatsappTextBatchDelay: Number(e.target.value) })}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── EMAIL (IMAP/SMTP) PANEL ───────────────────────────────── */}
+        {activeGateway === 'email' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Preset Buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Quick Presets:</span>
+              {EMAIL_PRESETS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => applyEmailPreset(p.id)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Email Credentials Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  Hermes Email Address (<code>EMAIL_ADDRESS</code>)
+                </label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="hermes-agent@yourdomain.com"
+                  value={form.emailAddress || ''}
+                  onChange={(e) => setForm({ ...form, emailAddress: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  App Password / SMTP Password (<code>EMAIL_PASSWORD</code>)
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showSecrets['emailPassword'] ? 'text' : 'password'}
+                    className="form-input"
+                    placeholder={form.emailPasswordSet && !form.emailPassword ? '•••••••• (Stored Securely)' : 'App-specific password'}
+                    value={form.emailPassword || ''}
+                    onChange={(e) => setForm({ ...form, emailPassword: e.target.value })}
+                    style={{ paddingRight: 40 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleSecret('emailPassword')}
+                    style={{
+                      position: 'absolute',
+                      right: 10,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {showSecrets['emailPassword'] ? <RiEyeOffLine size={16} /> : <RiEyeLine size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  IMAP Host (Incoming Mail)
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="imap.gmail.com"
+                  value={form.emailImapHost || 'imap.gmail.com'}
+                  onChange={(e) => setForm({ ...form, emailImapHost: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  IMAP Port (Default: 993 SSL)
+                </label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={form.emailImapPort || 993}
+                  onChange={(e) => setForm({ ...form, emailImapPort: Number(e.target.value) })}
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  SMTP Host (Outgoing Mail)
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="smtp.gmail.com"
+                  value={form.emailSmtpHost || 'smtp.gmail.com'}
+                  onChange={(e) => setForm({ ...form, emailSmtpHost: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  SMTP Port (Default: 587 STARTTLS)
+                </label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={form.emailSmtpPort || 587}
+                  onChange={(e) => setForm({ ...form, emailSmtpPort: Number(e.target.value) })}
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  Poll Interval (Seconds)
+                </label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={form.emailPollInterval || 15}
+                  onChange={(e) => setForm({ ...form, emailPollInterval: Number(e.target.value) })}
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  Allowed Sender Email Addresses
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="user@company.com, admin@org.com"
+                  value={form.emailAllowedUsers || ''}
+                  onChange={(e) => setForm({ ...form, emailAllowedUsers: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── WEBHOOKS PANEL ────────────────────────────────────────── */}
+        {activeGateway === 'webhooks' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  Webhook Server Port (<code>WEBHOOK_PORT</code>)
+                </label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={form.webhookPort || 8644}
+                  onChange={(e) => setForm({ ...form, webhookPort: Number(e.target.value) })}
+                />
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                  Internal TCP port for the Hermes webhook daemon listener
+                </span>
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>
+                  Global HMAC Secret (<code>WEBHOOK_SECRET</code>)
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showSecrets['webhookSecret'] ? 'text' : 'password'}
+                    className="form-input"
+                    placeholder={form.webhookSecretSet && !form.webhookSecret ? '•••••••• (Stored Securely)' : 'Global HMAC secret token'}
+                    value={form.webhookSecret || ''}
+                    onChange={(e) => setForm({ ...form, webhookSecret: e.target.value })}
+                    style={{ paddingRight: 40 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleSecret('webhookSecret')}
+                    style={{
+                      position: 'absolute',
+                      right: 10,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {showSecrets['webhookSecret'] ? <RiEyeOffLine size={16} /> : <RiEyeLine size={16} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Webhook Routes Configurator */}
+            <div style={{ padding: 18, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>Configured Webhook Routes</h4>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
+                    Map URL paths to event types and custom agent skill profiles
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={addWebhookRoute}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <RiAddLine size={16} />
+                  Add Route
+                </button>
+              </div>
+
+              {(!form.webhookRoutes || form.webhookRoutes.length === 0) ? (
+                <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-secondary)', fontSize: 13 }}>
+                  No webhook routes defined. Click <strong>Add Route</strong> to configure GitHub / GitLab endpoints.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {form.webhookRoutes.map((route, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: 14,
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border)',
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr)) 40px',
+                        gap: 10,
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div>
+                        <label className="form-label" style={{ fontSize: 11 }}>Route Name (URL Path)</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="github-events"
+                          value={route.name}
+                          onChange={(e) => updateWebhookRoute(idx, 'name', e.target.value)}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="form-label" style={{ fontSize: 11 }}>Events (Comma-separated)</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="push, pull_request"
+                          value={(route.events || []).join(', ')}
+                          onChange={(e) => updateWebhookRoute(idx, 'events', e.target.value)}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="form-label" style={{ fontSize: 11 }}>Per-Route Secret (Optional)</label>
+                        <input
+                          type="password"
+                          className="form-input"
+                          placeholder="Override secret"
+                          value={route.secret || ''}
+                          onChange={(e) => updateWebhookRoute(idx, 'secret', e.target.value)}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="form-label" style={{ fontSize: 11 }}>Agent Profile (Optional)</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="devops"
+                          value={route.profile || ''}
+                          onChange={(e) => updateWebhookRoute(idx, 'profile', e.target.value)}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14 }}>
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-sm"
+                          onClick={() => removeWebhookRoute(idx)}
+                          style={{ padding: 6 }}
+                        >
+                          <RiDeleteBin6Line size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* ── 3. Live Diagnostic & Connection Testing Console ────────────── */}
+      <section className="glass-card" style={{ padding: 24 }}>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <RiRefreshLine size={18} style={{ color: 'var(--primary)' }} />
+            <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Live Gateway Diagnostic Console</h3>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+            Execute real-time API queries against active credentials to verify connectivity and network latency
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {activeGateway === 'telegram' && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleTestTelegram}
+              disabled={testingTelegram || (!form.telegramBotToken && !form.telegramBotTokenSet)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              {testingTelegram ? <RiRefreshLine className="spin" size={16} /> : <RiTelegramLine size={16} />}
+              {testingTelegram ? 'Testing Telegram API...' : 'Test Telegram Bot Token'}
+            </button>
+          )}
+
+          {activeGateway === 'whatsapp' && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleTestWhatsApp}
+              disabled={testingWhatsApp || (!form.whatsappAccessToken && !form.whatsappAccessTokenSet)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              {testingWhatsApp ? <RiRefreshLine className="spin" size={16} /> : <RiWhatsappLine size={16} />}
+              {testingWhatsApp ? 'Testing Meta Graph API...' : 'Test WhatsApp Cloud Credentials'}
+            </button>
+          )}
+
+          {activeGateway === 'email' && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleTestEmail}
+              disabled={testingEmail || !form.emailImapHost}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              {testingEmail ? <RiRefreshLine className="spin" size={16} /> : <RiMailLine size={16} />}
+              {testingEmail ? 'Probing IMAP Socket...' : 'Test IMAP Connection'}
+            </button>
+          )}
+
+          {activeGateway === 'webhooks' && (
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <RiInformationLine size={16} style={{ color: 'var(--primary)' }} />
+              <span>Webhook server runs continuously inside the <code>hermes gateway</code> supervisor process on port <strong>{form.webhookPort || 8644}</strong>.</span>
+            </div>
+          )}
+        </div>
+
+        {/* Telegram Diagnostic Result */}
+        {activeGateway === 'telegram' && telegramTestResult && (
+          <div
+            style={{
+              marginTop: 16,
+              padding: 16,
+              borderRadius: 'var(--radius-md)',
+              background: telegramTestResult.ok ? 'var(--bg-elevated)' : 'rgba(239, 68, 68, 0.08)',
+              border: `1px solid ${telegramTestResult.ok ? 'var(--border)' : 'rgba(239, 68, 68, 0.3)'}`,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {telegramTestResult.ok ? (
+                  <RiCheckLine size={18} style={{ color: 'var(--success, #10b981)' }} />
+                ) : (
+                  <RiAlertLine size={18} style={{ color: '#ef4444' }} />
+                )}
+                <strong style={{ fontSize: 13, color: telegramTestResult.ok ? 'var(--text-primary)' : '#ef4444' }}>
+                  {telegramTestResult.message}
+                </strong>
+              </div>
+              {telegramTestResult.latencyMs !== undefined && (
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                  Latency: <strong>{telegramTestResult.latencyMs}ms</strong>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* WhatsApp Diagnostic Result */}
+        {activeGateway === 'whatsapp' && whatsappTestResult && (
+          <div
+            style={{
+              marginTop: 16,
+              padding: 16,
+              borderRadius: 'var(--radius-md)',
+              background: whatsappTestResult.ok ? 'var(--bg-elevated)' : 'rgba(239, 68, 68, 0.08)',
+              border: `1px solid ${whatsappTestResult.ok ? 'var(--border)' : 'rgba(239, 68, 68, 0.3)'}`,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {whatsappTestResult.ok ? (
+                  <RiCheckLine size={18} style={{ color: 'var(--success, #10b981)' }} />
+                ) : (
+                  <RiAlertLine size={18} style={{ color: '#ef4444' }} />
+                )}
+                <strong style={{ fontSize: 13, color: whatsappTestResult.ok ? 'var(--text-primary)' : '#ef4444' }}>
+                  {whatsappTestResult.message}
+                </strong>
+              </div>
+              {whatsappTestResult.latencyMs !== undefined && (
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                  Latency: <strong>{whatsappTestResult.latencyMs}ms</strong>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Email Diagnostic Result */}
+        {activeGateway === 'email' && emailTestResult && (
+          <div
+            style={{
+              marginTop: 16,
+              padding: 16,
+              borderRadius: 'var(--radius-md)',
+              background: emailTestResult.ok ? 'var(--bg-elevated)' : 'rgba(239, 68, 68, 0.08)',
+              border: `1px solid ${emailTestResult.ok ? 'var(--border)' : 'rgba(239, 68, 68, 0.3)'}`,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {emailTestResult.ok ? (
+                  <RiCheckLine size={18} style={{ color: 'var(--success, #10b981)' }} />
+                ) : (
+                  <RiAlertLine size={18} style={{ color: '#ef4444' }} />
+                )}
+                <strong style={{ fontSize: 13, color: emailTestResult.ok ? 'var(--text-primary)' : '#ef4444' }}>
+                  {emailTestResult.message}
+                </strong>
+              </div>
+              {emailTestResult.latencyMs !== undefined && (
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                  Latency: <strong>{emailTestResult.latencyMs}ms</strong>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* ── Save Configuration Action Bar ─────────────────────────────── */}
+      <div
+        className="glass-card"
+        style={{
+          padding: '16px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12,
+          position: 'sticky',
+          bottom: 20,
+          zIndex: 10,
+          boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+        }}
+      >
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+          Changes are atomically synced to PostgreSQL database, <code>~/.hermes/config.yaml</code>, and runtime environment.
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={fetchSettings}
+            disabled={saving || loading}
+          >
+            Reset
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleSave}
+            disabled={saving}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            {saving ? <RiRefreshLine className="spin" size={16} /> : <RiCheckLine size={16} />}
+            {saving ? 'Saving...' : 'Save Gateway Configuration'}
+          </button>
+        </div>
       </div>
     </div>
   );
-}
+};

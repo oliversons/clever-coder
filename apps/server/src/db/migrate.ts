@@ -16,8 +16,8 @@ export async function runMigrations(): Promise<void> {
   console.log('[db] Migrations complete.');
 }
 
-// Allow running as a standalone script: node dist/db/migrate.js
-if (process.argv[1] && process.argv[1].endsWith('migrate.js')) {
+// Allow running as a standalone script: node dist/db/migrate.js or npx tsx src/db/migrate.ts
+if (process.argv[1] && (process.argv[1].endsWith('migrate.js') || process.argv[1].endsWith('migrate.ts'))) {
   runMigrations()
     .then(() => closeDb())
     .catch((err) => {

@@ -3700,50 +3700,7 @@ export default function HermesSettings() {
                TAB 9: MESSAGING GATEWAYS
               ══════════════════════════════════════════════════════════════ */}
             {activeTab === 'messaging' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0, paddingBottom: 80 }}>
-                {/* Header */}
-                <div
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(124,58,237,0.12) 0%, rgba(6,182,212,0.08) 100%)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-lg)',
-                    padding: '20px 24px',
-                    marginBottom: 24,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 16,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 46,
-                      height: 46,
-                      borderRadius: 'var(--radius-lg)',
-                      background: 'linear-gradient(135deg, #7c3aed 0%, #2AABEE 100%)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#fff',
-                      flexShrink: 0,
-                      boxShadow: '0 4px 16px rgba(124,58,237,0.4)',
-                      fontSize: 20,
-                    }}
-                  >
-                    💬
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-                      Messaging Gateways
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
-                      Connect Hermes to Telegram, WhatsApp Cloud API, Email (IMAP/SMTP), and Webhooks.
-                      Credentials are written to <code style={{ fontFamily: 'monospace', background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: 3 }}>~/.hermes/.env</code> and{' '}
-                      <code style={{ fontFamily: 'monospace', background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: 3 }}>~/.hermes/config.yaml</code> on save.
-                    </div>
-                  </div>
-                </div>
-                <MessagingGatewaySettings />
-              </div>
+              <MessagingGatewaySettings />
             )}
 
           </motion.div>
